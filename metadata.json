@@ -1,0 +1,5 @@
+{
+  "name": "SuperCriolla",
+  "description": "A dynamic landing page for an online radio station with a built-in admin panel for content and style management.",
+  "requestFramePermissions": ["microphone"]
+}

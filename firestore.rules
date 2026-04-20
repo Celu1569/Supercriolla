@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      // Allow the specific admin email
+      return isAuthenticated() && 
+             request.auth.token.email.lower() == "uncionradio87.7fm@gmail.com";
+    }
+    
+    // Settings configuration
+    match /settings/{settingId} {
+      allow read: if true; // Everyone can read config
+      allow create, update, delete: if isAdmin(); // Only admins can edit
+    }
+    // Messages configuration (Radio Chat)
+    match /messages/{messageId} {
+      allow read: if true; 
+      allow create: if true; // Let anonymous users send chat messages
+      allow update, delete: if isAdmin(); 
+    }
+  }
+}

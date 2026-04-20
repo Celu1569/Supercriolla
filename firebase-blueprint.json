@@ -1,0 +1,39 @@
+{
+  "entities": {
+    "SiteConfig": {
+      "title": "SiteConfig",
+      "description": "Radio station configuration",
+      "type": "object",
+      "properties": {
+        "general": {
+          "type": "object",
+          "description": "General station details"
+        },
+        "navigation": {
+          "type": "object",
+          "description": "Navigation settings"
+        },
+        "appearance": {
+          "type": "object",
+          "description": "Visual appearance"
+        },
+        "content": {
+          "type": "object",
+          "description": "Sections content"
+        },
+        "social": {
+          "type": "object",
+          "description": "Social media links"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/settings/{settingId}": {
+      "schema": {
+        "$ref": "SiteConfig"
+      },
+      "description": "Stores site wide settings"
+    }
+  }
+}
