@@ -136,8 +136,9 @@ async function startServer() {
       const fetchPromises = fetchUrls.map(fetchUrl => 
         axios.get(fetchUrl, {
           timeout: 3000,
-          httpsAgent: httpsAgent
-        }).catch(e => null) // Suppress errors so Promise.all behaves
+          httpsAgent: httpsAgent,
+          responseType: 'text' // Fetch as text to handle malformed JSON
+        }).catch(e => null)
       );
 
       const responses = await Promise.all(fetchPromises);
@@ -145,13 +146,41 @@ async function startServer() {
       for (const response of responses) {
         if (metadataFound || !response || !response.data) continue;
 
+        let data: any;
+        try {
+          // Try standard parse
+          data = JSON.parse(response.data);
+        } catch (e) {
+          try {
+            // Fix trailing commas and try again
+            const fixedText = response.data.replace(/,\s*([\]}])/g, '$1');
+            data = JSON.parse(fixedText);
+          } catch (e2) {
+            // If still fails, try to extract via regex as a last resort
+            const titleMatch = response.data.match(/"title"\s*:\s*"([^"]+)"/);
+            const artistMatch = response.data.match(/"yp_currently_playing"\s*:\s*"([^"]+)"/);
+            if (titleMatch || artistMatch) {
+                const fullTitle = artistMatch ? artistMatch[1] : (titleMatch ? titleMatch[1] : "");
+                if (fullTitle) {
+                    if (fullTitle.includes(' - ')) {
+                        [artist, title] = fullTitle.split(' - ').map((s: string) => s.trim());
+                    } else {
+                        title = fullTitle;
+                    }
+                    metadataFound = true;
+                }
+            }
+            continue;
+          }
+        }
+
         try {
           // Icecast format
-          if (response.data.icestats && response.data.icestats.source) {
+          if (data && data.icestats && data.icestats.source) {
             metadataFound = true;
-            const sources = Array.isArray(response.data.icestats.source) 
-              ? response.data.icestats.source 
-              : [response.data.icestats.source];
+            const sources = Array.isArray(data.icestats.source) 
+              ? data.icestats.source 
+              : [data.icestats.source];
             
             let source;
             if (stream) {
@@ -163,30 +192,25 @@ async function startServer() {
                     source = sources[0];
                 }
             } else {
-                source = sources.find((s: any) => s.listenurl && s.listenurl.includes('/live')) || sources[0];
+                source = sources.find((s: any) => s.listenurl && (s.listenurl.includes('/live') || s.listenurl.includes('/stream'))) || sources[0];
             }
             
-            // In Icecast, sometimes title is in yp_currently_playing, sometimes just title.
-            // Often "server_name" acting as station name and "title" acting as song.
             const extractedTitle = source?.yp_currently_playing || source?.title || "";
             if (extractedTitle) {
               if (extractedTitle.includes(' - ')) {
-                // Common convention separates artist and title
                 [artist, title] = extractedTitle.split(' - ').map((s: string) => s.trim());
-                // Handle cases where order is swapped implicitly if it looks like it
               } else {
                 title = extractedTitle;
-                // Keep 'artist' generic if there's no split, or use server_description
-                if (source?.server_name) {
+                if (source?.server_name && !source.server_name.includes('Supercriolla')) {
                    artist = source.server_name;
                 }
               }
             }
           } 
           // Shoutcast format
-          else if (response.data.songtitle) {
+          else if (data && data.songtitle) {
             metadataFound = true;
-            const fullTitle = response.data.songtitle;
+            const fullTitle = data.songtitle;
             if (fullTitle.includes(' - ')) {
               [artist, title] = fullTitle.split(' - ').map((s: string) => s.trim());
             } else {
@@ -197,9 +221,22 @@ async function startServer() {
         }
       }
 
-      // Try iTunes only if we have a real song name
+      // Try iTunes only if we have a real song name and it's not generic
       let itunesCover = '';
-      if (title && artist && title !== "Transmisión" && artist !== "En Vivo") {
+      const isGeneric = (val: string) => {
+        if (!val) return true;
+        const lower = val.toLowerCase();
+        return lower === "señal en directo" || 
+               lower === "recuperando señal..." || 
+               lower === "conectando..." || 
+               lower === "en vivo" ||
+               lower === "transmision" ||
+               lower === "transmisión" ||
+               lower === "pasion por lo nuestro" ||
+               lower === "pasión por lo nuestro";
+      };
+      
+      if (title && artist && !isGeneric(title) && !isGeneric(artist)) {
           try {
             const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(`${artist} ${title}`)}&media=music&limit=1`;
             const itunesResponse = await axios.get(itunesUrl, { timeout: 3000 });
@@ -216,6 +253,10 @@ async function startServer() {
       if (itunesCover) {
           cover = itunesCover;
       }
+
+      // Final cleanup of generic strings
+      if (isGeneric(title)) title = "";
+      if (isGeneric(artist)) artist = "";
 
       res.json({ title, artist, cover });
     } catch (error) {

@@ -43,8 +43,24 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
           const data = await response.json();
           // Avoid overwriting with bad data, use fallbacks
           if (!data.cover) data.cover = config.navigation.logoUrl;
-          if (!data.artist || data.artist === "En Vivo") data.artist = config.general.stationName;
-          if (!data.title) data.title = "Señal en directo";
+          
+          // Filter generic strings that the user wants to remove
+          const isGenericString = (s: string) => {
+            if (!s) return true;
+            const lower = s.toLowerCase();
+            return lower.includes("transmision") || 
+                   lower.includes("en vivo") || 
+                   lower.includes("pasion por lo nuestro") ||
+                   lower.includes("pasión por lo nuestro");
+          };
+
+          if (!data.artist || isGenericString(data.artist)) {
+            data.artist = config.general.stationName || "Radio en Vivo";
+          }
+          if (!data.title || isGenericString(data.title)) {
+            data.title = "Señal en directo";
+          }
+          
           setMetadata(data);
         }
       } catch (e) {
@@ -256,9 +272,9 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
             {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
           </button>
           
-          <div className="flex items-center space-x-3 overflow-hidden">
+          <div className="flex items-center space-x-3 flex-1 min-w-0 overflow-hidden">
             {/* Mini Cover - Always visible now */}
-            <div className="w-12 h-12 rounded bg-gray-800 flex-shrink-0 overflow-hidden flex items-center justify-center">
+            <div className="w-14 h-14 rounded bg-gray-800 flex-shrink-0 overflow-hidden flex items-center justify-center shadow-inner">
                 {metadata.cover || config.navigation.logoUrl ? (
                     <img 
                         src={metadata.cover || config.navigation.logoUrl} 
@@ -273,20 +289,20 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
                         }}
                     />
                 ) : (
-                    <Radio className="text-white/50 w-6 h-6" />
+                    <Radio className="text-white/50 w-7 h-7" />
                 )}
             </div>
-            <div className="overflow-hidden flex flex-col justify-center">
-                   <p className="text-sm truncate font-bold text-white mb-0.5" title={metadata.title}>{metadata.title}</p>
-                   <p className="text-[11px] truncate text-white/70" title={metadata.artist}>{metadata.artist || 'Radio en Vivo'}</p>
+            <div className="min-w-0 flex-1 flex flex-col justify-center">
+                   <p className="text-base truncate font-bold text-white mb-0.5 leading-tight" title={metadata.title}>{metadata.title}</p>
+                   <p className="text-xs truncate text-secondary font-medium" title={metadata.artist}>{metadata.artist || 'Radio en Vivo'}</p>
             </div>
           </div>
           
           {error && <span className="text-xs text-red-300 font-bold ml-2 whitespace-nowrap">Offline</span>}
         </div>
 
-        {/* Volume Control Section */}
-        <div className="flex items-center gap-3 w-auto md:w-1/3 max-w-[200px] justify-end">
+        {/* Volume Control Section - Hide on small screens to give space to metadata */}
+        <div className="hidden md:flex items-center gap-3 w-auto md:w-1/3 max-w-[200px] justify-end">
           <div className="relative group">
             <button 
                 onClick={toggleMute} 

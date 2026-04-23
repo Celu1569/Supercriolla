@@ -3,9 +3,10 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
+  state = { hasError: false, error: null };
+
   constructor(props: {children: React.ReactNode}) {
     super(props);
-    this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error: Error) {
@@ -17,11 +18,12 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
   }
 
   render() {
-    if (this.state.hasError) {
+    const state = this.state as any;
+    if (state.hasError) {
       return (
         <div style={{ padding: '20px', textAlign: 'center', backgroundColor: '#111', color: '#fff', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <h2>Algo salió mal al cargar la página</h2>
-          <p>Error: {this.state.error?.message}</p>
+          <p>Error: {state.error?.message}</p>
           <button 
             onClick={() => window.location.reload()}
             style={{ padding: '10px 20px', marginTop: '20px', backgroundColor: '#fdba74', color: '#000', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
@@ -31,7 +33,7 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
         </div>
       );
     }
-    return this.props.children;
+    return (this as any).props.children;
   }
 }
 

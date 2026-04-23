@@ -59,7 +59,7 @@ export const handler: Handler = async (event) => {
                     date: item.pubDate ? new Date(item.pubDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Fecha desconocida',
                     parsedDate: item.pubDate ? new Date(item.pubDate).getTime() : 0,
                     image: img || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=1000&auto=format&fit=crop', // Placeholder fallback
-                    author: item.creator || item.author || feed.title || 'Redacción',
+                    author: (item as any).creator || (item as any).author || feed.title || 'Redacción',
                     category: (item.categories && item.categories.length > 0 ? item.categories[0] : feed.title) || 'General',
                     url: item.link,
                     isPublished: true,
