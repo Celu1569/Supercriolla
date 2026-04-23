@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useConfig } from '../context/ConfigContext';
 import { SiteConfig, HeroSlide, PodcastEpisode, GalleryItem, NavItemConfig, FontFamily, Client } from '../types';
-import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Twitter, Newspaper, ChevronUp, ChevronDown, PlayCircle } from 'lucide-react';
+import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Twitter, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock } from 'lucide-react';
 
 // --- CONSTANTS ---
 const FONT_OPTIONS: { value: FontFamily; label: string }[] = [
@@ -39,7 +39,8 @@ interface TabButtonProps {
 }
 
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { storage } from '../firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { storage, db } from '../firebase';
 import { v4 as uuidv4 } from 'uuid';
 
 // --- IMAGE COMPRESSION UTILITY ---
@@ -151,6 +152,125 @@ const InputGroup: React.FC<{ label: string; children?: React.ReactNode; classNam
     {children}
   </div>
 );
+
+const AdminAuthManager: React.FC = () => {
+    const [username, setUsername] = useState('admin');
+    const [password, setPassword] = useState('uncionradio123');
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+    useEffect(() => {
+        const fetchAuth = async () => {
+            try {
+                const authDocRef = doc(db, 'settings', 'auth');
+                const snap = await getDoc(authDocRef);
+                if (snap.exists()) {
+                    const data = snap.data();
+                    setUsername(data.username || 'admin');
+                    setPassword(data.password || 'uncionradio123');
+                }
+                setLoading(false);
+            } catch (e) {
+                console.error("Error fetching auth", e);
+                setLoading(false);
+            }
+        };
+        fetchAuth();
+    }, []);
+
+    const handleSaveAuth = async () => {
+        setSaving(true);
+        setStatus('idle');
+        try {
+            const authDocRef = doc(db, 'settings', 'auth');
+            await setDoc(authDocRef, { username, password });
+            setStatus('success');
+            setTimeout(() => setStatus('idle'), 3000);
+        } catch (e) {
+            console.error("Error saving auth", e);
+            setStatus('error');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+                <Loader2 className="animate-spin mb-4" size={48} />
+                <p>Cargando configuración de seguridad...</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="animate-fade-in space-y-8">
+            <SectionHeader 
+                title="Seguridad y Acceso" 
+                subtitle="Configura el usuario y la clave para entrar a este panel. El acceso por correo ha sido deshabilitado." 
+            />
+            
+            <div className="bg-gray-800 p-8 rounded-2xl border border-gray-700 shadow-xl max-w-2xl mx-auto">
+                <div className="flex items-center space-x-4 mb-8 pb-4 border-b border-gray-700">
+                    <div className="w-12 h-12 bg-purple-600/20 rounded-full flex items-center justify-center text-purple-500">
+                        <Lock size={24} />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold text-white">Credenciales del Administrador</h3>
+                        <p className="text-sm text-gray-400 font-medium">Estos datos reemplazan el inicio de sesión con Google.</p>
+                    </div>
+                </div>
+
+                <div className="space-y-6">
+                    <InputGroup label="Nombre de Usuario">
+                        <input 
+                            type="text" 
+                            value={username} 
+                            onChange={e => setUsername(e.target.value)}
+                            className="w-full bg-gray-900 border border-gray-700 text-white p-4 rounded-xl focus:border-purple-500 outline-none transition-all shadow-inner"
+                            placeholder="Ej: administrador"
+                        />
+                    </InputGroup>
+
+                    <InputGroup label="Clave de Acceso">
+                        <input 
+                            type="text" 
+                            value={password} 
+                            onChange={e => setPassword(e.target.value)}
+                            className="w-full bg-gray-900 border border-gray-700 text-white p-4 rounded-xl focus:border-purple-500 outline-none transition-all shadow-inner"
+                            placeholder="Ej: ClaveSegura2024"
+                        />
+                        <p className="text-xs text-gray-500 mt-2 flex items-center">
+                            <AlertTriangle size={12} className="mr-1 text-amber-500" />
+                            Asegúrate de recordar estos datos antes de cerrar tu sesión.
+                        </p>
+                    </InputGroup>
+
+                    <div className="pt-4">
+                        <button 
+                            onClick={handleSaveAuth}
+                            disabled={saving}
+                            className={`w-full py-4 rounded-xl font-bold text-white transition-all transform active:scale-95 flex items-center justify-center shadow-lg ${
+                                status === 'success' ? 'bg-green-600' :
+                                status === 'error' ? 'bg-red-600' :
+                                saving ? 'bg-gray-700' : 'bg-purple-600 hover:bg-purple-700'
+                            }`}
+                        >
+                            {saving ? <Loader2 size={20} className="animate-spin mr-2" /> : 
+                             status === 'success' ? <RefreshCw size={20} className="mr-2" /> :
+                             <Save size={20} className="mr-2" />}
+                            
+                            {saving ? 'Guardando...' : 
+                             status === 'success' ? 'Credenciales Actualizadas' :
+                             status === 'error' ? 'Error al guardar' : 'Actualizar Credenciales'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const SectionHeader: React.FC<{ title: string; subtitle?: string; action?: React.ReactNode }> = ({ title, subtitle, action }) => (
     <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-700 pb-6 mb-8">
@@ -1437,6 +1557,7 @@ export const AdminPanel: React.FC = () => {
           <TabButton id="chat" activeTab={activeTab} onClick={setActiveTab} icon={MessageSquare} label="Chat" />
           <TabButton id="leads" activeTab={activeTab} onClick={setActiveTab} icon={Users} label="Oyentes" />
           <TabButton id="general" activeTab={activeTab} onClick={setActiveTab} icon={Radio} label="Footer" />
+          <TabButton id="auth" activeTab={activeTab} onClick={setActiveTab} icon={Lock} label="Acceso" />
       </nav>
 
       {/* Main Content Area */}
@@ -2763,13 +2884,18 @@ export const AdminPanel: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                      {Object.entries(formData.social).map(([key, val]) => (
                         <InputGroup key={key} label={key.charAt(0).toUpperCase() + key.slice(1)}>
-                            <input type="text" value={val || ''} onChange={e => setFormData(prev => ({...prev, social: { ...prev.social, [key]: e.target.value }}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" />
+                            <input type="text" value={val || ''} onChange={e => setFormData(prev => {
+                                const newSocial = { ...prev.social, [key]: e.target.value };
+                                return { ...prev, social: newSocial as any };
+                            })} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" />
                         </InputGroup>
                      ))}
                 </div>
                 <SaveAction />
               </div>
             )}
+
+            {activeTab === 'auth' && <AdminAuthManager />}
             
         </div>
       </main>

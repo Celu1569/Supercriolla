@@ -1,16 +1,16 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { SiteConfig } from '../types';
 import { DEFAULT_CONFIG } from '../constants';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db, auth, hasFirebaseKeys } from '../firebase';
-import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 
 interface ConfigContextType {
   config: SiteConfig;
   updateConfig: (newConfig: SiteConfig) => void;
   resetConfig: () => void;
   isAuthenticated: boolean;
-  login: () => Promise<boolean>;
+  login: (username?: string, password?: string) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -258,50 +258,71 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
     }
   };
 
-  // Check auth state from Firebase Auth
+  // Check auth state from Local Storage for persistence
   useEffect(() => {
-    if (!hasFirebaseKeys) return;
-    
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      // For this specific app, we check if they are the designated admin or have logged in properly
-      if (user) {
+    const isAuth = localStorage.getItem('radio_admin_auth') === 'true';
+    if (isAuth) {
         setIsAuthenticated(true);
-      } else {
-        setIsAuthenticated(false);
-      }
-    });
-    return () => unsubscribe();
+    }
   }, []);
 
-  const login = async () => {
+  const login = async (username?: string, password?: string) => {
     if (!hasFirebaseKeys) {
-        alert("El sistema de administración está deshabilitado porque no se han configurado las llaves de Firebase.");
+        // Standalone mode: check against a simple default
+        if (username === 'admin' && password === 'admin123') {
+            setIsAuthenticated(true);
+            localStorage.setItem('radio_admin_auth', 'true');
+            return true;
+        }
         return false;
     }
+    
     try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      if (result.user) {
+      // Check against settings/auth document in Firestore
+      const authDocRef = doc(db, 'settings', 'auth');
+      const snap = await getDoc(authDocRef);
+      
+      let validUser = 'admin';
+      let validPass = 'uncionradio123';
+      
+      if (snap.exists()) {
+        const data = snap.data();
+        validUser = data.username || validUser;
+        validPass = data.password || validPass;
+      } else {
+        // Initialize default if not exists (first time)
+        try {
+            await setDoc(authDocRef, { username: validUser, password: validPass });
+        } catch (err) {
+            console.warn("Could not auto-initialize auth doc", err);
+        }
+      }
+
+      if (username === validUser && password === validPass) {
         setIsAuthenticated(true);
+        localStorage.setItem('radio_admin_auth', 'true');
         return true;
       }
       return false;
     } catch (e) {
-      console.error("Firebase Login Error", e);
+      console.error("Login Error", e);
+      // Fallback if firestore read fails but they are using defaults
+      if (username === 'admin' && password === 'uncionradio123') {
+          setIsAuthenticated(true);
+          localStorage.setItem('radio_admin_auth', 'true');
+          return true;
+      }
       return false;
     }
   };
 
   const logout = async () => {
-    if (!hasFirebaseKeys) {
-        setIsAuthenticated(false);
-        return;
-    }
-    try {
-      await signOut(auth);
-      setIsAuthenticated(false);
-    } catch (e) {
-      console.error("Logout Error", e);
+    localStorage.removeItem('radio_admin_auth');
+    setIsAuthenticated(false);
+    if (hasFirebaseKeys) {
+        try {
+            await signOut(auth);
+        } catch (e) {}
     }
   };
 
