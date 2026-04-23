@@ -3,8 +3,8 @@ import { useConfig } from '../context/ConfigContext';
 import { RadioPlayer } from './RadioPlayer';
 import Chat from './Chat';
 import { ClientGallery } from './ClientGallery';
+import { SocialEmbed } from './SocialEmbed';
 import { Menu, X, Facebook, Instagram, Twitter, Youtube, Phone, Mail, MapPin, Radio, ChevronLeft, ChevronRight, Sun, Moon, PlayCircle, Video, Heart, CreditCard, Tv, Play, MessageSquare, Users, Mic2, Newspaper, Calendar, User, ArrowRight, ChevronDown } from 'lucide-react';
-import { InstagramEmbed, TikTokEmbed, FacebookEmbed, TwitterEmbed } from 'react-social-media-embed';
 import { NewsItem } from '../types';
 
 interface NavLinkProps {
@@ -904,10 +904,7 @@ const PublicView: React.FC = () => {
                             ) : (
                                 <div className="w-full h-full min-h-[400px] flex flex-col bg-surface-alt p-2">
                                     <div className="flex-1 overflow-hidden rounded-lg flex justify-center items-center">
-                                        {img.type === 'instagram' && <InstagramEmbed url={img.url} width="100%" />}
-                                        {img.type === 'tiktok' && <TikTokEmbed url={img.url} width="100%" />}
-                                        {img.type === 'facebook' && <FacebookEmbed url={img.url} width="100%" />}
-                                        {img.type === 'twitter' && <TwitterEmbed url={img.url} width="100%" />}
+                                        <SocialEmbed url={img.url} type={img.type as any} />
                                     </div>
                                     {img.caption && (
                                         <div className="mt-2 p-2 text-xs text-on-surface-muted italic border-t border-white/5">
