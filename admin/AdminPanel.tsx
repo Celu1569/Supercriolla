@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useConfig } from '../context/ConfigContext';
 import { SiteConfig, HeroSlide, PodcastEpisode, GalleryItem, NavItemConfig, FontFamily, Client } from '../types';
-import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Twitter, Newspaper, ChevronUp, ChevronDown } from 'lucide-react';
+import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Twitter, Newspaper, ChevronUp, ChevronDown, PlayCircle } from 'lucide-react';
 
 // --- CONSTANTS ---
 const FONT_OPTIONS: { value: FontFamily; label: string }[] = [
@@ -134,31 +134,31 @@ const uploadFileToStorage = async (file: File, path: string): Promise<string> =>
 const TabButton: React.FC<TabButtonProps> = ({ id, activeTab, icon: Icon, label, onClick }) => (
   <button
     onClick={() => onClick(id)}
-    className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all w-full text-left mb-1 ${
+    className={`flex items-center space-x-2 px-5 py-3 rounded-xl transition-all whitespace-nowrap outline-none ${
       activeTab === id 
-        ? 'bg-primary text-white shadow-md font-medium translate-x-1' 
+        ? 'bg-primary text-white shadow-lg shadow-primary/20 font-bold scale-105' 
         : 'text-gray-400 hover:bg-gray-800 hover:text-white'
     }`}
   >
-    <Icon size={18} className={activeTab === id ? 'text-secondary' : 'text-gray-500'} />
-    <span>{label}</span>
+    <Icon size={20} className={activeTab === id ? 'text-white' : 'text-gray-500'} />
+    <span className="text-sm md:text-base">{label}</span>
   </button>
 );
 
-const InputGroup: React.FC<{ label: string; children?: React.ReactNode; className?: string }> = ({ label, children, className = "mb-4" }) => (
+const InputGroup: React.FC<{ label: string; children?: React.ReactNode; className?: string }> = ({ label, children, className = "mb-8" }) => (
   <div className={className}>
-    <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wide">{label}</label>
+    <label className="block text-sm md:text-base font-bold text-gray-300 mb-3 uppercase tracking-wide">{label}</label>
     {children}
   </div>
 );
 
 const SectionHeader: React.FC<{ title: string; subtitle?: string; action?: React.ReactNode }> = ({ title, subtitle, action }) => (
-    <div className="flex justify-between items-start border-b border-gray-700 pb-4 mb-6">
-        <div>
-            <h2 className="text-2xl font-bold text-white">{title}</h2>
-            {subtitle && <p className="text-gray-400 text-sm mt-1">{subtitle}</p>}
+    <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-700 pb-6 mb-8">
+        <div className="mb-4 md:mb-0">
+            <h2 className="text-3xl font-bold text-white tracking-tight">{title}</h2>
+            {subtitle && <p className="text-gray-400 text-base mt-2">{subtitle}</p>}
         </div>
-        {action}
+        {action && <div>{action}</div>}
     </div>
 );
 
@@ -1248,6 +1248,94 @@ export const AdminPanel: React.FC = () => {
     }));
   };
 
+  const addRssFeed = () => {
+    const newFeed = {
+        id: uuidv4(),
+        name: "Nuevo Portal",
+        url: ""
+    };
+    setFormData(prev => ({
+        ...prev,
+        content: {
+            ...prev.content,
+            news: {
+                title: prev.content.news?.title || "Noticias",
+                description: prev.content.news?.description || "Mantente informado.",
+                articles: prev.content.news?.articles || [],
+                rssFeeds: [newFeed, ...(prev.content.news?.rssFeeds || [])]
+            }
+        }
+    }));
+  };
+
+  const removeRssFeed = (id: string) => {
+    setFormData(prev => ({
+        ...prev,
+        content: {
+            ...prev.content,
+            news: prev.content.news ? {
+                ...prev.content.news,
+                rssFeeds: (prev.content.news.rssFeeds || []).filter(f => f.id !== id)
+            } : undefined
+        }
+    }));
+  };
+
+  const updateRssFeed = (id: string, field: string, value: string) => {
+    setFormData(prev => ({
+        ...prev,
+        content: {
+            ...prev.content,
+            news: prev.content.news ? {
+                ...prev.content.news,
+                rssFeeds: (prev.content.news.rssFeeds || []).map(f => f.id === id ? { ...f, [field]: value } : f)
+            } : undefined
+        }
+    }));
+  };
+
+  const addTopVideo = () => {
+    const newVideo = { id: uuidv4(), title: "Nuevo Latigazo", url: "" };
+    setFormData(prev => ({
+        ...prev,
+        content: {
+            ...prev.content,
+            topVideos: {
+                enabled: prev.content.topVideos?.enabled ?? true,
+                title: prev.content.topVideos?.title || "Los 5 Latigazos de la semana",
+                description: prev.content.topVideos?.description || "",
+                videos: [...(prev.content.topVideos?.videos || []), newVideo]
+            }
+        }
+    }));
+  };
+
+  const removeTopVideo = (id: string) => {
+    setFormData(prev => ({
+        ...prev,
+        content: {
+            ...prev.content,
+            topVideos: prev.content.topVideos ? {
+                ...prev.content.topVideos,
+                videos: (prev.content.topVideos.videos || []).filter(v => v.id !== id)
+            } : undefined
+        }
+    }));
+  };
+
+  const updateTopVideo = (id: string, field: string, value: string) => {
+    setFormData(prev => ({
+        ...prev,
+        content: {
+            ...prev.content,
+            topVideos: prev.content.topVideos ? {
+                ...prev.content.topVideos,
+                videos: (prev.content.topVideos.videos || []).map(v => v.id === id ? { ...v, [field]: value } : v)
+            } : undefined
+        }
+    }));
+  };
+
   const addClientProductImage = (clientId: string, imageUrl: string) => {
     setFormData(prev => ({
       ...prev,
@@ -1293,69 +1381,67 @@ export const AdminPanel: React.FC = () => {
   );
 
   return (
-    <div className="h-screen bg-gray-950 text-gray-100 flex flex-col md:flex-row overflow-hidden relative">
+    <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col relative w-full">
       
-      <aside className="bg-gray-900 w-full md:w-64 border-r border-gray-800 flex flex-col h-full z-10 shadow-lg">
-        <div className="p-6 border-b border-gray-800 flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-purple-800 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-purple-900/30">
+      {/* Top Header */}
+      <header className="bg-gray-900 border-b border-gray-800 flex items-center justify-between px-6 py-4 shadow-md z-30 sticky top-0 w-full">
+        <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-primary to-purple-800 rounded-xl flex items-center justify-center text-white font-bold text-2xl shadow-lg shadow-purple-900/30">
                 {formData.general.stationName.substring(0,1)}
             </div>
-            <div className="leading-tight">
-                <span className="block font-bold text-white text-sm">Panel Admin</span>
-                <span className="block text-xs text-gray-500">v1.2.0</span>
+            <div>
+                <span className="block font-bold text-white text-lg lg:text-xl tracking-tight">Panel de Administración</span>
+                <span className="block text-sm text-gray-500">v1.3.0 - Unción Radio</span>
             </div>
         </div>
         
-        <nav className="p-4 space-y-1 flex-1 overflow-y-auto custom-scrollbar">
-          <div className="pb-2 pl-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Diseño y Estructura</div>
-          <TabButton id="appearance" activeTab={activeTab} onClick={setActiveTab} icon={Layout} label="Apariencia" />
-          <TabButton id="header" activeTab={activeTab} onClick={setActiveTab} icon={Compass} label="Encabezado y Menú" />
-          <TabButton id="sections" activeTab={activeTab} onClick={setActiveTab} icon={Grid} label="Secciones" />
-          <TabButton id="ribbon" activeTab={activeTab} onClick={setActiveTab} icon={Type} label="Cintillo" />
-          
-          <div className="pt-6 pb-2 pl-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Gestión de Contenido</div>
-          <TabButton id="hero" activeTab={activeTab} onClick={setActiveTab} icon={Home} label="Banner Inicio" />
-          <TabButton id="podcast" activeTab={activeTab} onClick={setActiveTab} icon={Mic2} label="Podcast / En Vivo" />
-          <TabButton id="program" activeTab={activeTab} onClick={setActiveTab} icon={Calendar} label="Programación" />
-          <TabButton id="gallery" activeTab={activeTab} onClick={setActiveTab} icon={Grid} label="Galería" />
-          <TabButton id="clients" activeTab={activeTab} onClick={setActiveTab} icon={Users} label="Clientes" />
-          <TabButton id="news" activeTab={activeTab} onClick={setActiveTab} icon={Newspaper} label="Noticias" />
-          <TabButton id="chat" activeTab={activeTab} onClick={setActiveTab} icon={MessageSquare} label="Chat" />
-          <TabButton id="leads" activeTab={activeTab} onClick={setActiveTab} icon={Users} label="Oyentes / Leads" />
-
-          <div className="pt-6 pb-2 pl-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Sistema</div>
-          <TabButton id="help" activeTab={activeTab} onClick={setActiveTab} icon={AlertTriangle} label="Ayuda Firebase" />
-          <TabButton id="general" activeTab={activeTab} onClick={setActiveTab} icon={Radio} label="General / Footer" />
-        </nav>
-
-        <div className="p-4 border-t border-gray-800 bg-gray-900/50">
-            <button onClick={handleLogout} className="flex items-center space-x-2 text-red-400 hover:text-red-300 hover:bg-red-900/30 p-2 rounded-lg w-full transition-colors mb-2">
-                <LogOut size={18} />
-                <span>Cerrar Sesión</span>
-            </button>
-             <button onClick={handleViewSite} className="w-full text-center text-xs font-medium text-primary hover:text-white py-1 transition-colors">
+        <div className="flex items-center space-x-4">
+             <button onClick={handleViewSite} className="hidden md:block text-sm font-bold text-gray-400 hover:text-white transition-colors">
                 Ver Sitio Público &rarr;
              </button>
-        </div>
-      </aside>
-
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative bg-gray-950">
-        <header className="bg-gray-900 border-b border-gray-800 h-16 flex items-center justify-end px-8 shadow-sm z-10">
+             <button onClick={handleLogout} className="flex items-center space-x-2 text-red-400 hover:text-red-300 hover:bg-red-900/30 px-3 py-2 rounded-lg transition-colors" title="Cerrar Sesión">
+                <LogOut size={20} />
+             </button>
              <button 
                 onClick={handleSave}
                 disabled={saveStatus === 'saving'}
-                className={`flex items-center space-x-2 px-6 py-2 rounded-full text-white font-bold transition-all shadow-md transform hover:scale-105 active:scale-95 ${
-                    saveStatus === 'saved' ? 'bg-green-600' : saveStatus === 'error' ? 'bg-red-600' : saveStatus === 'saving' ? 'bg-gray-600 cursor-wait' : 'bg-primary'
+                className={`flex items-center px-6 py-3 rounded-xl font-bold text-white transition-all shadow-lg ${
+                    saveStatus === 'saving' ? 'bg-gray-700 cursor-not-allowed' :
+                    saveStatus === 'saved' ? 'bg-green-600 shadow-green-900/50' :
+                    saveStatus === 'error' ? 'bg-red-600 shadow-red-900/50' :
+                    'bg-primary hover:bg-primary/90 shadow-primary/30 hover:scale-105'
                 }`}
             >
-                {saveStatus === 'saved' ? <><Save size={18}/><span>Guardado!</span></> : 
-                 saveStatus === 'saving' ? <><Loader2 size={18} className="animate-spin"/><span>Guardando...</span></> : 
-                 <><Save size={18}/><span>Guardar Cambios</span></>}
+                {saveStatus === 'saving' ? <Loader2 size={20} className="animate-spin md:mr-2" /> : 
+                 saveStatus === 'saved' ? <Layout size={20} className="md:mr-2" /> : 
+                 <Save size={20} className="md:mr-2" />}
+                <span className="hidden md:inline">
+                    {saveStatus === 'saving' ? 'Guardando...' : saveStatus === 'saved' ? '¡Guardado!' : 'Guardar Cambios'}
+                </span>
             </button>
-        </header>
+        </div>
+      </header>
+      
+      {/* Horizontal Tabs Navigation */}
+      <nav className="bg-gray-900/95 backdrop-blur-md border-b border-gray-800 flex overflow-x-auto custom-scrollbar px-6 py-3 space-x-3 z-20 sticky top-[80px] w-full">
+          <TabButton id="appearance" activeTab={activeTab} onClick={setActiveTab} icon={Layout} label="Apariencia" />
+          <TabButton id="header" activeTab={activeTab} onClick={setActiveTab} icon={Compass} label="Menú" />
+          <TabButton id="sections" activeTab={activeTab} onClick={setActiveTab} icon={Grid} label="Secciones" />
+          <TabButton id="hero" activeTab={activeTab} onClick={setActiveTab} icon={Home} label="Banner" />
+          <TabButton id="topvideos" activeTab={activeTab} onClick={setActiveTab} icon={PlayCircle} label="Top Videos" />
+          <TabButton id="podcast" activeTab={activeTab} onClick={setActiveTab} icon={Mic2} label="Podcast" />
+          <TabButton id="program" activeTab={activeTab} onClick={setActiveTab} icon={Calendar} label="Program" />
+          <TabButton id="gallery" activeTab={activeTab} onClick={setActiveTab} icon={Grid} label="Galería" />
+          <TabButton id="clients" activeTab={activeTab} onClick={setActiveTab} icon={Users} label="Aliados" />
+          <TabButton id="news" activeTab={activeTab} onClick={setActiveTab} icon={Newspaper} label="Noticias" />
+          <TabButton id="chat" activeTab={activeTab} onClick={setActiveTab} icon={MessageSquare} label="Chat" />
+          <TabButton id="leads" activeTab={activeTab} onClick={setActiveTab} icon={Users} label="Oyentes" />
+          <TabButton id="general" activeTab={activeTab} onClick={setActiveTab} icon={Radio} label="Footer" />
+      </nav>
 
-        <div className="flex-1 overflow-y-auto p-8 bg-black/20">
-            <div className="max-w-5xl mx-auto bg-gray-900 rounded-2xl shadow-xl border border-gray-800 p-8 min-h-full">
+      {/* Main Content Area */}
+      <main className="flex-1 w-full bg-gray-950 p-4 md:p-12 mb-20">
+        <div className="max-w-7xl mx-auto bg-gray-900/50 backdrop-blur-sm rounded-3xl shadow-2xl border border-gray-800 p-6 md:p-12 min-h-full">
             
             {activeTab === 'appearance' && (
               <div className="space-y-6 animate-fade-in">
@@ -2369,7 +2455,156 @@ export const AdminPanel: React.FC = () => {
                     )}
                 </div>
 
+                <div className="mt-12">
+                    <SectionHeader 
+                        title="Fuentes RSS Automáticas" 
+                        subtitle="Agrega URLs de RSS (XML) para mostrar noticias automáticamente de otros portales en vivo." 
+                        action={
+                            <button onClick={addRssFeed} className="bg-secondary text-white px-4 py-2 rounded-lg font-bold hover:bg-orange-600 flex items-center text-sm shadow-md transition-all active:scale-95">
+                                <Plus size={18} className="mr-1"/> Agregar RSS
+                            </button>
+                        }
+                    />
+                    
+                    <div className="space-y-4">
+                        {(formData.content.news?.rssFeeds || []).map((feed, idx) => (
+                            <div key={feed.id} className="bg-gray-800 p-6 rounded-xl border border-gray-700 relative flex items-center gap-6">
+                                <div className="flex-1 space-y-4">
+                                    <div className="flex gap-4">
+                                        <div className="w-1/3">
+                                            <InputGroup label="Nombre del Diario / Portal">
+                                                <input 
+                                                    type="text" 
+                                                    value={feed.name || ''} 
+                                                    onChange={e => updateRssFeed(feed.id, 'name', e.target.value)}
+                                                    className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-secondary outline-none" 
+                                                    placeholder="Ej. Diario Libre"
+                                                />
+                                            </InputGroup>
+                                        </div>
+                                        <div className="w-2/3">
+                                            <InputGroup label="Enlace del feed RSS (.xml)">
+                                                <input 
+                                                    type="text" 
+                                                    value={feed.url || ''} 
+                                                    onChange={e => updateRssFeed(feed.id, 'url', e.target.value)}
+                                                    className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-secondary outline-none font-mono text-sm" 
+                                                    placeholder="https://www.dominio.com/rss/portada.xml"
+                                                />
+                                            </InputGroup>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => removeRssFeed(feed.id)} 
+                                    className="text-gray-500 hover:text-red-500 transition-colors p-3 bg-gray-900 rounded-xl"
+                                    title="Eliminar RSS"
+                                >
+                                    <Trash2 size={24} />
+                                </button>
+                            </div>
+                        ))}
+                        
+                        {(formData.content.news?.rssFeeds || []).length === 0 && (
+                            <div className="text-center py-8 bg-gray-800/50 rounded-xl border border-dashed border-gray-700">
+                                <p className="text-gray-400 text-sm">No hay fuentes RSS configuradas.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 <SaveAction />
+              </div>
+            )}
+
+            {activeTab === 'topvideos' && (
+              <div className="space-y-6 animate-fade-in">
+                  <SectionHeader title="Los 5 Latigazos de la Semana" subtitle="Añade los estrenos y videos más sonados de YouTube." />
+                  
+                  <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 mb-6">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h3 className="text-lg font-bold text-white">Habilitar Sección</h3>
+                            <p className="text-sm text-gray-400">Mostrar o esconder esta sección del sitio de forma global.</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={formData.content.topVideos?.enabled ?? true} 
+                                onChange={(e) => setFormData(prev => ({...prev, content: {...prev.content, topVideos: {...prev.content.topVideos!, enabled: e.target.checked}}}))}
+                                className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                        </label>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <InputGroup label="Título de la Sección">
+                          <input type="text" value={formData.content.topVideos?.title || ''} onChange={e => setFormData(prev => ({...prev, content: {...prev.content, topVideos: {...prev.content.topVideos!, title: e.target.value}}}))} className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg" />
+                      </InputGroup>
+                      <InputGroup label="Descripción">
+                          <input type="text" value={formData.content.topVideos?.description || ''} onChange={e => setFormData(prev => ({...prev, content: {...prev.content, topVideos: {...prev.content.topVideos!, description: e.target.value}}}))} className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg" />
+                      </InputGroup>
+                  </div>
+
+                  <div className="mt-8 border-t border-gray-700 pt-8">
+                      <div className="flex justify-between items-center mb-6">
+                          <h3 className="text-xl font-bold text-white">Videos de YouTube</h3>
+                          {(formData.content.topVideos?.videos || []).length < 5 && (
+                              <button onClick={addTopVideo} className="bg-primary text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-900 flex items-center text-sm shadow-md transition-all active:scale-95">
+                                  <Plus size={18} className="mr-1"/> Añadir Video {((formData.content.topVideos?.videos || []).length)}/5
+                              </button>
+                          )}
+                      </div>
+
+                      <div className="space-y-4">
+                          {(formData.content.topVideos?.videos || []).map((video, idx) => (
+                              <div key={video.id} className="bg-gray-800 p-4 rounded-xl border border-gray-700 flex flex-col md:flex-row items-center gap-4">
+                                  <div className="w-12 h-12 flex-shrink-0 bg-gray-900 rounded-lg flex items-center justify-center font-bold text-gray-500 text-xl border border-gray-700">
+                                      {idx + 1}
+                                  </div>
+                                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                                      <InputGroup label="Artista / Título">
+                                          <input 
+                                              type="text" 
+                                              value={video.title || ''} 
+                                              onChange={e => updateTopVideo(video.id, 'title', e.target.value)}
+                                              className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-primary outline-none" 
+                                              placeholder="Ej: Reynaldo Armas - El Indio"
+                                          />
+                                      </InputGroup>
+                                      <InputGroup label="URL de YouTube">
+                                          <div className="flex relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <Youtube size={16} className="text-gray-500" />
+                                            </div>
+                                            <input 
+                                                type="text" 
+                                                value={video.url || ''} 
+                                                onChange={e => updateTopVideo(video.id, 'url', e.target.value)}
+                                                className="w-full pl-10 bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-primary outline-none" 
+                                                placeholder="https://www.youtube.com/watch?v=..."
+                                            />
+                                          </div>
+                                      </InputGroup>
+                                  </div>
+                                  <button onClick={() => removeTopVideo(video.id)} className="p-3 bg-gray-900 text-gray-400 hover:text-red-500 hover:bg-red-900/20 rounded-xl transition-colors">
+                                      <Trash2 size={20} />
+                                  </button>
+                              </div>
+                          ))}
+                          
+                          {(formData.content.topVideos?.videos || []).length === 0 && (
+                              <div className="text-center py-10 bg-gray-800/50 rounded-xl border border-dashed border-gray-700">
+                                  <Youtube size={32} className="mx-auto text-gray-600 mb-3" />
+                                  <p className="text-gray-400">No hay videos añadidos.</p>
+                              </div>
+                          )}
+                      </div>
+                  </div>
+
+                  <SaveAction />
               </div>
             )}
 
@@ -2536,7 +2771,6 @@ export const AdminPanel: React.FC = () => {
               </div>
             )}
             
-            </div>
         </div>
       </main>
     </div>

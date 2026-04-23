@@ -108,69 +108,205 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
-  app.get("/api/radio/metadata", async (req, res) => {
-    const now = Date.now();
-    // Cache for 15 seconds
-    if (now - metadataCache.lastUpdate < 15000) {
-      return res.json(metadataCache);
-    }
-
+  app.get("/api/metadata", async (req, res) => {
     try {
-      // Try to fetch from Icecast status-json.xsl
-      // Note: We use the base URL of the stream
-      const icecastUrl = "https://redradioypc.com:8010/status-json.xsl";
-      const response = await axios.get(icecastUrl, { 
-        timeout: 5000,
-        httpsAgent: httpsAgent // Use the agent to bypass SSL verification issues
-      });
+      const stream = req.query.stream as string;
+      const logo = req.query.logo as string;
       
-      let title = "Supercriolla 98.7 FM";
-      let artist = "En Vivo";
-
-      if (response.data && response.data.icestats && response.data.icestats.source) {
-        const sources = Array.isArray(response.data.icestats.source) 
-          ? response.data.icestats.source 
-          : [response.data.icestats.source];
-        
-        // Find the source that matches our mount point or just take the first one
-        const source = sources.find((s: any) => s.listenurl && s.listenurl.includes('/live')) || sources[0];
-        
-        if (source && source.title) {
-          const fullTitle = source.title;
-          if (fullTitle.includes(' - ')) {
-            [artist, title] = fullTitle.split(' - ').map((s: string) => s.trim());
-          } else {
-            title = fullTitle;
-          }
-        }
-      }
-
-      // If title changed, fetch new cover
-      if (title !== metadataCache.title || artist !== metadataCache.artist) {
+      let title = ""; // Let frontend decide default
+      let artist = "";
+      let cover = logo || ''; // Starts as logo, if empty then ''
+      
+      let fetchUrls = [];
+      if (stream) {
         try {
-          const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(`${artist} ${title}`)}&media=music&limit=1`;
-          const itunesResponse = await axios.get(itunesUrl, { timeout: 3000 });
-          
-          if (itunesResponse.data && itunesResponse.data.results && itunesResponse.data.results.length > 0) {
-            metadataCache.cover = itunesResponse.data.results[0].artworkUrl100.replace('100x100', '600x600');
-          } else {
-            // Fallback cover if not found on iTunes
-            metadataCache.cover = 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=600&auto=format&fit=crop';
+          const urlObj = new URL(stream);
+          const baseUrl = `${urlObj.protocol}//${urlObj.hostname}${urlObj.port ? ':' + urlObj.port : ''}`;
+          fetchUrls.push(`${baseUrl}/status-json.xsl`);
+          fetchUrls.push(`${baseUrl}/stats?json=1`);
+        } catch (e) {}
+      }
+      
+      // Fallback based on old configs just in case
+      fetchUrls.push("https://redradioypc.com:8010/status-json.xsl");
+      
+      let metadataFound = false;
+
+      // Run parallel fetches to avoid timeout limits
+      const fetchPromises = fetchUrls.map(fetchUrl => 
+        axios.get(fetchUrl, {
+          timeout: 3000,
+          httpsAgent: httpsAgent
+        }).catch(e => null) // Suppress errors so Promise.all behaves
+      );
+
+      const responses = await Promise.all(fetchPromises);
+
+      for (const response of responses) {
+        if (metadataFound || !response || !response.data) continue;
+
+        try {
+          // Icecast format
+          if (response.data.icestats && response.data.icestats.source) {
+            metadataFound = true;
+            const sources = Array.isArray(response.data.icestats.source) 
+              ? response.data.icestats.source 
+              : [response.data.icestats.source];
+            
+            let source;
+            if (stream) {
+                try {
+                    const urlObj = new URL(stream);
+                    const path = urlObj.pathname;
+                    source = sources.find((s: any) => s.listenurl && s.listenurl.includes(path)) || sources[0];
+                } catch (e) {
+                    source = sources[0];
+                }
+            } else {
+                source = sources.find((s: any) => s.listenurl && s.listenurl.includes('/live')) || sources[0];
+            }
+            
+            // In Icecast, sometimes title is in yp_currently_playing, sometimes just title.
+            // Often "server_name" acting as station name and "title" acting as song.
+            const extractedTitle = source?.yp_currently_playing || source?.title || "";
+            if (extractedTitle) {
+              if (extractedTitle.includes(' - ')) {
+                // Common convention separates artist and title
+                [artist, title] = extractedTitle.split(' - ').map((s: string) => s.trim());
+                // Handle cases where order is swapped implicitly if it looks like it
+              } else {
+                title = extractedTitle;
+                // Keep 'artist' generic if there's no split, or use server_description
+                if (source?.server_name) {
+                   artist = source.server_name;
+                }
+              }
+            }
+          } 
+          // Shoutcast format
+          else if (response.data.songtitle) {
+            metadataFound = true;
+            const fullTitle = response.data.songtitle;
+            if (fullTitle.includes(' - ')) {
+              [artist, title] = fullTitle.split(' - ').map((s: string) => s.trim());
+            } else {
+              title = fullTitle;
+            }
           }
         } catch (e) {
-          console.error("iTunes API error:", e);
         }
       }
 
-      metadataCache.title = title;
-      metadataCache.artist = artist;
-      metadataCache.lastUpdate = now;
+      // Try iTunes only if we have a real song name
+      let itunesCover = '';
+      if (title && artist && title !== "Transmisión" && artist !== "En Vivo") {
+          try {
+            const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(`${artist} ${title}`)}&media=music&limit=1`;
+            const itunesResponse = await axios.get(itunesUrl, { timeout: 3000 });
+            
+            if (itunesResponse.data && itunesResponse.data.results && itunesResponse.data.results.length > 0) {
+              itunesCover = itunesResponse.data.results[0].artworkUrl100.replace('100x100', '600x600');
+            }
+          } catch (e) {
+            console.error("iTunes API error:", e);
+          }
+      }
 
-      res.json(metadataCache);
+      // Use iTunes cover if found, otherwise keep fallback (logo)
+      if (itunesCover) {
+          cover = itunesCover;
+      }
+
+      res.json({ title, artist, cover });
     } catch (error) {
       console.error("Metadata fetch error:", error);
-      // Return cached version on error
-      res.json(metadataCache);
+      res.json({ title: '', artist: '', cover: req.query.logo as string || '' });
+    }
+  });
+
+  app.get("/api/rss", async (req, res) => {
+    try {
+      const urlsParam = req.query.urls as string;
+      if (!urlsParam) return res.json([]);
+
+      const Parser = (await import('rss-parser')).default;
+      const parser = new Parser({
+          customFields: {
+              item: [
+                  ['media:content', 'media:content'],
+                  ['enclosure', 'enclosure'],
+                  ['content:encoded', 'content:encoded'],
+                  ['dc:creator', 'creator']
+              ]
+          }
+      });
+      
+      const feedUrls = urlsParam.split(',').map(url => decodeURIComponent(url).trim()).filter(Boolean);
+      
+      const MAX_FEEDS = 5;
+      const urlsToProcess = feedUrls.slice(0, MAX_FEEDS);
+
+      let allArticles: any[] = [];
+      const { v4: uuidv4 } = await import('uuid');
+
+      const fetchPromises = urlsToProcess.map(async (url) => {
+          try {
+              const feed = await parser.parseURL(url);
+              const items = feed.items.slice(0, 5).map((item: any) => {
+                  let imageUrl = 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=1000&auto=format&fit=crop';
+                  
+                  if (item['media:content'] && item['media:content']['$'] && item['media:content']['$'].url) {
+                      imageUrl = item['media:content']['$'].url;
+                  } else if (item.enclosure && item.enclosure.url) {
+                      imageUrl = item.enclosure.url;
+                  } else if (item['content:encoded']) {
+                      const imgMatch = item['content:encoded'].match(/<img[^>]+src="([^">]+)"/);
+                      if (imgMatch && imgMatch[1]) {
+                          imageUrl = imgMatch[1];
+                      }
+                  } else if (item.content) {
+                      const imgMatch = item.content.match(/<img[^>]+src="([^">]+)"/);
+                      if (imgMatch && imgMatch[1]) {
+                          imageUrl = imgMatch[1];
+                      }
+                  }
+
+                  let cleanSummary = item.contentSnippet || item.summary || item.content || '';
+                  cleanSummary = cleanSummary.replace(/<\/?[^>]+(>|$)/g, "").substring(0, 150) + '...';
+
+                  let date = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+                  if (item.pubDate) {
+                      try {
+                          date = new Date(item.pubDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+                      } catch (e) {}
+                  }
+
+                  return {
+                      id: uuidv4(),
+                      title: item.title || 'Noticia',
+                      summary: cleanSummary,
+                      content: item['content:encoded'] || item.content || cleanSummary,
+                      date: date,
+                      image: imageUrl,
+                      author: item.creator || item.author || feed.title || 'Redacción',
+                      category: feed.title || 'Noticias',
+                      isPublished: true,
+                      url: item.link,
+                      isRss: true
+                  };
+              });
+              
+              allArticles = [...allArticles, ...items];
+          } catch (e) {
+              console.error(`RSS Error for ${url}:`, e);
+          }
+      });
+
+      await Promise.all(fetchPromises);
+      res.json(allArticles);
+    } catch (error) {
+      console.error("RSS route error:", error);
+      res.json([]);
     }
   });
 

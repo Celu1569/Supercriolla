@@ -145,12 +145,34 @@ export interface NewsItem {
   author?: string;
   category?: string;
   isPublished: boolean;
+  url?: string;
+  isRss?: boolean;
+}
+
+export interface RssFeed {
+  id: string;
+  name: string;
+  url: string;
+}
+
+export interface TopVideo {
+  id: string;
+  title: string;
+  url: string;
+}
+
+export interface TopVideosConfig {
+  enabled: boolean;
+  title: string;
+  description: string;
+  videos: TopVideo[];
 }
 
 export interface NewsConfig {
   title: string;
   description: string;
   articles: NewsItem[];
+  rssFeeds?: RssFeed[];
 }
 
 export interface NavigationConfig {
@@ -243,6 +265,7 @@ export interface SiteConfig {
     ribbons: RibbonConfig[]; // New: Multiple text ribbons below hero
     clients?: Client[]; // New: Client gallery
     news?: NewsConfig; // New: News section
+    topVideos?: TopVideosConfig; // New: Los 5 latigazos
   };
   social: SocialLinks;
 }

@@ -124,11 +124,42 @@ const PublicView: React.FC = () => {
   const [selectedEpisode, setSelectedEpisode] = useState(config.content.podcast.episodes[0] || null);
   const [programView, setProgramView] = useState<'week' | 'weekend'>('week');
   const [selectedArticle, setSelectedArticle] = useState<NewsItem | null>(null);
+  const [rssArticles, setRssArticles] = useState<NewsItem[]>([]);
+  const [isLoadingRss, setIsLoadingRss] = useState(false);
+
+  const [playingVideo, setPlayingVideo] = useState<{url: string; title: string} | null>(null);
+
+  useEffect(() => {
+      const feeds = config.content.news?.rssFeeds || [];
+      if (feeds.length === 0) {
+          setRssArticles([]);
+          return;
+      }
+      
+      const fetchRss = async () => {
+          setIsLoadingRss(true);
+          try {
+              const urls = feeds.map(f => encodeURIComponent(f.url)).join(',');
+              const response = await fetch(`/api/rss?urls=${urls}`);
+              if (response.ok) {
+                  const data = await response.json();
+                  setRssArticles(data || []);
+              }
+          } catch (error) {
+              console.error("Failed to fetch RSS feeds:", error);
+          } finally {
+              setIsLoadingRss(false);
+          }
+      };
+
+      fetchRss();
+  }, [config.content.news?.rssFeeds]);
 
 
   // State to control visibility of sections
   const [activeSections, setActiveSections] = useState({
     hero: true,
+    topvideos: true,
     podcast: true,
     program: true,
     gallery: true,
@@ -596,6 +627,56 @@ const PublicView: React.FC = () => {
         );
       })()}
 
+      {/* Top Videos (Latigazos) */}
+      {(activeSections as any)['topvideos'] !== false && isSectionEnabled('topvideos') && config.content.topVideos?.enabled && (
+        <section id="topvideos" className="py-20 bg-surface-alt animate-fade-in transition-colors duration-300">
+            <div className="container mx-auto px-4">
+                <div className="text-center mb-12">
+                     <h2 className="text-4xl md:text-5xl font-heading font-bold text-heading relative inline-block mb-4">
+                        {config.content.topVideos.title}
+                        <span className="absolute bottom-0 left-0 w-full h-1 bg-secondary opacity-50 transform -skew-x-12"></span>
+                     </h2>
+                    <p className="text-lg text-on-surface-muted max-w-2xl mx-auto">
+                        {config.content.topVideos.description}
+                    </p>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 max-w-7xl mx-auto">
+                    {config.content.topVideos.videos.slice(0, 5).map((v, i) => {
+                        const match = v.url.match(/^.*(?:(?:youtu\.be\/|v\/|vi\/|u\/\w\/|embed\/|live\/|shorts\/)|(?:(?:watch)?\?v(?:i)?=|\&v(?:i)?=))([^#\&\?]*).*/);
+                        const videoId = (match && match[1] && match[1].length === 11) ? match[1] : null;
+                        const thumb = videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : '';
+
+                        return (
+                        <div key={v.id} onClick={() => setPlayingVideo({url: v.url, title: v.title})} className="bg-surface rounded-xl overflow-hidden shadow-lg border border-white/5 group hover:-translate-y-2 transition-transform duration-300 cursor-pointer flex flex-col">
+                            <div className="relative pb-[56.25%] overflow-hidden bg-black/10">
+                                {videoId ? (
+                                    <>
+                                      <img src={thumb} alt={v.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90" />
+                                      <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors duration-300"></div>
+                                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                         <PlayCircle size={64} className="text-white drop-shadow-md transform scale-90 group-hover:scale-100 transition-transform" />
+                                      </div>
+                                    </>
+                                ) : (
+                                    <VideoPlayer url={v.url} title={v.title} />
+                                )}
+                                <div className="absolute top-2 left-2 bg-secondary text-primary font-black uppercase text-xs px-2 py-1 rounded shadow-md z-10 flex items-center">
+                                    <span className="mr-1">#{i + 1}</span> 
+                                </div>
+                            </div>
+                            <div className="p-4 bg-surface text-center flex-1 flex items-center justify-center">
+                                <h3 className="font-bold text-sm text-on-surface line-clamp-2 leading-tight group-hover:text-secondary transition-colors">
+                                    {v.title}
+                                </h3>
+                            </div>
+                        </div>
+                    )})}
+                </div>
+            </div>
+        </section>
+      )}
+
       {/* Podcast / Live Streaming Section */}
       {activeSections.podcast && isSectionEnabled('podcast') && (
         <section id="podcast" className="py-20 bg-surface animate-fade-in transition-colors duration-300">
@@ -850,6 +931,7 @@ const PublicView: React.FC = () => {
                     <div className="text-center md:text-left">
                         <h2 className="text-4xl font-heading font-bold text-heading relative inline-block">
                             {config.content.news.title || 'Noticias'}
+                            {isLoadingRss && <span className="ml-4 text-sm text-secondary animate-pulse absolute -right-24 top-2">Actualizando...</span>}
                             <span className="absolute bottom-0 left-0 w-1/2 h-1 bg-secondary"></span>
                         </h2>
                         <p className="mt-3 text-on-surface-muted max-w-2xl text-lg">
@@ -859,20 +941,37 @@ const PublicView: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {config.content.news.articles.filter(a => a.isPublished).map((article) => (
+                    {[...(config.content.news.articles.filter(a => a.isPublished)), ...rssArticles]
+                        .sort((a, b) => {
+                            // Basic string sorting if dates are unparseable, but ideally they parse
+                            const dA = new Date(a.date).getTime();
+                            const dB = new Date(b.date).getTime();
+                            if (!isNaN(dA) && !isNaN(dB)) return dB - dA;
+                            return 0; // Fallback
+                        })
+                        .map((article) => (
                         <article 
                             key={article.id} 
                             className="bg-surface-alt rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group flex flex-col border border-white/5"
                         >
-                            <div className="relative h-48 overflow-hidden">
+                            <div className="relative h-48 overflow-hidden bg-white/5">
                                 <img 
                                     src={getDirectImageUrl(article.image)} 
                                     alt={article.title} 
                                     className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
+                                    onError={(e) => {
+                                        // Fallback for broken RSS images
+                                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=1000&auto=format&fit=crop';
+                                    }}
                                 />
                                 {article.category && (
                                     <span className="absolute top-4 left-4 bg-secondary text-primary text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                                         {article.category}
+                                    </span>
+                                )}
+                                {article.isRss && (
+                                    <span className="absolute top-4 right-4 bg-primary text-secondary text-[10px] font-bold px-2 py-1 rounded uppercase shadow-lg">
+                                        Automático
                                     </span>
                                 )}
                             </div>
@@ -881,17 +980,23 @@ const PublicView: React.FC = () => {
                                     <span className="flex items-center"><Calendar size={12} className="mr-1 text-secondary" /> {article.date}</span>
                                     {article.author && <span className="flex items-center"><User size={12} className="mr-1 text-secondary" /> {article.author}</span>}
                                 </div>
-                                <h3 className="text-xl font-bold mb-3 text-on-surface group-hover:text-primary transition-colors leading-tight">
+                                <h3 className="text-xl font-bold mb-3 text-on-surface group-hover:text-primary transition-colors leading-tight line-clamp-3">
                                     {article.title}
                                 </h3>
                                 <p className="text-on-surface-muted text-sm mb-6 line-clamp-3">
                                     {article.summary}
                                 </p>
                                 <button 
-                                    onClick={() => setSelectedArticle(article)}
+                                    onClick={() => {
+                                        if (article.isRss && article.url) {
+                                            window.open(article.url, '_blank', 'noopener,noreferrer');
+                                        } else {
+                                            setSelectedArticle(article);
+                                        }
+                                    }}
                                     className="mt-auto flex items-center text-secondary font-bold text-sm hover:underline group/btn"
                                 >
-                                    Leer más <ArrowRight size={16} className="ml-2 transform group-hover/btn:translate-x-1 transition-transform" />
+                                    {article.isRss ? 'Leer en sitio original' : 'Leer más'} <ArrowRight size={16} className="ml-2 transform group-hover/btn:translate-x-1 transition-transform" />
                                 </button>
                             </div>
                         </article>
@@ -1029,6 +1134,29 @@ const PublicView: React.FC = () => {
             </div>
             </div>
         </footer>
+      )}
+
+      {/* Video Modal */}
+      {playingVideo && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-fade-in" onClick={() => setPlayingVideo(null)}>
+              <div 
+                  className="bg-surface w-full max-w-5xl rounded-2xl overflow-hidden shadow-2xl relative border border-white/10"
+                  onClick={e => e.stopPropagation()}
+              >
+                  <div className="flex justify-between items-center p-4 bg-surface-alt border-b border-white/5">
+                      <h3 className="font-bold text-lg text-on-surface line-clamp-1 pr-4">{playingVideo.title}</h3>
+                      <button 
+                          onClick={() => setPlayingVideo(null)}
+                          className="text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-2"
+                      >
+                          <X size={20} />
+                      </button>
+                  </div>
+                  <div className="w-full">
+                      <VideoPlayer url={playingVideo.url} title={playingVideo.title} />
+                  </div>
+              </div>
+          </div>
       )}
 
       <RadioPlayer variant="sticky" />

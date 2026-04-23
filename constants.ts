@@ -363,7 +363,20 @@ export const DEFAULT_CONFIG: SiteConfig = {
           category: "Cultura",
           isPublished: true
         }
-      ]
+      ],
+      rssFeeds: []
+    },
+    topVideos: {
+        enabled: true,
+        title: "Los 5 Latigazos de la semana",
+        description: "Los estrenos y artistas del llano venezolano que más suenan.",
+        videos: [
+            { id: "v1", title: "Latigazo 1", url: "https://www.youtube.com/watch?v=kJQP7kiw5Fk" },
+            { id: "v2", title: "Latigazo 2", url: "https://www.youtube.com/watch?v=kJQP7kiw5Fk" },
+            { id: "v3", title: "Latigazo 3", url: "https://www.youtube.com/watch?v=kJQP7kiw5Fk" },
+            { id: "v4", title: "Latigazo 4", url: "https://www.youtube.com/watch?v=kJQP7kiw5Fk" },
+            { id: "v5", title: "Latigazo 5", url: "https://www.youtube.com/watch?v=kJQP7kiw5Fk" }
+        ]
     }
   },
   social: {

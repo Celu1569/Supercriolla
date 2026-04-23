@@ -16,18 +16,35 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
   const [isMuted, setIsMuted] = useState(false);
   const [error, setError] = useState(false);
   const [metadata, setMetadata] = useState({
-    title: 'Cargando...',
-    artist: 'Supercriolla',
-    cover: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=200&auto=format&fit=crop'
+    title: 'Recuperando señal...',
+    artist: 'Conectando...',
+    cover: ''
   });
+
+  // Keep track of config updates to initialize default cover if needed
+  useEffect(() => {
+    if (metadata.cover === '' && config.navigation.logoUrl) {
+      setMetadata(prev => ({
+        ...prev,
+        artist: prev.artist === 'Conectando...' ? (config.general.stationName || 'Cargando...') : prev.artist,
+        cover: config.navigation.logoUrl
+      }));
+    }
+  }, [config.navigation.logoUrl, config.general.stationName, metadata.cover]);
 
   // Real metadata fetcher
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
-        const response = await fetch('/api/radio/metadata');
+        const streamUrl = encodeURIComponent(config.general.streamUrl || "");
+        const logoUrl = encodeURIComponent(config.navigation.logoUrl || "");
+        const response = await fetch(`/api/metadata?stream=${streamUrl}&logo=${logoUrl}`);
         if (response.ok) {
           const data = await response.json();
+          // Avoid overwriting with bad data, use fallbacks
+          if (!data.cover) data.cover = config.navigation.logoUrl;
+          if (!data.artist || data.artist === "En Vivo") data.artist = config.general.stationName;
+          if (!data.title) data.title = "Señal en directo";
           setMetadata(data);
         }
       } catch (e) {
@@ -35,11 +52,11 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
       }
     };
 
-    const interval = setInterval(fetchMetadata, 20000); // Update every 20s
+    const interval = setInterval(fetchMetadata, 15000); // 15s
     fetchMetadata();
     
     return () => clearInterval(interval);
-  }, []);
+  }, [config.general.streamUrl, config.navigation.logoUrl, config.general.stationName]);
 
   const togglePlay = () => {
     if (!audioRef.current) return;
@@ -185,22 +202,27 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
         
         {/* Metadata Display for Hero */}
         <div className="mb-6">
-            <div className="relative w-32 h-32 mx-auto mb-4 rounded-lg overflow-hidden shadow-2xl border-2 border-secondary/30">
-                <img 
-                    src={metadata.cover} 
-                    alt="Cover" 
-                    className={`w-full h-full object-cover transition-transform duration-700 ${isPlaying ? 'scale-110' : 'scale-100'}`}
-                    referrerPolicy="no-referrer"
-                />
+            <div className="relative w-32 h-32 mx-auto mb-4 rounded-lg overflow-hidden shadow-2xl border-2 border-secondary/30 flex items-center justify-center bg-gray-800">
+                {metadata.cover ? (
+                    <img 
+                        src={metadata.cover} 
+                        alt="Cover" 
+                        className={`w-full h-full object-cover transition-transform duration-700 ${isPlaying ? 'scale-110' : 'scale-100'}`}
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                            if (e.currentTarget.src !== config.navigation.logoUrl) {
+                                e.currentTarget.src = config.navigation.logoUrl || '';
+                            }
+                        }}
+                    />
+                ) : (
+                    <Radio className="text-white/50 w-12 h-12" />
+                )}
                 {!isPlaying && <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><Radio className="text-white/50 w-12 h-12" /></div>}
             </div>
-            <h3 className="text-white font-bold text-lg truncate px-2">{metadata.title}</h3>
-            <p className="text-secondary text-sm font-medium truncate px-2">{metadata.artist}</p>
-        </div>
-
-        <div className="flex items-center justify-center mb-4">
-            <Radio className={`text-secondary w-5 h-5 mr-2 ${isPlaying ? 'animate-pulse' : ''}`} />
-            <span className="text-white font-heading text-sm uppercase tracking-widest">En Vivo Ahora</span>
+            
+            <h3 className="text-white font-bold text-lg truncate px-2" title={metadata.title}>{metadata.title}</h3>
+            <p className="text-secondary text-sm font-medium truncate px-2" title={metadata.artist}>{metadata.artist || 'Radio en Vivo'}</p>
         </div>
         
         <button
@@ -235,17 +257,28 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
           </button>
           
           <div className="flex items-center space-x-3 overflow-hidden">
-            {/* Mini Cover */}
-            <div className="hidden xs:block w-12 h-12 rounded bg-gray-800 flex-shrink-0 overflow-hidden border border-white/10">
-                <img src={metadata.cover} alt="Cover" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            {/* Mini Cover - Always visible now */}
+            <div className="w-12 h-12 rounded bg-gray-800 flex-shrink-0 overflow-hidden flex items-center justify-center">
+                {metadata.cover || config.navigation.logoUrl ? (
+                    <img 
+                        src={metadata.cover || config.navigation.logoUrl} 
+                        alt="Cover" 
+                        className="w-full h-full object-cover" 
+                        referrerPolicy="no-referrer" 
+                        onError={(e) => {
+                            // Fallback to station logo if the loaded image fails
+                            if (e.currentTarget.src !== config.navigation.logoUrl) {
+                                e.currentTarget.src = config.navigation.logoUrl || '';
+                            }
+                        }}
+                    />
+                ) : (
+                    <Radio className="text-white/50 w-6 h-6" />
+                )}
             </div>
-            <div className="overflow-hidden">
-                <p className="font-bold text-[10px] text-secondary uppercase tracking-widest flex items-center">
-                    {isPlaying && <span className="w-1.5 h-1.5 bg-red-500 rounded-full mr-1.5 animate-pulse"></span>}
-                    En el aire
-                </p>
-                <p className="text-sm truncate font-bold text-white">{metadata.title}</p>
-                <p className="text-xs truncate text-white/60">{metadata.artist}</p>
+            <div className="overflow-hidden flex flex-col justify-center">
+                   <p className="text-sm truncate font-bold text-white mb-0.5" title={metadata.title}>{metadata.title}</p>
+                   <p className="text-[11px] truncate text-white/70" title={metadata.artist}>{metadata.artist || 'Radio en Vivo'}</p>
             </div>
           </div>
           
