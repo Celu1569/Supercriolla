@@ -41,27 +41,37 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
         const response = await fetch(`/api/metadata?stream=${streamUrl}&logo=${logoUrl}`);
         if (response.ok) {
           const data = await response.json();
-          // Avoid overwriting with bad data, use fallbacks
-          if (!data.cover) data.cover = config.navigation.logoUrl;
           
-          // Filter generic strings that the user wants to remove
+          // Filter generic strings
           const isGenericString = (s: string) => {
             if (!s) return true;
             const lower = s.toLowerCase();
             return lower.includes("transmision") || 
                    lower.includes("en vivo") || 
                    lower.includes("pasion por lo nuestro") ||
-                   lower.includes("pasión por lo nuestro");
+                   lower.includes("pasión por lo nuestro") ||
+                   lower.includes("supercriolla") ||
+                   lower.includes("nueva era") ||
+                   lower === "unknown" ||
+                   lower === "stream";
           };
 
-          if (!data.artist || isGenericString(data.artist)) {
-            data.artist = config.general.stationName || "Radio en Vivo";
-          }
-          if (!data.title || isGenericString(data.title)) {
-            data.title = "Señal en directo";
-          }
+          // Use provided logo as the ultimate fallback for cover
+          const finalCover = data.cover || config.navigation.logoUrl || config.general.logoUrl;
           
-          setMetadata(data);
+          const finalArtist = (!data.artist || isGenericString(data.artist)) 
+            ? (config.general.stationName || "Radio en Vivo")
+            : data.artist;
+            
+          const finalTitle = (!data.title || isGenericString(data.title))
+            ? "Señal en directo"
+            : data.title;
+          
+          setMetadata({
+            title: finalTitle,
+            artist: finalArtist,
+            cover: finalCover
+          });
         }
       } catch (e) {
         console.error("Metadata fetch error:", e);

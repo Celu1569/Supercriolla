@@ -21,7 +21,20 @@ export const handler: Handler = async (event, context) => {
         const urlObj = new URL(stream);
         const baseUrl = `${urlObj.protocol}//${urlObj.hostname}${urlObj.port ? ':' + urlObj.port : ''}`;
         fetchUrls.push(`${baseUrl}/status-json.xsl`);
+        fetchUrls.push(`${baseUrl}/status.json`);
+        fetchUrls.push(`${baseUrl}/json.xsl`);
         fetchUrls.push(`${baseUrl}/stats?json=1`);
+        fetchUrls.push(`${baseUrl}/7.html`);
+        fetchUrls.push(`${baseUrl}/stats?sid=1`);
+        
+        // If it's a specific provider like Zeno
+        if (urlObj.hostname.includes('zeno.fm')) {
+          const pathParts = urlObj.pathname.split('/');
+          const streamId = pathParts[pathParts.length - 1];
+          if (streamId) {
+              fetchUrls.push(`https://api.zeno.fm/external/status?stream_id=${streamId}`);
+          }
+        }
       } catch (e) {}
     }
     
@@ -33,9 +46,12 @@ export const handler: Handler = async (event, context) => {
     // Run parallel fetches to avoid Netlify 10s timeout limits
     const fetchPromises = fetchUrls.map(fetchUrl => 
       axios.get(fetchUrl, {
-        timeout: 3000,
+        timeout: 4000,
         httpsAgent: httpsAgent,
-        responseType: 'text' // Fetch as text
+        responseType: 'text', // Fetch as text
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
       }).catch(e => null)
     );
 
@@ -44,19 +60,41 @@ export const handler: Handler = async (event, context) => {
     for (const response of responses) {
       if (metadataFound || !response || !response.data) continue;
       
+      const responseText = response.data.trim();
+      if (!responseText) continue;
+
+      // Try Shoutcast 1 extraction
+      if (responseText.match(/^\d+,\d+,\d+,\d+,\d+,\d+,/)) {
+          const parts = responseText.split(',');
+          if (parts.length >= 7) {
+              const fullTitle = parts.slice(6).join(',');
+              if (fullTitle) {
+                  if (fullTitle.includes(' - ')) {
+                      [artist, title] = fullTitle.split(' - ').map((s: string) => s.trim());
+                  } else {
+                      title = fullTitle;
+                  }
+                  metadataFound = true;
+                  continue;
+              }
+          }
+      }
+
       let data: any;
       try {
-        data = JSON.parse(response.data);
+        data = JSON.parse(responseText);
       } catch (e) {
         try {
-          const fixedText = response.data.replace(/,\s*([\]}])/g, '$1');
+          const fixedText = responseText.replace(/,\s*([\]}])/g, '$1');
           data = JSON.parse(fixedText);
         } catch (e2) {
           // Extraction via regex
-          const titleMatch = response.data.match(/"title"\s*:\s*"([^"]+)"/);
-          const artistMatch = response.data.match(/"yp_currently_playing"\s*:\s*"([^"]+)"/);
-          if (titleMatch || artistMatch) {
-              const fullTitle = artistMatch ? artistMatch[1] : (titleMatch ? titleMatch[1] : "");
+          const titleMatch = responseText.match(/"title"\s*:\s*"([^"]+)"/);
+          const artistMatch = responseText.match(/"yp_currently_playing"\s*:\s*"([^"]+)"/);
+          const songTitleMatch = responseText.match(/"songtitle"\s*:\s*"([^"]+)"/);
+
+          if (titleMatch || artistMatch || songTitleMatch) {
+              const fullTitle = songTitleMatch ? songTitleMatch[1] : (artistMatch ? artistMatch[1] : (titleMatch ? titleMatch[1] : ""));
               if (fullTitle) {
                   if (fullTitle.includes(' - ')) {
                       [artist, title] = fullTitle.split(' - ').map((s: string) => s.trim());
@@ -97,13 +135,13 @@ export const handler: Handler = async (event, context) => {
               [artist, title] = extractedTitle.split(' - ').map((s: string) => s.trim());
             } else {
               title = extractedTitle;
-              if (source?.server_name && !source.server_name.includes('Supercriolla')) {
+              if (source?.server_name && !source.server_name.toLowerCase().includes('icecast')) {
                  artist = source.server_name;
               }
             }
           }
         } 
-        // Shoutcast format
+        // Shoutcast 2 format
         else if (data && data.songtitle) {
           metadataFound = true;
           const fullTitle = data.songtitle;
@@ -113,6 +151,12 @@ export const handler: Handler = async (event, context) => {
             title = fullTitle;
           }
         }
+        // Zeno format
+        else if (data && data.now_playing) {
+            metadataFound = true;
+            artist = data.now_playing.artist || "";
+            title = data.now_playing.title || "";
+         }
       } catch (e) {
         // Try next valid response
       }
@@ -130,13 +174,21 @@ export const handler: Handler = async (event, context) => {
              lower === "transmision" ||
              lower === "transmisión" ||
              lower === "pasion por lo nuestro" ||
-             lower === "pasión por lo nuestro";
+             lower === "pasión por lo nuestro" ||
+             lower === "unknown" ||
+             lower === "stream" ||
+             lower === "radio" ||
+             lower.includes("icecast") ||
+             lower.includes("shoutcast");
     };
     
     if (title && artist && !isGeneric(title) && !isGeneric(artist)) {
         try {
           const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(`${artist} ${title}`)}&media=music&limit=1`;
-          const itunesResponse = await axios.get(itunesUrl, { timeout: 3000 });
+          const itunesResponse = await axios.get(itunesUrl, { 
+              timeout: 3000,
+              headers: { 'User-Agent': 'Mozilla/5.0' }
+          });
           
           if (itunesResponse.data && itunesResponse.data.results && itunesResponse.data.results.length > 0) {
             itunesCover = itunesResponse.data.results[0].artworkUrl100.replace('100x100', '600x600');

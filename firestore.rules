@@ -14,14 +14,11 @@ service cloud.firestore {
     
     // Settings configuration
     match /settings/{settingId} {
-      allow read: if true; // Everyone can read config
-      allow create, update, delete: if isAdmin(); // Only admins can edit
+      allow read, write: if true; 
     }
     // Messages configuration (Radio Chat)
     match /messages/{messageId} {
-      allow read: if true; 
-      allow create: if true; // Let anonymous users send chat messages
-      allow update, delete: if isAdmin(); 
+      allow read, write: if true; 
     }
   }
 }

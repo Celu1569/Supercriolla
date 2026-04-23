@@ -108,14 +108,32 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  // Global metadata cache
+  let metadataCache = {
+    title: "",
+    artist: "",
+    cover: "",
+    lastUpdate: 0,
+    streamUrl: ""
+  };
+
   app.get("/api/metadata", async (req, res) => {
+    const stream = req.query.stream as string;
+    const logo = req.query.logo as string;
+    const now = Date.now();
+
+    // Use cache if it's for the same stream and fresh (30s)
+    if (metadataCache.streamUrl === stream && (now - metadataCache.lastUpdate < 30000)) {
+        return res.json({ 
+            title: metadataCache.title, 
+            artist: metadataCache.artist, 
+            cover: metadataCache.cover || logo || '' 
+        });
+    }
+
     try {
-      const stream = req.query.stream as string;
-      const logo = req.query.logo as string;
-      
-      let title = ""; // Let frontend decide default
+      let title = ""; 
       let artist = "";
-      let cover = logo || ''; // Starts as logo, if empty then ''
       
       let fetchUrls = [];
       if (stream) {
@@ -123,21 +141,27 @@ async function startServer() {
           const urlObj = new URL(stream);
           const baseUrl = `${urlObj.protocol}//${urlObj.hostname}${urlObj.port ? ':' + urlObj.port : ''}`;
           fetchUrls.push(`${baseUrl}/status-json.xsl`);
+          fetchUrls.push(`${baseUrl}/status.json`);
+          fetchUrls.push(`${baseUrl}/json.xsl`);
           fetchUrls.push(`${baseUrl}/stats?json=1`);
+          fetchUrls.push(`${baseUrl}/7.html`);
+          fetchUrls.push(`${baseUrl}/stats?sid=1`);
+          
+          if (urlObj.hostname.includes('zeno.fm')) {
+            const pathParts = urlObj.pathname.split('/');
+            const streamId = pathParts[pathParts.length - 1];
+            if (streamId) fetchUrls.push(`https://api.zeno.fm/external/status?stream_id=${streamId}`);
+          }
         } catch (e) {}
       }
       
-      // Fallback based on old configs just in case
-      fetchUrls.push("https://redradioypc.com:8010/status-json.xsl");
-      
       let metadataFound = false;
-
-      // Run parallel fetches to avoid timeout limits
       const fetchPromises = fetchUrls.map(fetchUrl => 
         axios.get(fetchUrl, {
-          timeout: 3000,
+          timeout: 4000,
           httpsAgent: httpsAgent,
-          responseType: 'text' // Fetch as text to handle malformed JSON
+          responseType: 'text',
+          headers: { 'User-Agent': 'Mozilla/5.0' }
         }).catch(e => null)
       );
 
@@ -145,123 +169,97 @@ async function startServer() {
 
       for (const response of responses) {
         if (metadataFound || !response || !response.data) continue;
+        const responseText = response.data.trim();
+        if (!responseText) continue;
 
-        let data: any;
-        try {
-          // Try standard parse
-          data = JSON.parse(response.data);
-        } catch (e) {
-          try {
-            // Fix trailing commas and try again
-            const fixedText = response.data.replace(/,\s*([\]}])/g, '$1');
-            data = JSON.parse(fixedText);
-          } catch (e2) {
-            // If still fails, try to extract via regex as a last resort
-            const titleMatch = response.data.match(/"title"\s*:\s*"([^"]+)"/);
-            const artistMatch = response.data.match(/"yp_currently_playing"\s*:\s*"([^"]+)"/);
-            if (titleMatch || artistMatch) {
-                const fullTitle = artistMatch ? artistMatch[1] : (titleMatch ? titleMatch[1] : "");
-                if (fullTitle) {
+        // Shoutcast 1
+        if (responseText.match(/^\d+,\d+,\d+,\d+,\d+,\d+,/)) {
+            const parts = responseText.split(',');
+            if (parts.length >= 7) {
+                const fullTitle = parts.slice(6).join(',');
+                if (fullTitle && !fullTitle.toLowerCase().includes("transmision")) {
                     if (fullTitle.includes(' - ')) {
                         [artist, title] = fullTitle.split(' - ').map((s: string) => s.trim());
                     } else {
                         title = fullTitle;
                     }
                     metadataFound = true;
+                    continue;
+                }
+            }
+        }
+
+        let data: any;
+        try { data = JSON.parse(responseText.replace(/,\s*([\]}])/g, '$1')); } catch (e) {
+            const tm = responseText.match(/"title"\s*:\s*"([^"]+)"/);
+            const am = responseText.match(/"yp_currently_playing"\s*:\s*"([^"]+)"/);
+            const sm = responseText.match(/"songtitle"\s*:\s*"([^"]+)"/);
+            if (tm || am || sm) {
+                const ft = sm ? sm[1] : (am ? am[1] : (tm ? tm[1] : ""));
+                if (ft) {
+                    if (ft.includes(' - ')) [artist, title] = ft.split(' - ').map((s: string) => s.trim());
+                    else title = ft;
+                    metadataFound = true;
                 }
             }
             continue;
-          }
         }
 
-        try {
-          // Icecast format
-          if (data && data.icestats && data.icestats.source) {
+        if (data && data.icestats && data.icestats.source) {
             metadataFound = true;
-            const sources = Array.isArray(data.icestats.source) 
-              ? data.icestats.source 
-              : [data.icestats.source];
-            
-            let source;
-            if (stream) {
-                try {
-                    const urlObj = new URL(stream);
-                    const path = urlObj.pathname;
-                    source = sources.find((s: any) => s.listenurl && s.listenurl.includes(path)) || sources[0];
-                } catch (e) {
-                    source = sources[0];
-                }
-            } else {
-                source = sources.find((s: any) => s.listenurl && (s.listenurl.includes('/live') || s.listenurl.includes('/stream'))) || sources[0];
+            const sources = Array.isArray(data.icestats.source) ? data.icestats.source : [data.icestats.source];
+            const source = sources[0];
+            const et = source?.yp_currently_playing || source?.title || "";
+            if (et) {
+              if (et.includes(' - ')) [artist, title] = et.split(' - ').map((s: string) => s.trim());
+              else title = et;
             }
-            
-            const extractedTitle = source?.yp_currently_playing || source?.title || "";
-            if (extractedTitle) {
-              if (extractedTitle.includes(' - ')) {
-                [artist, title] = extractedTitle.split(' - ').map((s: string) => s.trim());
-              } else {
-                title = extractedTitle;
-                if (source?.server_name && !source.server_name.includes('Supercriolla')) {
-                   artist = source.server_name;
-                }
-              }
-            }
-          } 
-          // Shoutcast format
-          else if (data && data.songtitle) {
+        } else if (data && data.songtitle) {
             metadataFound = true;
-            const fullTitle = data.songtitle;
-            if (fullTitle.includes(' - ')) {
-              [artist, title] = fullTitle.split(' - ').map((s: string) => s.trim());
-            } else {
-              title = fullTitle;
-            }
-          }
-        } catch (e) {
+            if (data.songtitle.includes(' - ')) [artist, title] = data.songtitle.split(' - ').map((s: string) => s.trim());
+            else title = data.songtitle;
+        } else if (data && data.now_playing) {
+             metadataFound = true;
+             artist = data.now_playing.artist || "";
+             title = data.now_playing.title || "";
         }
       }
 
-      // Try iTunes only if we have a real song name and it's not generic
-      let itunesCover = '';
       const isGeneric = (val: string) => {
         if (!val) return true;
-        const lower = val.toLowerCase();
-        return lower === "señal en directo" || 
-               lower === "recuperando señal..." || 
-               lower === "conectando..." || 
-               lower === "en vivo" ||
-               lower === "transmision" ||
-               lower === "transmisión" ||
-               lower === "pasion por lo nuestro" ||
-               lower === "pasión por lo nuestro";
+        const l = val.toLowerCase();
+        return l === "señal en directo" || l === "recuperando señal..." || l === "conectando..." || 
+               l === "en vivo" || l === "transmision" || l.includes("icecast") || l.includes("shoutcast") ||
+               l === "unknown" || l === "stream";
       };
       
+      let cover = logo || '';
       if (title && artist && !isGeneric(title) && !isGeneric(artist)) {
           try {
             const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(`${artist} ${title}`)}&media=music&limit=1`;
             const itunesResponse = await axios.get(itunesUrl, { timeout: 3000 });
-            
-            if (itunesResponse.data && itunesResponse.data.results && itunesResponse.data.results.length > 0) {
-              itunesCover = itunesResponse.data.results[0].artworkUrl100.replace('100x100', '600x600');
+            if (itunesResponse.data?.results?.[0]?.artworkUrl100) {
+              cover = itunesResponse.data.results[0].artworkUrl100.replace('100x100', '600x600');
             }
-          } catch (e) {
-            console.error("iTunes API error:", e);
-          }
+          } catch (e) { console.error("iTunes error", e); }
       }
 
-      // Use iTunes cover if found, otherwise keep fallback (logo)
-      if (itunesCover) {
-          cover = itunesCover;
-      }
+      const cleanTitle = isGeneric(title) ? "" : title;
+      const cleanArtist = isGeneric(artist) ? "" : artist;
 
-      // Final cleanup of generic strings
-      if (isGeneric(title)) title = "";
-      if (isGeneric(artist)) artist = "";
+      // Update cache
+      metadataCache = {
+        title: cleanTitle,
+        artist: cleanArtist,
+        cover: cover,
+        lastUpdate: now,
+        streamUrl: stream
+      };
 
-      res.json({ title, artist, cover });
+      res.json({ title: cleanTitle, artist: cleanArtist, cover });
     } catch (error) {
-      console.error("Metadata fetch error:", error);
-      res.json({ title: '', artist: '', cover: req.query.logo as string || '' });
+      console.error("Metadata error:", error);
+      res.json({ title: metadataCache.title || '', artist: metadataCache.artist || '', cover: metadataCache.cover || logo || '' });
     }
   });
 

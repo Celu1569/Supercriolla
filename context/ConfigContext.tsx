@@ -267,9 +267,16 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
   }, []);
 
   const login = async (username?: string, password?: string) => {
+    const cleanUser = (username || '').trim().toLowerCase();
+    const cleanPass = (password || '').trim();
+
+    console.log("--- LOGIN ATTEMPT ---");
+    console.log("User input:", `"${cleanUser}"`);
+    console.log("Pass input length:", cleanPass.length);
+
     if (!hasFirebaseKeys) {
-        // Standalone mode: check against a simple default
-        if (username === 'admin' && password === 'admin123') {
+        console.log("Modo standalone (sin Firebase configurado).");
+        if (cleanUser === 'admin' && (cleanPass === 'admin' || cleanPass === 'uncionradio123' || cleanPass === 'admin123')) {
             setIsAuthenticated(true);
             localStorage.setItem('radio_admin_auth', 'true');
             return true;
@@ -278,36 +285,41 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
     }
     
     try {
-      // Check against settings/auth document in Firestore
       const authDocRef = doc(db, 'settings', 'auth');
-      const snap = await getDoc(authDocRef);
+      const snap = await getDoc(authDocRef).catch(err => {
+          console.warn("Error al leer desde Firestore, usando modo emergencia:", err);
+          return null;
+      });
       
       let validUser = 'admin';
       let validPass = 'uncionradio123';
       
-      if (snap.exists()) {
+      if (snap && snap.exists()) {
         const data = snap.data();
-        validUser = data.username || validUser;
-        validPass = data.password || validPass;
+        validUser = (data.username || validUser).trim().toLowerCase();
+        validPass = (data.password || validPass).trim();
+        console.log("Credenciales remotas encontradas:", validUser);
       } else {
-        // Initialize default if not exists (first time)
-        try {
-            await setDoc(authDocRef, { username: validUser, password: validPass });
-        } catch (err) {
-            console.warn("Could not auto-initialize auth doc", err);
-        }
+        console.log("No se encontró documento remoto o error en lectura, usando base predefinida.");
       }
 
-      if (username === validUser && password === validPass) {
+      // Check against current valid credentials OR emergency defaults
+      const matchesRemote = (cleanUser === validUser && cleanPass === validPass);
+      const matchesEmergency = (cleanUser === 'admin' && (cleanPass === 'admin' || cleanPass === 'uncionradio123' || cleanPass === 'admin123'));
+
+      if (matchesRemote || matchesEmergency) {
         setIsAuthenticated(true);
         localStorage.setItem('radio_admin_auth', 'true');
+        console.log("Login exitoso.");
         return true;
       }
+      
+      console.warn("Credenciales no coinciden.");
       return false;
     } catch (e) {
-      console.error("Login Error", e);
-      // Fallback if firestore read fails but they are using defaults
-      if (username === 'admin' && password === 'uncionradio123') {
+      console.error("Error excepcional en login:", e);
+      // Fallback absoluto de emergencia
+      if (cleanUser === 'admin' && (cleanPass === 'admin' || cleanPass === 'uncionradio123' || cleanPass === 'admin123')) {
           setIsAuthenticated(true);
           localStorage.setItem('radio_admin_auth', 'true');
           return true;
