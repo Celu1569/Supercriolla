@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { SiteConfig } from '../types';
 import { DEFAULT_CONFIG } from '../constants';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
-import { db, auth } from '../firebase';
+import { db, auth, hasFirebaseKeys } from '../firebase';
 import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'firebase/auth';
 
 interface ConfigContextType {
@@ -115,6 +115,11 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
         } catch (e) {}
     }
 
+    if (!hasFirebaseKeys) {
+        console.log("Firebase keys missing. Operating in standalone mode with default config.");
+        return;
+    }
+
     const configDocRef = doc(db, 'settings', 'config');
     
     // Realtime sync
@@ -210,11 +215,16 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
     const cleaned = deepClean(newConfig);
     if (!cleaned) return; 
     
+    // Always update locally
+    setConfig(cleaned);
+    localStorage.setItem('radio_site_config', JSON.stringify(cleaned));
+
+    if (!hasFirebaseKeys) {
+        console.warn("Cannot sync to Firestore: Firebase keys missing.");
+        return;
+    }
+    
     try {
-      // Optimistic upate
-      setConfig(cleaned);
-      localStorage.setItem('radio_site_config', JSON.stringify(cleaned));
-      
       // Sync to Firestore
       const configDocRef = doc(db, 'settings', 'config');
       await setDoc(configDocRef, cleaned);
@@ -234,11 +244,14 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
 
   const resetConfig = async () => {
     if (confirm("¿Estás seguro de restablecer toda la configuración por defecto?")) {
+        setConfig(DEFAULT_CONFIG);
+        localStorage.setItem('radio_site_config', JSON.stringify(DEFAULT_CONFIG));
+
+        if (!hasFirebaseKeys) return;
+
         try {
             const configDocRef = doc(db, 'settings', 'config');
             await setDoc(configDocRef, DEFAULT_CONFIG);
-            setConfig(DEFAULT_CONFIG);
-            localStorage.setItem('radio_site_config', JSON.stringify(DEFAULT_CONFIG));
         } catch (e) {
             console.error("Failed to reset config in firestore", e);
         }
@@ -247,6 +260,8 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
 
   // Check auth state from Firebase Auth
   useEffect(() => {
+    if (!hasFirebaseKeys) return;
+    
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       // For this specific app, we check if they are the designated admin or have logged in properly
       if (user) {
@@ -259,6 +274,10 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
   }, []);
 
   const login = async () => {
+    if (!hasFirebaseKeys) {
+        alert("El sistema de administración está deshabilitado porque no se han configurado las llaves de Firebase.");
+        return false;
+    }
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
@@ -274,6 +293,10 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
   };
 
   const logout = async () => {
+    if (!hasFirebaseKeys) {
+        setIsAuthenticated(false);
+        return;
+    }
     try {
       await signOut(auth);
       setIsAuthenticated(false);

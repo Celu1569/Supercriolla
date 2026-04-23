@@ -17,11 +17,18 @@ const firebaseConfig = {
   firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || firebaseConfigImport.firestoreDatabaseId
 };
 
-// Initialize Firebase SDK safely
-export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+// Check if we have minimum requirements for Firebase
+const hasFirebaseKeys = !!(firebaseConfig.apiKey && firebaseConfig.apiKey !== "");
+
+// Initialize Firebase SDK safely or provide dummy objects
+export const app = hasFirebaseKeys 
+  ? (getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0])
+  : null;
 
 // Handle cases where databaseId might be missing
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)'); 
+export const db = app ? getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)') : (null as any); 
 
-export const auth = getAuth(app);
-export const storage = getStorage(app);
+export const auth = app ? getAuth(app) : (null as any);
+export const storage = app ? getStorage(app) : (null as any);
+
+export { hasFirebaseKeys };
