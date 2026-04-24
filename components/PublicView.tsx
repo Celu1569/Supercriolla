@@ -436,12 +436,17 @@ const PublicView: React.FC = () => {
         )}
       </nav>
 
+      {/* Main Radio Player */}
+      <div style={{ paddingTop: `${dynamicNavHeight}px` }}>
+        <RadioPlayer />
+      </div>
+
       {/* Hero Section */}
       {activeSections.hero && isSectionEnabled('hero') && (
         <section 
             id="hero" 
             className="relative w-full overflow-hidden bg-gray-900 group animate-fade-in"
-            style={{ marginTop: `${dynamicNavHeight}px`, height: '400px' }}
+            style={{ height: '400px' }}
         >
             {config.content.hero.map((slide, index) => {
               // Determine alignment classes
@@ -1219,8 +1224,6 @@ const PublicView: React.FC = () => {
               </div>
           </div>
       )}
-
-      <RadioPlayer variant="sticky" />
     </div>
   );
 };

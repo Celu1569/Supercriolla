@@ -1,11 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Play, Pause, Volume2, Volume1, VolumeX, Radio, ListMusic, X } from 'lucide-react';
+import { Play, Pause, Volume2, Volume1, VolumeX, Radio, ListMusic, X, Clock } from 'lucide-react';
 import { useConfig } from '../context/ConfigContext';
 import { motion, AnimatePresence } from 'motion/react';
-
-interface RadioPlayerProps {
-  variant?: 'hero' | 'sticky';
-}
 
 interface TrackHistory {
    title: string;
@@ -14,7 +10,7 @@ interface TrackHistory {
    time: string;
 }
 
-export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) => {
+export const RadioPlayer: React.FC = () => {
   const { config } = useConfig();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -23,12 +19,12 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
   const [isMuted, setIsMuted] = useState(false);
   const [error, setError] = useState(false);
   const [metadata, setMetadata] = useState({
-    title: 'Recuperando señal...',
-    artist: 'Conectando...',
+    title: 'Cargando...',
+    artist: 'Radio en Vivo',
     cover: ''
   });
   const [history, setHistory] = useState<TrackHistory[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
   const historyRef = useRef<HTMLDivElement>(null);
 
   // Keep track of config updates to initialize default cover if needed
@@ -36,7 +32,7 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
     if (metadata.cover === '' && config.navigation.logoUrl) {
       setMetadata(prev => ({
         ...prev,
-        artist: prev.artist === 'Conectando...' ? (config.general.stationName || 'Cargando...') : prev.artist,
+        artist: prev.artist === 'Radio en Vivo' ? (config.general.stationName || 'En Línea') : prev.artist,
         cover: config.navigation.logoUrl
       }));
     }
@@ -48,7 +44,8 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
       try {
         const streamUrl = encodeURIComponent(config.general.streamUrl || "");
         const logoUrl = encodeURIComponent(config.navigation.logoUrl || "");
-        const response = await fetch(`/api/metadata?stream=${streamUrl}&logo=${logoUrl}`);
+        const stationName = encodeURIComponent(config.general.stationName || "");
+        const response = await fetch(`/api/metadata?stream=${streamUrl}&logo=${logoUrl}&station=${stationName}`);
         if (response.ok) {
           const data = await response.json();
           
@@ -58,10 +55,8 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
             const lower = s.toLowerCase();
             return lower.includes("transmision") || 
                    lower.includes("en vivo") || 
-                   lower.includes("pasion por lo nuestro") ||
-                   lower.includes("pasión por lo nuestro") ||
-                   lower.includes("supercriolla") ||
-                   lower.includes("nueva era") ||
+                   lower.includes("recuperando señal") ||
+                   lower.includes("conectando") ||
                    lower === "unknown" ||
                    lower === "stream";
           };
@@ -74,7 +69,7 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
             : data.artist;
             
           const finalTitle = (!data.title || isGenericString(data.title))
-            ? "Señal en directo"
+            ? "Música que te mueve"
             : data.title;
           
           setMetadata({
@@ -118,21 +113,6 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
      }
   }, [metadata, config.navigation.logoUrl]);
 
-  // Handle clicking outside of history panel
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (historyRef.current && !historyRef.current.contains(event.target as Node)) {
-        setShowHistory(false);
-      }
-    }
-    if (showHistory) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showHistory]);
-
   const togglePlay = () => {
     if (!audioRef.current) return;
 
@@ -151,14 +131,12 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
       // Handle different stream formats and common radio platform hacks
       if (streamUrl) {
           // Shoutcast direct IP:PORT hack (only if it's just domain:port or IP:port)
-          // We check if there's a path after the port. 
-          // A simple regex to check if it's just http(s)://domain:port/ or http(s)://domain:port
           const isSimpleUrl = /^https?:\/\/[^/]+\/?$/.test(streamUrl);
           
           if (isSimpleUrl && !streamUrl.includes('?') && !streamUrl.includes(';') && !streamUrl.includes('.mp3') && !streamUrl.includes('.aac')) {
               finalUrl = `${streamUrl}${streamUrl.endsWith('/') ? '' : '/'};`;
           }
-          // Listen2MyRadio listen.php hack - append .mp3 to trick browser into treating it as audio
+          // Listen2MyRadio listen.php hack
           else if (streamUrl.includes('listen.php') && !streamUrl.includes('.mp3')) {
               finalUrl = `${streamUrl}&.mp3`;
           }
@@ -176,8 +154,6 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
           })
           .catch((err) => {
             console.error("Playback error:", err.message);
-            // Some browsers block auto-play or have issues with certain stream formats
-            // We'll show the error but allow the user to try again
             setError(true);
             setIsPlaying(false);
           });
@@ -192,7 +168,6 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
       audioRef.current.volume = newVol;
     }
     
-    // Automatically handle mute state based on slider
     if (newVol === 0) {
       setIsMuted(true);
     } else if (isMuted) {
@@ -203,13 +178,11 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
   const toggleMute = () => {
     if (audioRef.current) {
       if (isMuted) {
-        // Unmute: Restore previous volume or default to 0.5 if it was 0
         const volToRestore = prevVolume > 0 ? prevVolume : 0.5;
         audioRef.current.volume = volToRestore;
         setVolume(volToRestore);
         setIsMuted(false);
       } else {
-        // Mute: Save current volume and set to 0
         setPrevVolume(volume);
         audioRef.current.volume = 0;
         setVolume(0);
@@ -246,7 +219,6 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
   useEffect(() => {
     if(audioRef.current) {
         setError(false);
-        // If it was playing, we need to restart with the new URL
         if(isPlaying) {
             const streamUrl = config.general.streamUrl;
             let finalUrl = streamUrl;
@@ -266,272 +238,215 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.general.streamUrl]);
 
-  if (variant === 'hero') {
-    return (
-      <div className="bg-white/10 backdrop-blur-md border border-white/20 p-6 rounded-xl shadow-2xl max-w-md w-full relative text-center">
-        {/* History Toggle for Hero */}
-        <div className="absolute top-4 right-4 z-20" ref={historyRef}>
-          <button 
-              onClick={() => setShowHistory(!showHistory)}
-              className={`p-2 transition-colors rounded-full ${showHistory ? 'bg-secondary text-primary' : 'bg-black/20 text-white/80 hover:text-secondary hover:bg-black/40'}`}
-              aria-label="Ver últimos temas"
-              title="Historial de reproducción"
-          >
-              <ListMusic size={20} />
-          </button>
-          
-          <AnimatePresence>
-              {showHistory && (
-                  <motion.div 
-                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                      transition={{ duration: 0.2 }}
-                      className="absolute top-[calc(100%+0.5rem)] right-0 w-72 bg-gray-900 border border-gray-700/50 rounded-xl shadow-2xl overflow-hidden z-[60] text-left"
-                  >
-                      <div className="flex items-center justify-between p-3 border-b border-gray-800 bg-gray-900/80 backdrop-blur-sm">
-                          <h4 className="font-bold text-white flex items-center text-sm"><ListMusic size={16} className="mr-2 text-secondary"/> Últimos Sonados</h4>
-                          <button onClick={() => setShowHistory(false)} className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10">
-                              <X size={16} />
-                          </button>
-                      </div>
-                      <div className="max-h-64 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
-                          {history.length > 0 ? (
-                              <div className="space-y-1">
-                                  {history.map((track, i) => (
-                                      <div key={`${track.title}-${i}`} className="flex items-center gap-3 p-2 hover:bg-gray-800/80 rounded-lg transition-colors group">
-                                          <div className="w-10 h-10 rounded overflow-hidden shadow bg-gray-800 flex-shrink-0 border border-gray-700">
-                                              {track.cover ? (
-                                                  <img src={track.cover} alt="" className="w-full h-full object-cover" />
-                                              ) : (
-                                                  <Radio className="w-5 h-5 m-2.5 text-gray-500" />
-                                              )}
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                              <p className="text-sm font-bold text-white truncate group-hover:text-secondary transition-colors" title={track.title}>{track.title}</p>
-                                              <p className="text-xs text-gray-400 truncate" title={track.artist}>{track.artist}</p>
-                                          </div>
-                                          <div className="text-[10px] text-gray-500 font-mono whitespace-nowrap bg-black/30 px-1.5 py-0.5 rounded">
-                                              {track.time}
-                                          </div>
-                                      </div>
-                                  ))}
-                              </div>
-                          ) : (
-                              <div className="p-6 text-center text-gray-500 text-sm">
-                                  <ListMusic className="w-8 h-8 opacity-20 mx-auto mb-2" />
-                                  <p>Recopilando historial...</p>
-                                  <p className="text-xs opacity-60 mt-1">Espera los próximos temas</p>
-                              </div>
-                          )}
-                      </div>
-                  </motion.div>
-              )}
-          </AnimatePresence>
-        </div>
-
-        <audio 
-            ref={audioRef} 
-            onError={handleAudioError}
-            preload="none"
-        />
-        
-        {/* Metadata Display for Hero */}
-        <div className="mb-6">
-            <div className="relative w-32 h-32 mx-auto mb-4 rounded-lg overflow-hidden shadow-2xl border-2 border-secondary/30 flex items-center justify-center bg-gray-800">
-                {metadata.cover ? (
-                    <img 
-                        src={metadata.cover} 
-                        alt="Cover" 
-                        className={`w-full h-full object-cover transition-transform duration-700 ${isPlaying ? 'scale-110' : 'scale-100'}`}
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                            if (e.currentTarget.src !== config.navigation.logoUrl) {
-                                e.currentTarget.src = config.navigation.logoUrl || '';
-                            }
-                        }}
-                    />
-                ) : (
-                    <Radio className="text-white/50 w-12 h-12" />
-                )}
-                {!isPlaying && <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><Radio className="text-white/50 w-12 h-12" /></div>}
-            </div>
-            
-            <h3 className="text-white font-bold text-lg truncate px-2" title={metadata.title}>{metadata.title}</h3>
-            <p className="text-secondary text-sm font-medium truncate px-2" title={metadata.artist}>{metadata.artist || 'Radio en Vivo'}</p>
-        </div>
-        
-        <button
-          onClick={togglePlay}
-          className="w-16 h-16 rounded-full bg-secondary hover:bg-yellow-400 text-primary flex items-center justify-center mx-auto transition-transform hover:scale-105 shadow-lg"
-        >
-          {isPlaying ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
-        </button>
-        {error && <p className="text-red-300 text-xs mt-2 font-bold bg-black/50 p-1 rounded">Offline o Error de Stream</p>}
-      </div>
-    );
-  }
-
-  // Sticky variant
+  // Atmospheric Design for the Main Player with Continuous History
   return (
-    <>
-    <div className="fixed bottom-0 left-0 right-0 bg-primary text-white border-t border-white/10 shadow-lg z-50 h-24 px-4">
-      <audio 
-        ref={audioRef} 
-        onError={handleAudioError}
-        preload="none"
-      />
-      <div className="container mx-auto h-full flex items-center justify-between gap-4">
-        
-        {/* Play/Info Section */}
-        <div className="flex items-center space-x-4 flex-1 overflow-hidden">
-          <button
-            onClick={togglePlay}
-            className="flex-shrink-0 w-12 h-12 rounded-full bg-secondary text-primary flex items-center justify-center hover:bg-yellow-400 transition-colors shadow-sm"
-          >
-            {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
-          </button>
-          
-          <div className="flex items-center space-x-3 flex-1 min-w-0 overflow-hidden">
-            {/* Mini Cover - Always visible now */}
-            <div className="w-14 h-14 rounded bg-gray-800 flex-shrink-0 overflow-hidden flex items-center justify-center shadow-inner">
-                {metadata.cover || config.navigation.logoUrl ? (
-                    <img 
-                        src={metadata.cover || config.navigation.logoUrl} 
-                        alt="Cover" 
-                        className="w-full h-full object-cover" 
-                        referrerPolicy="no-referrer" 
-                        onError={(e) => {
-                            // Fallback to station logo if the loaded image fails
-                            if (e.currentTarget.src !== config.navigation.logoUrl) {
-                                e.currentTarget.src = config.navigation.logoUrl || '';
-                            }
-                        }}
-                    />
-                ) : (
-                    <Radio className="text-white/50 w-7 h-7" />
-                )}
-            </div>
-            <div className="min-w-0 flex-1 flex flex-col justify-center">
-                   <p className="text-base truncate font-bold text-white mb-0.5 leading-tight" title={metadata.title}>{metadata.title}</p>
-                   <p className="text-xs truncate text-secondary font-medium" title={metadata.artist}>{metadata.artist || 'Radio en Vivo'}</p>
-            </div>
+    <div className="w-full max-w-[1600px] mx-auto overflow-hidden animate-fade-in px-4 my-8">
+      <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: isVisible ? 1 : 0, y: isVisible ? 0 : 20 }}
+          className={`relative bg-[#0a0502] rounded-[32px] overflow-hidden border border-white/10 shadow-2xl transition-all duration-500 ${isVisible ? 'h-[600px]' : 'h-0 pointer-events-none mb-0'}`}
+          style={{ 
+              display: isVisible ? 'block' : 'none'
+          }}
+      >
+          {/* Background Atmosphere */}
+          <div className="absolute inset-0 z-0 overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-black via-primary/20 to-black"></div>
+              <motion.div 
+                  animate={{ 
+                      scale: isPlaying ? [1, 1.1, 1] : 1,
+                      opacity: isPlaying ? [0.6, 0.8, 0.6] : 0.6
+                  }}
+                  transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+                  className="absolute -top-[20%] -left-[20%] w-[140%] h-[140%] bg-[radial-gradient(circle_at_50%_50%,rgba(251,191,36,0.15),transparent_70%)] blur-[80px]"
+              ></motion.div>
+              <div className="absolute top-[30%] left-[10%] w-[40%] h-[40%] bg-primary/20 blur-[100px] rounded-full"></div>
+              <div className="absolute bottom-[20%] right-[10%] w-[30%] h-[30%] bg-secondary/10 blur-[100px] rounded-full"></div>
           </div>
-          
-          {error && <span className="text-xs text-red-300 font-bold ml-2 whitespace-nowrap">Offline</span>}
-        </div>
 
-        {/* Controls Right Section */}
-        <div className="flex items-center gap-2 md:gap-3 w-auto md:w-1/3 justify-end relative" ref={historyRef}>
-          
-          {/* History Toggle */}
+          {/* Close Button */}
           <button 
-              onClick={() => setShowHistory(!showHistory)}
-              className={`p-2 transition-colors rounded-full flex-shrink-0 ${showHistory ? 'bg-secondary text-primary' : 'text-white/80 hover:text-secondary hover:bg-white/10'}`}
-              aria-label="Ver últimos temas"
-              title="Historial de reproducción"
+              onClick={() => setIsVisible(false)}
+              className="absolute top-8 right-8 z-30 p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all border border-white/10"
+              title="Cerrar reproductor"
           >
-              <ListMusic size={20} />
+              <X size={24} />
           </button>
 
-          {/* History Popover */}
-          <AnimatePresence>
-              {showHistory && (
+          {/* Main Content Grid - Now 3 Columns for History Side Panel */}
+          <div className="relative z-10 h-full flex flex-col lg:flex-row items-center gap-8 lg:gap-12 px-8 lg:px-12 py-12">
+              <audio ref={audioRef} onError={handleAudioError} preload="none" />
+              
+              {/* Visualizer/Cover Area */}
+              <div className="relative group w-full lg:w-[380px] flex-shrink-0 flex items-center justify-center">
+                  <AnimatePresence mode="wait">
+                      {metadata.cover && (
+                          <motion.div 
+                              key={`bg-${metadata.cover}`}
+                              initial={{ opacity: 0, scale: 0.9 }}
+                              animate={{ opacity: 0.6, scale: 1.15 }}
+                              exit={{ opacity: 0, scale: 0.9 }}
+                              transition={{ duration: 1.5 }}
+                              className="absolute -inset-12 z-0 pointer-events-none overflow-hidden"
+                          >
+                              <img 
+                                  src={metadata.cover} 
+                                  alt="" 
+                                  className="w-full h-full object-cover blur-[50px] opacity-40 rounded-full"
+                                  referrerPolicy="no-referrer"
+                              />
+                          </motion.div>
+                      )}
+                  </AnimatePresence>
+                  
                   <motion.div 
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      transition={{ duration: 0.2 }}
-                      className="absolute bottom-[calc(100%+1.5rem)] right-0 w-72 md:w-80 bg-gray-900 border border-gray-700/50 rounded-xl shadow-2xl overflow-hidden z-[60] text-left"
+                      whileHover={{ scale: 1.02 }}
+                      className="relative z-10 aspect-square w-full rounded-[40px] overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.6)] border-2 border-white/10 bg-gray-900 group"
                   >
-                      <div className="flex items-center justify-between p-3 md:p-4 border-b border-gray-800 bg-gray-900/80 backdrop-blur-sm">
-                          <h4 className="font-bold text-white flex items-center text-sm md:text-base"><ListMusic size={16} className="mr-2 text-secondary"/> Últimos Sonados</h4>
-                          <button onClick={() => setShowHistory(false)} className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10">
-                              <X size={16} />
-                          </button>
-                      </div>
-                      <div className="max-h-64 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
-                          {history.length > 0 ? (
-                              <div className="space-y-1">
-                                  {history.map((track, i) => (
-                                      <div key={`${track.title}-${i}`} className="flex items-center gap-3 p-2 hover:bg-gray-800/80 rounded-lg transition-colors group">
-                                          <div className="w-10 h-10 rounded overflow-hidden shadow bg-gray-800 flex-shrink-0 border border-gray-700">
-                                              {track.cover ? (
-                                                  <img src={track.cover} alt="" className="w-full h-full object-cover" />
-                                              ) : (
-                                                  <Radio className="w-5 h-5 m-2.5 text-gray-500" />
-                                              )}
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                              <p className="text-sm font-bold text-white truncate group-hover:text-secondary transition-colors" title={track.title}>{track.title}</p>
-                                              <p className="text-xs text-gray-400 truncate" title={track.artist}>{track.artist}</p>
-                                          </div>
-                                          <div className="text-[10px] text-gray-500 font-mono whitespace-nowrap bg-black/30 px-1.5 py-0.5 rounded">
-                                              {track.time}
-                                          </div>
-                                      </div>
-                                  ))}
-                              </div>
-                          ) : (
-                              <div className="p-6 text-center text-gray-500 text-sm">
-                                  <ListMusic className="w-8 h-8 opacity-20 mx-auto mb-2" />
-                                  <p>Recopilando historial...</p>
-                                  <p className="text-xs opacity-60 mt-1">Espera los próximos temas</p>
-                              </div>
+                      {metadata.cover ? (
+                          <img 
+                              src={metadata.cover} 
+                              alt="Cover" 
+                              className={`w-full h-full object-cover transition-transform duration-[10000ms] ${isPlaying ? 'scale-125' : 'scale-100'}`}
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                  if (e.currentTarget.src !== config.navigation.logoUrl) {
+                                      e.currentTarget.src = config.navigation.logoUrl || '';
+                                  }
+                              }}
+                          />
+                      ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-gray-900">
+                              <Radio className="text-secondary/20 w-32 h-32" />
+                          </div>
+                      )}
+                      
+                      <AnimatePresence>
+                          {!isPlaying && (
+                              <motion.div 
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  exit={{ opacity: 0 }}
+                                  className="absolute inset-0 bg-black/40 flex items-center justify-center"
+                              >
+                                  <div className="w-24 h-24 rounded-full bg-secondary/20 backdrop-blur-sm border border-secondary/30 flex items-center justify-center">
+                                      <Play size={40} className="text-secondary ml-2 fill-current" />
+                                  </div>
+                              </motion.div>
                           )}
-                      </div>
+                      </AnimatePresence>
                   </motion.div>
-              )}
-          </AnimatePresence>
+              </div>
 
-          {/* Volume Control - Hide on extra small screens */}
-          <div className="hidden sm:flex items-center gap-2 group relative">
-            <button 
-                onClick={toggleMute} 
-                className="p-2 text-white/80 hover:text-secondary transition-colors rounded-full hover:bg-white/10"
-                aria-label={isMuted ? "Unmute" : "Mute"}
-            >
-                {getVolumeIcon()}
-            </button>
-            {/* Tooltip */}
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg border border-white/10">
-                {isMuted ? 'Activar sonido' : 'Silenciar'}
-            </div>
+              {/* Info & Core Controls (Center) */}
+              <div className="flex-1 w-full text-center lg:text-left flex flex-col items-center lg:items-start min-w-0">
+                  <div className="mb-8 space-y-4 w-full">
+                      <motion.div 
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary/10 border border-secondary/20 text-secondary text-xs font-bold tracking-widest uppercase"
+                      >
+                          <span className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-secondary animate-pulse' : 'bg-gray-500'}`}></span>
+                          {isPlaying ? 'Al Aire Ahora' : 'Radio en Pausa'}
+                      </motion.div>
+                      
+                      <div className="space-y-3">
+                         <h2 className="text-4xl lg:text-6xl font-heading font-black text-white leading-tight break-words line-clamp-2 drop-shadow-lg" title={metadata.title}>
+                             {metadata.title}
+                         </h2>
+                         <h3 className="text-xl lg:text-2xl font-sans font-medium text-secondary/80 truncate w-full" title={metadata.artist}>
+                             {metadata.artist}
+                         </h3>
+                      </div>
+                  </div>
+
+                  <div className="flex items-center gap-8 mb-10">
+                      <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={togglePlay}
+                          className="w-24 h-24 rounded-full bg-secondary text-primary flex items-center justify-center shadow-[0_0_40px_rgba(251,191,36,0.3)] hover:shadow-[0_0_60px_rgba(251,191,36,0.5)] transition-all"
+                      >
+                          {isPlaying ? <Pause size={48} fill="currentColor" /> : <Play size={48} fill="currentColor" className="ml-2" />}
+                      </motion.button>
+
+                      <div className="w-[200px] lg:w-[260px] flex items-center gap-4 group">
+                          <button onClick={toggleMute} className="text-white/40 hover:text-white transition-colors">
+                              {getVolumeIcon()}
+                          </button>
+                          <div className="flex-1 relative flex items-center h-10">
+                              <input
+                                  type="range"
+                                  min="0" max="1" step="0.01"
+                                  value={volume}
+                                  onChange={handleVolumeChange}
+                                  className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-secondary"
+                              />
+                          </div>
+                      </div>
+                  </div>
+              </div>
+
+              {/* Permanent History Side Panel (Right) */}
+              <div className="hidden lg:flex w-[320px] h-full flex-col bg-white/5 border-l border-white/10 p-6 flex-shrink-0 animate-fade-in-right">
+                  <div className="flex items-center gap-3 mb-6">
+                      <div className="p-2 rounded-lg bg-secondary/10">
+                          <ListMusic size={20} className="text-secondary" />
+                      </div>
+                      <h4 className="text-sm font-black text-white uppercase tracking-widest">Lo Último</h4>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+                      {history.length > 0 ? history.map((track, i) => (
+                          <motion.div 
+                              initial={{ opacity: 0, x: 20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: i * 0.1 }}
+                              key={i} 
+                              className="flex items-center gap-4 group p-2 rounded-xl hover:bg-white/5 transition-colors"
+                          >
+                              <div className="w-14 h-14 rounded-xl overflow-hidden bg-white/5 border border-white/10 flex-shrink-0 shadow-lg group-hover:border-secondary/30 transition-colors">
+                                  <img 
+                                      src={track.cover || config.navigation.logoUrl} 
+                                      alt="" 
+                                      className="w-full h-full object-cover" 
+                                      onError={(e) => { e.currentTarget.src = config.navigation.logoUrl || '' }}
+                                  />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-bold text-white truncate group-hover:text-secondary transition-colors">{track.title}</p>
+                                  <p className="text-xs text-white/40 truncate">{track.artist}</p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                      <span className="text-[10px] font-mono text-secondary/60 bg-secondary/5 px-1.5 rounded flex items-center gap-1">
+                                          <Clock size={8} /> {track.time}
+                                      </span>
+                                  </div>
+                              </div>
+                          </motion.div>
+                      )) : (
+                          <div className="h-full flex flex-col items-center justify-center text-center opacity-30">
+                              <Radio size={40} className="mb-4" />
+                              <p className="text-xs">Actualizando historial...</p>
+                          </div>
+                      )}
+                  </div>
+              </div>
           </div>
           
-          <div className="w-24 md:w-32 relative flex items-center group">
-             <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={volume}
-                onChange={handleVolumeChange}
-                className="
-                  w-full h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer 
-                  focus:outline-none focus:ring-2 focus:ring-secondary/50
-                  [&::-webkit-slider-thumb]:appearance-none
-                  [&::-webkit-slider-thumb]:w-4
-                  [&::-webkit-slider-thumb]:h-4
-                  [&::-webkit-slider-thumb]:bg-secondary
-                  [&::-webkit-slider-thumb]:rounded-full
-                  [&::-webkit-slider-thumb]:shadow-md
-                  [&::-webkit-slider-thumb]:transition-transform
-                  [&::-webkit-slider-thumb]:hover:scale-125
-                  [&::-moz-range-thumb]:w-4
-                  [&::-moz-range-thumb]:h-4
-                  [&::-moz-range-thumb]:bg-secondary
-                  [&::-moz-range-thumb]:border-none
-                  [&::-moz-range-thumb]:rounded-full
-                  [&::-moz-range-thumb]:transition-transform
-                  [&::-moz-range-thumb]:hover:scale-125
-                "
-                aria-label="Volume Control"
-              />
+          <div className="absolute inset-0 pointer-events-none border-[1px] border-white/5 rounded-[32px]"></div>
+      </motion.div>
+      
+      {!isVisible && (
+          <div className="py-4 flex justify-center">
+               <button 
+                  onClick={() => setIsVisible(true)}
+                  className="flex items-center gap-3 px-10 py-5 bg-secondary text-primary font-black rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all text-lg ring-4 ring-secondary/10"
+               >
+                  <Radio className="animate-pulse" />
+                  ESCUCHAR EN VIVO
+               </button>
           </div>
-        </div>
-      </div>
+      )}
     </div>
-    </>
   );
 };

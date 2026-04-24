@@ -112,6 +112,7 @@ async function startServer() {
   app.get("/api/metadata", async (req, res) => {
     const stream = req.query.stream as string;
     const logo = req.query.logo as string;
+    const station = (req.query.station as string) || "";
     const now = Date.now();
 
     // Use cache if it's for the same stream and fresh (30s)
@@ -224,14 +225,19 @@ async function startServer() {
       const isGeneric = (val: string) => {
         if (!val) return true;
         const l = val.toLowerCase();
+        // These are definitely technical strings that shouldn't be searched on iTunes
         return l.includes("señal") || l.includes("recuperando") || l.includes("conectando") || 
                l.includes("en vivo") || l.includes("transmision") || l.includes("icecast") || 
-               l.includes("shoutcast") || l.includes("unknown") || l.includes("stream") ||
-               l.includes("supercriolla") || l.includes("nueva era") || l.includes("pasion por lo");
+               l.includes("shoutcast") || l.includes("unknown") || l.includes("stream");
       };
       
       let cover = logo || '';
-      if (title && artist && !isGeneric(title) && !isGeneric(artist)) {
+      // We search for covers only if we have non-generic title and artist
+      // and they are not just the station name (to avoid generic radio logo results)
+      const stationLower = station.toLowerCase();
+      const isStationName = (s: string) => stationLower && (s.toLowerCase().includes(stationLower) || stationLower.includes(s.toLowerCase()));
+
+      if (title && artist && !isGeneric(title) && !isGeneric(artist) && !isStationName(title) && !isStationName(artist)) {
           try {
             const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(`${artist} ${title}`)}&media=music&limit=1`;
             const itunesResponse = await axios.get(itunesUrl, { timeout: 3000 });
