@@ -158,17 +158,17 @@ async function startServer() {
       let metadataFound = false;
       const fetchPromises = fetchUrls.map(fetchUrl => 
         axios.get(fetchUrl, {
-          timeout: 8000,
+          timeout: 4000,
           httpsAgent: httpsAgent,
           responseType: 'text',
           headers: { 'User-Agent': 'Mozilla/5.0' }
         }).catch(e => null)
       );
 
-      const responses = await Promise.all(fetchPromises);
-
-      for (const response of responses) {
-        if (metadataFound || !response || !response.data) continue;
+      // Process responses as they come in to return faster
+      for await (const response of fetchPromises) {
+        if (metadataFound) break;
+        if (!response || !response.data) continue;
         const responseText = response.data.trim();
         if (!responseText) continue;
 
@@ -184,7 +184,7 @@ async function startServer() {
                         title = fullTitle;
                     }
                     metadataFound = true;
-                    continue;
+                    break;
                 }
             }
         }
@@ -200,6 +200,7 @@ async function startServer() {
                     if (ft.includes(' - ')) [artist, title] = ft.split(' - ').map((s: string) => s.trim());
                     else title = ft;
                     metadataFound = true;
+                    break;
                 }
             }
             continue;
@@ -214,23 +215,27 @@ async function startServer() {
               if (et.includes(' - ')) [artist, title] = et.split(' - ').map((s: string) => s.trim());
               else title = et;
             }
+            break;
         } else if (data && data.songtitle) {
             metadataFound = true;
             if (data.songtitle.includes(' - ')) [artist, title] = data.songtitle.split(' - ').map((s: string) => s.trim());
             else title = data.songtitle;
+            break;
         } else if (data && data.now_playing) {
              metadataFound = true;
              artist = data.now_playing.artist || "";
              title = data.now_playing.title || "";
+             break;
         }
       }
 
       const isGeneric = (val: string) => {
         if (!val) return true;
         const l = val.toLowerCase();
-        return l === "señal en directo" || l === "recuperando señal..." || l === "conectando..." || 
-               l === "en vivo" || l === "transmision" || l.includes("icecast") || l.includes("shoutcast") ||
-               l === "unknown" || l === "stream";
+        return l.includes("señal") || l.includes("recuperando") || l.includes("conectando") || 
+               l.includes("en vivo") || l.includes("transmision") || l.includes("icecast") || 
+               l.includes("shoutcast") || l.includes("unknown") || l.includes("stream") ||
+               l.includes("supercriolla") || l.includes("nueva era") || l.includes("pasion por lo");
       };
       
       let cover = logo || '';
