@@ -290,7 +290,17 @@ async function startServer() {
 
       const fetchPromises = urlsToProcess.map(async (url) => {
           try {
-              const feed = await parser.parseURL(url);
+              let feed;
+              try {
+                  feed = await parser.parseURL(url);
+              } catch (e: any) {
+                  if (!url.endsWith('/feed') && !url.endsWith('.xml') && !url.includes('?')) {
+                      const fallbackUrl = url.replace(/\/$/, '') + '/feed';
+                      feed = await parser.parseURL(fallbackUrl);
+                  } else {
+                      throw e;
+                  }
+              }
               const items = feed.items.slice(0, 5).map((item: any) => {
                   let imageUrl = 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=1000&auto=format&fit=crop';
                   

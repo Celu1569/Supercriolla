@@ -48,7 +48,17 @@ export const handler: Handler = async (event) => {
     const feedUrls = urlsParam.split(',').map(u => u.trim()).filter(u => u.length > 0);
     const feedPromises = feedUrls.map(async (url) => {
         try {
-            const feed = await parser.parseURL(url);
+            let feed;
+            try {
+                feed = await parser.parseURL(url);
+            } catch (e: any) {
+                if (!url.endsWith('/feed') && !url.endsWith('.xml') && !url.includes('?')) {
+                    const fallbackUrl = url.replace(/\/$/, '') + '/feed';
+                    feed = await parser.parseURL(fallbackUrl);
+                } else {
+                    throw e;
+                }
+            }
             return feed.items.map(item => {
                 const img = extractImage(item);
                 return {
