@@ -1424,7 +1424,9 @@ export const AdminPanel: React.FC = () => {
                 enabled: prev.content.topVideos?.enabled ?? true,
                 title: prev.content.topVideos?.title || "Los 5 Latigazos de la semana",
                 description: prev.content.topVideos?.description || "",
-                videos: [...(prev.content.topVideos?.videos || []), newVideo]
+                videos: [...(prev.content.topVideos?.videos || []), newVideo],
+                history: prev.content.topVideos?.history || [],
+                monthlySummaries: prev.content.topVideos?.monthlySummaries || []
             }
         }
     }));
@@ -1454,6 +1456,203 @@ export const AdminPanel: React.FC = () => {
             } : undefined
         }
     }));
+  };
+
+  const addWeeklyList = () => {
+      const newList = {
+          id: uuidv4(),
+          date: `Semana ${new Date().toLocaleDateString()}`,
+          videos: []
+      };
+      setFormData(prev => ({
+          ...prev,
+          content: {
+              ...prev.content,
+              topVideos: {
+                  ...prev.content.topVideos!,
+                  history: [newList, ...(prev.content.topVideos?.history || [])]
+              }
+          }
+      }));
+  };
+
+  const removeWeeklyList = (id: string) => {
+      setFormData(prev => ({
+          ...prev,
+          content: {
+              ...prev.content,
+              topVideos: {
+                  ...prev.content.topVideos!,
+                  history: (prev.content.topVideos?.history || []).filter(h => h.id !== id)
+              }
+          }
+      }));
+  };
+  
+  const updateWeeklyList = (id: string, field: string, value: any) => {
+      setFormData(prev => ({
+          ...prev,
+          content: {
+              ...prev.content,
+              topVideos: {
+                  ...prev.content.topVideos!,
+                  history: (prev.content.topVideos?.history || []).map(h => h.id === id ? { ...h, [field]: value } : h)
+              }
+          }
+      }));
+  };
+
+  const addVideoToWeeklyList = (listId: string) => {
+      setFormData(prev => ({
+          ...prev,
+          content: {
+              ...prev.content,
+              topVideos: {
+                  ...prev.content.topVideos!,
+                  history: (prev.content.topVideos?.history || []).map(h => {
+                      if (h.id === listId) {
+                          return { ...h, videos: [...h.videos, { id: uuidv4(), title: 'Nuevo Video Historico', url: '' }] };
+                      }
+                      return h;
+                  })
+              }
+          }
+      }));
+  };
+
+  const removeVideoFromWeeklyList = (listId: string, videoId: string) => {
+      setFormData(prev => ({
+          ...prev,
+          content: {
+              ...prev.content,
+              topVideos: {
+                  ...prev.content.topVideos!,
+                  history: (prev.content.topVideos?.history || []).map(h => {
+                      if (h.id === listId) {
+                          return { ...h, videos: h.videos.filter(v => v.id !== videoId) };
+                      }
+                      return h;
+                  })
+              }
+          }
+      }));
+  };
+
+  const updateVideoInWeeklyList = (listId: string, videoId: string, field: string, value: string) => {
+      setFormData(prev => ({
+          ...prev,
+          content: {
+              ...prev.content,
+              topVideos: {
+                  ...prev.content.topVideos!,
+                  history: (prev.content.topVideos?.history || []).map(h => {
+                      if (h.id === listId) {
+                          return { ...h, videos: h.videos.map(v => v.id === videoId ? { ...v, [field]: value } : v) };
+                      }
+                      return h;
+                  })
+              }
+          }
+      }));
+  };
+
+  const addMonthlySummary = () => {
+      const newSummary = {
+          id: uuidv4(),
+          month: `Mes de ${new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}`,
+          summaryText: "Resumen del mes...",
+          videos: []
+      };
+      setFormData(prev => ({
+          ...prev,
+          content: {
+              ...prev.content,
+              topVideos: {
+                  ...prev.content.topVideos!,
+                  monthlySummaries: [newSummary, ...(prev.content.topVideos?.monthlySummaries || [])]
+              }
+          }
+      }));
+  };
+
+  const removeMonthlySummary = (id: string) => {
+      setFormData(prev => ({
+          ...prev,
+          content: {
+              ...prev.content,
+              topVideos: {
+                  ...prev.content.topVideos!,
+                  monthlySummaries: (prev.content.topVideos?.monthlySummaries || []).filter(ms => ms.id !== id)
+              }
+          }
+      }));
+  };
+
+  const updateMonthlySummary = (id: string, field: string, value: any) => {
+      setFormData(prev => ({
+          ...prev,
+          content: {
+              ...prev.content,
+              topVideos: {
+                  ...prev.content.topVideos!,
+                  monthlySummaries: (prev.content.topVideos?.monthlySummaries || []).map(ms => ms.id === id ? { ...ms, [field]: value } : ms)
+              }
+          }
+      }));
+  };
+
+  const addVideoToMonthlySummary = (summaryId: string) => {
+      setFormData(prev => ({
+          ...prev,
+          content: {
+              ...prev.content,
+              topVideos: {
+                  ...prev.content.topVideos!,
+                  monthlySummaries: (prev.content.topVideos?.monthlySummaries || []).map(ms => {
+                      if (ms.id === summaryId) {
+                          return { ...ms, videos: [...ms.videos, { id: uuidv4(), title: 'Video del mes', url: '' }] };
+                      }
+                      return ms;
+                  })
+              }
+          }
+      }));
+  };
+
+  const removeVideoFromMonthlySummary = (summaryId: string, videoId: string) => {
+      setFormData(prev => ({
+          ...prev,
+          content: {
+              ...prev.content,
+              topVideos: {
+                  ...prev.content.topVideos!,
+                  monthlySummaries: (prev.content.topVideos?.monthlySummaries || []).map(ms => {
+                      if (ms.id === summaryId) {
+                          return { ...ms, videos: ms.videos.filter(v => v.id !== videoId) };
+                      }
+                      return ms;
+                  })
+              }
+          }
+      }));
+  };
+
+  const updateVideoInMonthlySummary = (summaryId: string, videoId: string, field: string, value: string) => {
+      setFormData(prev => ({
+          ...prev,
+          content: {
+              ...prev.content,
+              topVideos: {
+                  ...prev.content.topVideos!,
+                  monthlySummaries: (prev.content.topVideos?.monthlySummaries || []).map(ms => {
+                      if (ms.id === summaryId) {
+                          return { ...ms, videos: ms.videos.map(v => v.id === videoId ? { ...v, [field]: value } : v) };
+                      }
+                      return ms;
+                  })
+              }
+          }
+      }));
   };
 
   const addClientProductImage = (clientId: string, imageUrl: string) => {
@@ -2722,6 +2921,153 @@ export const AdminPanel: React.FC = () => {
                                   <p className="text-gray-400">No hay videos añadidos.</p>
                               </div>
                           )}
+                      </div>
+                  </div>
+
+                  {/* History of Weekly Top Videos */}
+                  <div className="mt-12 border-t border-gray-700 pt-8">
+                      <div className="flex justify-between items-center mb-6">
+                          <div>
+                              <h3 className="text-xl font-bold text-white">Historial Semanal</h3>
+                              <p className="text-sm text-gray-400">Guarda las listas anteriores de los 5 latigazos.</p>
+                          </div>
+                          <button onClick={addWeeklyList} className="bg-secondary text-white px-4 py-2 rounded-lg font-bold hover:bg-orange-600 flex items-center text-sm shadow-md transition-all active:scale-95">
+                              <Plus size={18} className="mr-1"/> Añadir Semana Histórica
+                          </button>
+                      </div>
+
+                      <div className="space-y-6">
+                          {(formData.content.topVideos?.history || []).map((weekList) => (
+                              <div key={weekList.id} className="bg-gray-800 p-6 rounded-xl border border-gray-700 relative">
+                                  <button onClick={() => removeWeeklyList(weekList.id)} className="absolute top-4 right-4 text-red-400 hover:text-red-300 p-2 hover:bg-red-900/30 rounded-lg transition-colors">
+                                      <Trash2 size={18} />
+                                  </button>
+                                  
+                                  <InputGroup label="Semana (e.g. Semana del 10 al 16 de Mayo)">
+                                      <input 
+                                          type="text" 
+                                          value={weekList.date || ''} 
+                                          onChange={e => updateWeeklyList(weekList.id, 'date', e.target.value)}
+                                          className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg mb-4" 
+                                      />
+                                  </InputGroup>
+
+                                  <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+                                      <h4 className="text-sm font-bold text-gray-300">Videos de la semana</h4>
+                                      {(weekList.videos || []).length < 5 && (
+                                          <button onClick={() => addVideoToWeeklyList(weekList.id)} className="text-xs text-primary font-bold hover:underline">
+                                              + Añadir Video {((weekList.videos || []).length)}/5
+                                          </button>
+                                      )}
+                                  </div>
+
+                                  <div className="space-y-3">
+                                      {(weekList.videos || []).map((video, idx) => (
+                                          <div key={video.id} className="flex flex-col md:flex-row items-center gap-3 bg-gray-900 p-3 rounded-lg border border-gray-700">
+                                              <span className="font-bold text-gray-500 w-6 text-center">{idx + 1}</span>
+                                              <input 
+                                                  type="text" 
+                                                  value={video.title || ''} 
+                                                  onChange={e => updateVideoInWeeklyList(weekList.id, video.id, 'title', e.target.value)}
+                                                  className="flex-1 bg-gray-800 border border-gray-700 text-white p-2 rounded focus:border-primary outline-none text-sm" 
+                                                  placeholder="Artista - Título"
+                                              />
+                                              <input 
+                                                  type="text" 
+                                                  value={video.url || ''} 
+                                                  onChange={e => updateVideoInWeeklyList(weekList.id, video.id, 'url', e.target.value)}
+                                                  className="flex-1 bg-gray-800 border border-gray-700 text-white p-2 rounded focus:border-primary outline-none text-sm" 
+                                                  placeholder="URL de YouTube"
+                                              />
+                                              <button onClick={() => removeVideoFromWeeklyList(weekList.id, video.id)} className="text-red-400 hover:text-red-300 p-2">
+                                                  <Trash2 size={16} />
+                                              </button>
+                                          </div>
+                                      ))}
+                                      {(weekList.videos || []).length === 0 && (
+                                          <p className="text-xs text-gray-500 italic">No hay videos en esta semana.</p>
+                                      )}
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+
+                  {/* Monthly Summaries */}
+                  <div className="mt-12 border-t border-gray-700 pt-8">
+                      <div className="flex justify-between items-center mb-6">
+                          <div>
+                              <h3 className="text-xl font-bold text-white">Resumen Mensual de Posiciones</h3>
+                              <p className="text-sm text-gray-400">Guarda los rankings consolidados por mes.</p>
+                          </div>
+                          <button onClick={addMonthlySummary} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 flex items-center text-sm shadow-md transition-all active:scale-95">
+                              <Plus size={18} className="mr-1"/> Añadir Resumen Mensual
+                          </button>
+                      </div>
+
+                      <div className="space-y-6">
+                          {(formData.content.topVideos?.monthlySummaries || []).map((summary) => (
+                              <div key={summary.id} className="bg-gray-800 p-6 rounded-xl border border-gray-700 relative">
+                                  <button onClick={() => removeMonthlySummary(summary.id)} className="absolute top-4 right-4 text-red-400 hover:text-red-300 p-2 hover:bg-red-900/30 rounded-lg transition-colors">
+                                      <Trash2 size={18} />
+                                  </button>
+                                  
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                      <InputGroup label="Mes (e.g. Mayo 2026)">
+                                          <input 
+                                              type="text" 
+                                              value={summary.month || ''} 
+                                              onChange={e => updateMonthlySummary(summary.id, 'month', e.target.value)}
+                                              className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg" 
+                                          />
+                                      </InputGroup>
+                                  </div>
+                                  <InputGroup label="Texto Resumen o Análisis">
+                                      <textarea 
+                                          rows={3}
+                                          value={summary.summaryText || ''} 
+                                          onChange={e => updateMonthlySummary(summary.id, 'summaryText', e.target.value)}
+                                          className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg mb-4" 
+                                          placeholder="Un comentario sobre las posiciones de este mes..."
+                                      />
+                                  </InputGroup>
+
+                                  <div className="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+                                      <h4 className="text-sm font-bold text-gray-300">Posiciones del Mes</h4>
+                                      <button onClick={() => addVideoToMonthlySummary(summary.id)} className="text-xs text-primary font-bold hover:underline">
+                                          + Añadir Posición
+                                      </button>
+                                  </div>
+
+                                  <div className="space-y-3">
+                                      {(summary.videos || []).map((video, idx) => (
+                                          <div key={video.id} className="flex flex-col md:flex-row items-center gap-3 bg-gray-900 p-3 rounded-lg border border-gray-700">
+                                              <span className="font-bold text-gray-500 w-6 text-center">{idx + 1}</span>
+                                              <input 
+                                                  type="text" 
+                                                  value={video.title || ''} 
+                                                  onChange={e => updateVideoInMonthlySummary(summary.id, video.id, 'title', e.target.value)}
+                                                  className="flex-1 bg-gray-800 border border-gray-700 text-white p-2 rounded focus:border-primary outline-none text-sm" 
+                                                  placeholder="Artista - Título"
+                                              />
+                                              <input 
+                                                  type="text" 
+                                                  value={video.url || ''} 
+                                                  onChange={e => updateVideoInMonthlySummary(summary.id, video.id, 'url', e.target.value)}
+                                                  className="flex-1 bg-gray-800 border border-gray-700 text-white p-2 rounded focus:border-primary outline-none text-sm" 
+                                                  placeholder="URL de YouTube (Opcional)"
+                                              />
+                                              <button onClick={() => removeVideoFromMonthlySummary(summary.id, video.id)} className="text-red-400 hover:text-red-300 p-2">
+                                                  <Trash2 size={16} />
+                                              </button>
+                                          </div>
+                                      ))}
+                                      {(summary.videos || []).length === 0 && (
+                                          <p className="text-xs text-gray-500 italic">No hay videos en este resumen.</p>
+                                      )}
+                                  </div>
+                              </div>
+                          ))}
                       </div>
                   </div>
 

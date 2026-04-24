@@ -641,7 +641,7 @@ const PublicView: React.FC = () => {
                     </p>
                 </div>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 max-w-7xl mx-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 max-w-7xl mx-auto mb-16">
                     {config.content.topVideos.videos.slice(0, 5).map((v, i) => {
                         const match = v.url.match(/^.*(?:(?:youtu\.be\/|v\/|vi\/|u\/\w\/|embed\/|live\/|shorts\/)|(?:(?:watch)?\?v(?:i)?=|\&v(?:i)?=))([^#\&\?]*).*/);
                         const videoId = (match && match[1] && match[1].length === 11) ? match[1] : null;
@@ -673,6 +673,70 @@ const PublicView: React.FC = () => {
                         </div>
                     )})}
                 </div>
+
+                {/* History & Monthly Summaries */}
+                {(config.content.topVideos.history?.length > 0 || config.content.topVideos.monthlySummaries?.length > 0) && (
+                    <div className="max-w-4xl mx-auto space-y-6">
+                        {config.content.topVideos.monthlySummaries?.length > 0 && (
+                            <details className="group bg-surface rounded-xl overflow-hidden shadow-sm border border-black/5 hover:shadow-md transition-shadow">
+                                <summary className="flex items-center justify-between p-5 cursor-pointer font-bold text-lg text-heading marker:content-none select-none">
+                                    <span className="flex items-center"><Calendar size={20} className="mr-3 text-secondary"/> Resumen Mensual de Posiciones</span>
+                                    <ChevronDown size={20} className="text-gray-400 group-open:-rotate-180 transition-transform duration-300"/>
+                                </summary>
+                                <div className="p-6 border-t border-black/5 space-y-8 bg-surface-alt/50">
+                                    {config.content.topVideos.monthlySummaries.map(summary => (
+                                        <div key={summary.id} className="bg-surface rounded-xl p-6 shadow-sm border border-black/5">
+                                            <h4 className="text-xl font-heading font-bold text-primary mb-3 border-b border-black/10 pb-2">{summary.month}</h4>
+                                            {summary.summaryText && <p className="text-on-surface-muted italic mb-4">{summary.summaryText}</p>}
+                                            <div className="space-y-3">
+                                                {summary.videos.map((vid, i) => (
+                                                    <div key={vid.id} className="flex items-center gap-4 bg-surface-alt p-3 rounded-lg">
+                                                        <span className="font-black text-secondary text-lg w-8 text-center">{i + 1}</span>
+                                                        <span className="flex-1 font-bold text-sm text-on-surface">{vid.title}</span>
+                                                        {vid.url && (
+                                                            <button onClick={() => setPlayingVideo({url: vid.url, title: vid.title})} className="p-2 bg-primary/10 text-primary rounded-full hover:bg-primary/20 transition-colors">
+                                                                <Play size={14} className="fill-current"/>
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </details>
+                        )}
+                        
+                        {config.content.topVideos.history?.length > 0 && (
+                            <details className="group bg-surface rounded-xl overflow-hidden shadow-sm border border-black/5 hover:shadow-md transition-shadow">
+                                <summary className="flex items-center justify-between p-5 cursor-pointer font-bold text-lg text-heading marker:content-none select-none">
+                                    <span className="flex items-center"><Calendar size={20} className="mr-3 text-secondary"/> Historial Semanal Anteriores</span>
+                                    <ChevronDown size={20} className="text-gray-400 group-open:-rotate-180 transition-transform duration-300"/>
+                                </summary>
+                                <div className="p-6 border-t border-black/5 grid grid-cols-1 md:grid-cols-2 gap-6 bg-surface-alt/50">
+                                    {config.content.topVideos.history.map(week => (
+                                        <div key={week.id} className="bg-surface rounded-xl p-5 shadow-sm border border-black/5">
+                                            <h4 className="text-lg font-heading font-bold text-primary mb-4 border-b border-black/10 pb-2">{week.date}</h4>
+                                            <div className="space-y-2">
+                                                {week.videos.map((vid, i) => (
+                                                    <div key={vid.id} className="flex items-center gap-3 text-sm">
+                                                        <span className="font-bold text-secondary text-xs">{i + 1}.</span>
+                                                        <span className="flex-1 text-on-surface-muted truncate">{vid.title}</span>
+                                                        {vid.url && (
+                                                            <button onClick={() => setPlayingVideo({url: vid.url, title: vid.title})} className="text-primary hover:text-secondary transition-colors">
+                                                                <Play size={12} className="fill-current"/>
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </details>
+                        )}
+                    </div>
+                )}
             </div>
         </section>
       )}

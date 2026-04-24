@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Play, Pause, Volume2, Volume1, VolumeX, Radio } from 'lucide-react';
+import { Play, Pause, Volume2, Volume1, VolumeX, Radio, ListMusic, X } from 'lucide-react';
 import { useConfig } from '../context/ConfigContext';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -7,12 +7,19 @@ interface RadioPlayerProps {
   variant?: 'hero' | 'sticky';
 }
 
+interface TrackHistory {
+   title: string;
+   artist: string;
+   cover: string;
+   time: string;
+}
+
 export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) => {
   const { config } = useConfig();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
-  const [prevVolume, setPrevVolume] = useState(0.8); // Store previous volume for unmute
+  const [prevVolume, setPrevVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
   const [error, setError] = useState(false);
   const [metadata, setMetadata] = useState({
@@ -20,6 +27,9 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
     artist: 'Conectando...',
     cover: ''
   });
+  const [history, setHistory] = useState<TrackHistory[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const historyRef = useRef<HTMLDivElement>(null);
 
   // Keep track of config updates to initialize default cover if needed
   useEffect(() => {
@@ -83,6 +93,45 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
     
     return () => clearInterval(interval);
   }, [config.general.streamUrl, config.navigation.logoUrl, config.general.stationName]);
+
+  // Track History updates
+  const lastTrackRef = useRef<string>('');
+  useEffect(() => {
+     if (metadata.title && metadata.title !== "Señal en directo" && metadata.title !== "Recuperando señal...") {
+         const trackId = `${metadata.title}-${metadata.artist}`;
+         if (lastTrackRef.current !== trackId) {
+             lastTrackRef.current = trackId;
+             setHistory(prev => {
+                 // Prevent duplicates
+                 if (prev[0]?.title === metadata.title) return prev;
+                 
+                 const newTrack = {
+                     title: metadata.title,
+                     artist: metadata.artist,
+                     cover: metadata.cover || config.navigation.logoUrl || '',
+                     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                 };
+                 // Filter out the same title if it was playing previously so we don't spam the list, taking the newest time
+                 return [newTrack, ...prev.filter(t => t.title !== metadata.title)].slice(0, 5);
+             });
+         }
+     }
+  }, [metadata, config.navigation.logoUrl]);
+
+  // Handle clicking outside of history panel
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (historyRef.current && !historyRef.current.contains(event.target as Node)) {
+        setShowHistory(false);
+      }
+    }
+    if (showHistory) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showHistory]);
 
   const togglePlay = () => {
     if (!audioRef.current) return;
@@ -219,7 +268,68 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
 
   if (variant === 'hero') {
     return (
-      <div className="bg-white/10 backdrop-blur-md border border-white/20 p-6 rounded-xl shadow-2xl max-w-md w-full text-center">
+      <div className="bg-white/10 backdrop-blur-md border border-white/20 p-6 rounded-xl shadow-2xl max-w-md w-full relative text-center">
+        {/* History Toggle for Hero */}
+        <div className="absolute top-4 right-4 z-20" ref={historyRef}>
+          <button 
+              onClick={() => setShowHistory(!showHistory)}
+              className={`p-2 transition-colors rounded-full ${showHistory ? 'bg-secondary text-primary' : 'bg-black/20 text-white/80 hover:text-secondary hover:bg-black/40'}`}
+              aria-label="Ver últimos temas"
+              title="Historial de reproducción"
+          >
+              <ListMusic size={20} />
+          </button>
+          
+          <AnimatePresence>
+              {showHistory && (
+                  <motion.div 
+                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute top-[calc(100%+0.5rem)] right-0 w-72 bg-gray-900 border border-gray-700/50 rounded-xl shadow-2xl overflow-hidden z-[60] text-left"
+                  >
+                      <div className="flex items-center justify-between p-3 border-b border-gray-800 bg-gray-900/80 backdrop-blur-sm">
+                          <h4 className="font-bold text-white flex items-center text-sm"><ListMusic size={16} className="mr-2 text-secondary"/> Últimos Sonados</h4>
+                          <button onClick={() => setShowHistory(false)} className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10">
+                              <X size={16} />
+                          </button>
+                      </div>
+                      <div className="max-h-64 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+                          {history.length > 0 ? (
+                              <div className="space-y-1">
+                                  {history.map((track, i) => (
+                                      <div key={`${track.title}-${i}`} className="flex items-center gap-3 p-2 hover:bg-gray-800/80 rounded-lg transition-colors group">
+                                          <div className="w-10 h-10 rounded overflow-hidden shadow bg-gray-800 flex-shrink-0 border border-gray-700">
+                                              {track.cover ? (
+                                                  <img src={track.cover} alt="" className="w-full h-full object-cover" />
+                                              ) : (
+                                                  <Radio className="w-5 h-5 m-2.5 text-gray-500" />
+                                              )}
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                              <p className="text-sm font-bold text-white truncate group-hover:text-secondary transition-colors" title={track.title}>{track.title}</p>
+                                              <p className="text-xs text-gray-400 truncate" title={track.artist}>{track.artist}</p>
+                                          </div>
+                                          <div className="text-[10px] text-gray-500 font-mono whitespace-nowrap bg-black/30 px-1.5 py-0.5 rounded">
+                                              {track.time}
+                                          </div>
+                                      </div>
+                                  ))}
+                              </div>
+                          ) : (
+                              <div className="p-6 text-center text-gray-500 text-sm">
+                                  <ListMusic className="w-8 h-8 opacity-20 mx-auto mb-2" />
+                                  <p>Recopilando historial...</p>
+                                  <p className="text-xs opacity-60 mt-1">Espera los próximos temas</p>
+                              </div>
+                          )}
+                      </div>
+                  </motion.div>
+              )}
+          </AnimatePresence>
+        </div>
+
         <audio 
             ref={audioRef} 
             onError={handleAudioError}
@@ -311,9 +421,71 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ variant = 'sticky' }) 
           {error && <span className="text-xs text-red-300 font-bold ml-2 whitespace-nowrap">Offline</span>}
         </div>
 
-        {/* Volume Control Section - Hide on small screens to give space to metadata */}
-        <div className="hidden md:flex items-center gap-3 w-auto md:w-1/3 max-w-[200px] justify-end">
-          <div className="relative group">
+        {/* Controls Right Section */}
+        <div className="flex items-center gap-2 md:gap-3 w-auto md:w-1/3 justify-end relative" ref={historyRef}>
+          
+          {/* History Toggle */}
+          <button 
+              onClick={() => setShowHistory(!showHistory)}
+              className={`p-2 transition-colors rounded-full flex-shrink-0 ${showHistory ? 'bg-secondary text-primary' : 'text-white/80 hover:text-secondary hover:bg-white/10'}`}
+              aria-label="Ver últimos temas"
+              title="Historial de reproducción"
+          >
+              <ListMusic size={20} />
+          </button>
+
+          {/* History Popover */}
+          <AnimatePresence>
+              {showHistory && (
+                  <motion.div 
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute bottom-[calc(100%+1.5rem)] right-0 w-72 md:w-80 bg-gray-900 border border-gray-700/50 rounded-xl shadow-2xl overflow-hidden z-[60] text-left"
+                  >
+                      <div className="flex items-center justify-between p-3 md:p-4 border-b border-gray-800 bg-gray-900/80 backdrop-blur-sm">
+                          <h4 className="font-bold text-white flex items-center text-sm md:text-base"><ListMusic size={16} className="mr-2 text-secondary"/> Últimos Sonados</h4>
+                          <button onClick={() => setShowHistory(false)} className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10">
+                              <X size={16} />
+                          </button>
+                      </div>
+                      <div className="max-h-64 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+                          {history.length > 0 ? (
+                              <div className="space-y-1">
+                                  {history.map((track, i) => (
+                                      <div key={`${track.title}-${i}`} className="flex items-center gap-3 p-2 hover:bg-gray-800/80 rounded-lg transition-colors group">
+                                          <div className="w-10 h-10 rounded overflow-hidden shadow bg-gray-800 flex-shrink-0 border border-gray-700">
+                                              {track.cover ? (
+                                                  <img src={track.cover} alt="" className="w-full h-full object-cover" />
+                                              ) : (
+                                                  <Radio className="w-5 h-5 m-2.5 text-gray-500" />
+                                              )}
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                              <p className="text-sm font-bold text-white truncate group-hover:text-secondary transition-colors" title={track.title}>{track.title}</p>
+                                              <p className="text-xs text-gray-400 truncate" title={track.artist}>{track.artist}</p>
+                                          </div>
+                                          <div className="text-[10px] text-gray-500 font-mono whitespace-nowrap bg-black/30 px-1.5 py-0.5 rounded">
+                                              {track.time}
+                                          </div>
+                                      </div>
+                                  ))}
+                              </div>
+                          ) : (
+                              <div className="p-6 text-center text-gray-500 text-sm">
+                                  <ListMusic className="w-8 h-8 opacity-20 mx-auto mb-2" />
+                                  <p>Recopilando historial...</p>
+                                  <p className="text-xs opacity-60 mt-1">Espera los próximos temas</p>
+                              </div>
+                          )}
+                      </div>
+                  </motion.div>
+              )}
+          </AnimatePresence>
+
+          {/* Volume Control - Hide on extra small screens */}
+          <div className="hidden sm:flex items-center gap-2 group relative">
             <button 
                 onClick={toggleMute} 
                 className="p-2 text-white/80 hover:text-secondary transition-colors rounded-full hover:bg-white/10"

@@ -161,11 +161,26 @@ export interface TopVideo {
   url: string;
 }
 
+export interface WeeklyTopList {
+  id: string;
+  date: string; // e.g. "Semana del 10 al 16 de Mayo 2026"
+  videos: TopVideo[];
+}
+
+export interface MonthlyTopSummary {
+  id: string;
+  month: string; // e.g. "Mayo 2026"
+  summaryText: string;
+  videos: TopVideo[]; // Top videos of the month
+}
+
 export interface TopVideosConfig {
   enabled: boolean;
   title: string;
   description: string;
   videos: TopVideo[];
+  history?: WeeklyTopList[]; // Make optional for backward compatibility
+  monthlySummaries?: MonthlyTopSummary[]; // Make optional for backward compatibility
 }
 
 export interface NewsConfig {
