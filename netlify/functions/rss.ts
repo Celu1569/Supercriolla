@@ -2,6 +2,7 @@ import { Handler } from '@netlify/functions';
 import Parser from 'rss-parser';
 
 const parser = new Parser({
+    timeout: 10000,
     customFields: {
         item: [
             ['media:content', 'mediaContent'],

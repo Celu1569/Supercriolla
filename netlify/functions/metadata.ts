@@ -37,7 +37,7 @@ export const handler: Handler = async (event, context) => {
     let metadataFound = false;
     const fetchPromises = fetchUrls.map(fetchUrl => 
       axios.get(fetchUrl, {
-        timeout: 4000,
+        timeout: 8000,
         httpsAgent: httpsAgent,
         responseType: 'text',
         headers: { 'User-Agent': 'Mozilla/5.0' }

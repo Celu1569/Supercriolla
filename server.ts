@@ -158,7 +158,7 @@ async function startServer() {
       let metadataFound = false;
       const fetchPromises = fetchUrls.map(fetchUrl => 
         axios.get(fetchUrl, {
-          timeout: 4000,
+          timeout: 8000,
           httpsAgent: httpsAgent,
           responseType: 'text',
           headers: { 'User-Agent': 'Mozilla/5.0' }
@@ -270,6 +270,7 @@ async function startServer() {
 
       const Parser = (await import('rss-parser')).default;
       const parser = new Parser({
+          timeout: 10000,
           customFields: {
               item: [
                   ['media:content', 'media:content'],
