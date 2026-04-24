@@ -14,14 +14,6 @@ const httpsAgent = new https.Agent({
   rejectUnauthorized: false,
 });
 
-// Cache for metadata to avoid hitting external APIs too much
-let metadataCache = {
-  title: 'Supercriolla 98.7 FM',
-  artist: 'En Vivo',
-  cover: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=200&auto=format&fit=crop',
-  lastUpdate: 0
-};
-
 async function startServer() {
   const app = express();
   const httpServer = createServer(app);
