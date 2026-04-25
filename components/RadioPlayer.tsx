@@ -13,11 +13,13 @@ interface TrackHistory {
 export const RadioPlayer: React.FC = () => {
   const { config } = useConfig();
   const audioRef = useRef<HTMLAudioElement>(null);
+  const testAudioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const [prevVolume, setPrevVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
   const [error, setError] = useState(false);
+  const [isFallbackMode, setIsFallbackMode] = useState(false);
   const [metadata, setMetadata] = useState({
     title: 'Cargando...',
     artist: 'Radio en Vivo',
@@ -118,11 +120,19 @@ export const RadioPlayer: React.FC = () => {
 
     if (isPlaying) {
       audioRef.current.pause();
-      // Clear src to stop downloading data in background
-      audioRef.current.src = "";
-      audioRef.current.load();
+      // Clear src to stop downloading data in background, but safely
+      audioRef.current.removeAttribute("src");
       setIsPlaying(false);
+      setIsFallbackMode(false);
+      if (testAudioRef.current) {
+          testAudioRef.current.removeAttribute("src");
+      }
     } else {
+      if (!config.general.streamUrl) {
+          setError(true);
+          console.error("No stream URL missing");
+          return;
+      }
       setError(false);
       // Re-load stream to ensure it's fresh and not stuck in a buffer
       const streamUrl = config.general.streamUrl;
@@ -198,6 +208,10 @@ export const RadioPlayer: React.FC = () => {
   };
 
   const handleAudioError = (e: any) => {
+    // If we deliberately cleared the source to pause a stream, ignore the error
+    if (!audioRef.current?.getAttribute("src") && !audioRef.current?.src) {
+        return;
+    }
     const error = e.target.error;
     let message = "Error desconocido";
     
@@ -211,8 +225,75 @@ export const RadioPlayer: React.FC = () => {
     }
     
     console.error("Audio element error:", message, error);
+
+    // Enter fallback mode if main stream fails and fallback is available
+    if (config.general.fallbackStreamUrl && !isFallbackMode) {
+         console.log("Señal caída. Activando audio de respaldo...");
+         setIsFallbackMode(true);
+         setError(false);
+         if (audioRef.current) {
+              audioRef.current.src = config.general.fallbackStreamUrl;
+              audioRef.current.loop = true; // loop fallback audio
+              audioRef.current.load();
+              audioRef.current.play().catch(e => console.error("Fallback play error:", e));
+              setIsPlaying(true);
+         }
+         return;
+    }
+
     setError(true);
     setIsPlaying(false);
+  };
+
+  // Background checker for live stream recovery
+  useEffect(() => {
+     let checkInterval: any;
+     if (isFallbackMode && config.general.streamUrl) {
+         checkInterval = setInterval(() => {
+             if (testAudioRef.current) {
+                 const streamUrl = config.general.streamUrl;
+                 let testUrl = streamUrl;
+                 const isSimpleUrl = /^https?:\/\/[^/]+\/?$/.test(streamUrl);
+                 if (isSimpleUrl && !streamUrl.includes('?') && !streamUrl.includes(';') && !streamUrl.includes('.mp3') && !streamUrl.includes('.aac')) {
+                     testUrl = `${streamUrl}${streamUrl.endsWith('/') ? '' : '/'};`;
+                 } else if (streamUrl.includes('listen.php') && !streamUrl.includes('.mp3')) {
+                     testUrl = `${streamUrl}&.mp3`;
+                 }
+                 testUrl = testUrl + (testUrl.includes('?') ? '&' : '?') + `test=${Date.now()}`;
+                 
+                 testAudioRef.current.src = testUrl;
+                 testAudioRef.current.load(); 
+             }
+         }, 30000); // Check every 30s
+     }
+     return () => clearInterval(checkInterval);
+  }, [isFallbackMode, config.general.streamUrl]);
+
+  const handleTestAudioCanPlay = () => {
+      // The main stream is back online!
+      if (isFallbackMode) {
+          console.log("¡La señal en vivo regresó!");
+          setIsFallbackMode(false);
+          if (testAudioRef.current) {
+              testAudioRef.current.removeAttribute("src"); // Stop test
+          }
+          if (audioRef.current && isPlaying) {
+              const streamUrl = config.general.streamUrl;
+              let finalUrl = streamUrl;
+              if (streamUrl) {
+                  const isSimpleUrl = /^https?:\/\/[^/]+\/?$/.test(streamUrl);
+                  if (isSimpleUrl && !streamUrl.includes('?') && !streamUrl.includes(';') && !streamUrl.includes('.mp3') && !streamUrl.includes('.aac')) {
+                      finalUrl = `${streamUrl}${streamUrl.endsWith('/') ? '' : '/'};`;
+                  } else if (streamUrl.includes('listen.php') && !streamUrl.includes('.mp3')) {
+                      finalUrl = `${streamUrl}&.mp3`;
+                  }
+              }
+              audioRef.current.src = finalUrl;
+              audioRef.current.loop = false;
+              audioRef.current.load();
+              audioRef.current.play().catch(e => console.error("Stream resume play error:", e));
+          }
+      }
   };
 
   // Sync stream URL updates
@@ -250,18 +331,27 @@ export const RadioPlayer: React.FC = () => {
           }}
       >
           {/* Background Atmosphere */}
-          <div className="absolute inset-0 z-0 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-black via-primary/20 to-black"></div>
-              <motion.div 
-                  animate={{ 
-                      scale: isPlaying ? [1, 1.1, 1] : 1,
-                      opacity: isPlaying ? [0.6, 0.8, 0.6] : 0.6
-                  }}
-                  transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-                  className="absolute -top-[20%] -left-[20%] w-[140%] h-[140%] bg-[radial-gradient(circle_at_50%_50%,rgba(251,191,36,0.15),transparent_70%)] blur-[80px]"
-              ></motion.div>
-              <div className="absolute top-[30%] left-[10%] w-[40%] h-[40%] bg-primary/20 blur-[100px] rounded-full"></div>
-              <div className="absolute bottom-[20%] right-[10%] w-[30%] h-[30%] bg-secondary/10 blur-[100px] rounded-full"></div>
+          <div className="absolute inset-0 z-0 overflow-hidden bg-[#0a0502]">
+              <div className="absolute inset-0 bg-gradient-to-br from-black/80 via-primary/40 to-black/80 z-10"></div>
+              <AnimatePresence mode="wait">
+                  {metadata.cover && (
+                      <motion.div 
+                          key={`main-bg-${metadata.cover}`}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 0.35 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 1.5 }}
+                          className="absolute inset-0 z-0 pointer-events-none"
+                      >
+                          <img 
+                              src={metadata.cover} 
+                              alt="" 
+                              className="w-full h-full object-cover blur-[80px] scale-110"
+                              referrerPolicy="no-referrer"
+                          />
+                      </motion.div>
+                  )}
+              </AnimatePresence>
           </div>
 
           {/* Close Button */}
@@ -276,28 +366,10 @@ export const RadioPlayer: React.FC = () => {
           {/* Main Content Grid - Now 3 Columns for History Side Panel */}
           <div className="relative z-10 h-full flex flex-col lg:flex-row items-center gap-8 lg:gap-12 px-8 lg:px-12 py-12">
               <audio ref={audioRef} onError={handleAudioError} preload="none" />
+              <audio ref={testAudioRef} onCanPlay={handleTestAudioCanPlay} preload="none" className="hidden pointer-events-none" muted />
               
               {/* Visualizer/Cover Area */}
               <div className="relative group w-full lg:w-[380px] flex-shrink-0 flex items-center justify-center">
-                  <AnimatePresence mode="wait">
-                      {metadata.cover && (
-                          <motion.div 
-                              key={`bg-${metadata.cover}`}
-                              initial={{ opacity: 0, scale: 0.9 }}
-                              animate={{ opacity: 0.6, scale: 1.15 }}
-                              exit={{ opacity: 0, scale: 0.9 }}
-                              transition={{ duration: 1.5 }}
-                              className="absolute -inset-12 z-0 pointer-events-none overflow-hidden"
-                          >
-                              <img 
-                                  src={metadata.cover} 
-                                  alt="" 
-                                  className="w-full h-full object-cover blur-[50px] opacity-40 rounded-full"
-                                  referrerPolicy="no-referrer"
-                              />
-                          </motion.div>
-                      )}
-                  </AnimatePresence>
                   
                   <motion.div 
                       whileHover={{ scale: 1.02 }}
@@ -351,10 +423,10 @@ export const RadioPlayer: React.FC = () => {
                       </motion.div>
                       
                       <div className="space-y-3">
-                         <h2 className="text-4xl lg:text-6xl font-heading font-black text-white leading-tight break-words line-clamp-2 drop-shadow-lg" title={metadata.title}>
+                         <h2 className="text-3xl lg:text-4xl font-heading font-black text-white leading-tight break-words line-clamp-2 drop-shadow-lg" title={metadata.title}>
                              {metadata.title}
                          </h2>
-                         <h3 className="text-xl lg:text-2xl font-sans font-medium text-secondary/80 truncate w-full" title={metadata.artist}>
+                         <h3 className="text-lg lg:text-xl font-sans font-medium text-secondary/80 truncate w-full" title={metadata.artist}>
                              {metadata.artist}
                          </h3>
                       </div>
@@ -365,9 +437,9 @@ export const RadioPlayer: React.FC = () => {
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={togglePlay}
-                          className="w-24 h-24 rounded-full bg-secondary text-primary flex items-center justify-center shadow-[0_0_40px_rgba(251,191,36,0.3)] hover:shadow-[0_0_60px_rgba(251,191,36,0.5)] transition-all"
+                          className="w-16 h-16 rounded-full bg-secondary text-primary flex items-center justify-center shadow-[0_0_20px_rgba(251,191,36,0.3)] hover:shadow-[0_0_30px_rgba(251,191,36,0.5)] transition-all"
                       >
-                          {isPlaying ? <Pause size={48} fill="currentColor" /> : <Play size={48} fill="currentColor" className="ml-2" />}
+                          {isPlaying ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
                       </motion.button>
 
                       <div className="w-[200px] lg:w-[260px] flex items-center gap-4 group">

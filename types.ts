@@ -253,6 +253,7 @@ export interface SiteConfig {
   general: {
     stationName: string;
     streamUrl: string;
+    fallbackStreamUrl?: string; // Audio file to play when stream fails
     logoUrl: string; // Deprecated in favor of navigation.logoUrl, kept for legacy compatibility
     contactEmail: string;
     contactPhone: string;

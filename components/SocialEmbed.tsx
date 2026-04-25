@@ -18,8 +18,8 @@ export const SocialEmbed: React.FC<SocialEmbedProps> = ({ url, type, width = '10
         <iframe
           src={embedUrl}
           className="w-full h-full border-0 rounded-lg"
-          allowTransparency
-          frameBorder="0"
+          allowtransparency="true"
+          frameBorder={0}
           scrolling="no"
           title="Instagram Embed"
         ></iframe>
@@ -52,8 +52,8 @@ export const SocialEmbed: React.FC<SocialEmbedProps> = ({ url, type, width = '10
           src={`https://www.facebook.com/plugins/post.php?href=${encodedUrl}&show_text=true&width=500`}
           className="w-full h-full border-0 overflow-hidden"
           scrolling="no"
-          frameBorder="0"
-          allowTransparency
+          frameBorder={0}
+          allowtransparency="true"
           allow="encrypted-media"
           title="Facebook Embed"
         ></iframe>

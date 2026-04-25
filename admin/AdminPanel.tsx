@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useConfig } from '../context/ConfigContext';
 import { SiteConfig, HeroSlide, PodcastEpisode, GalleryItem, NavItemConfig, FontFamily, Client } from '../types';
-import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Twitter, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock } from 'lucide-react';
+import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Twitter, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2 } from 'lucide-react';
 
 // --- CONSTANTS ---
 const FONT_OPTIONS: { value: FontFamily; label: string }[] = [
@@ -287,7 +287,7 @@ interface MediaUploaderProps {
   label: string;
   value: string;
   onChange: (val: string) => void;
-  type?: 'image' | 'video';
+  type?: 'image' | 'video' | 'audio';
 }
 
 const MediaUploader: React.FC<MediaUploaderProps> = ({ label, value, onChange, type = 'image' }) => {
@@ -308,11 +308,11 @@ const MediaUploader: React.FC<MediaUploaderProps> = ({ label, value, onChange, t
         const urlToSave = await uploadFileToStorage(file, 'uploads');
         onChange(urlToSave);
     } catch (error: any) {
-        console.error("Error compressing image:", error);
+        console.error("Error compressing/uploading:", error);
         if (error?.message === 'storage/unauthorized') {
              alert(`⚠️ ERROR DE PERMISOS DE FIREBASE STORAGE ⚠️\n\nNo tienes permiso para subir. Esto pasa porque Firebase Storage bloquea las subidas por seguridad.\n\nPara solucionarlo, debes ir a tu consola de Firebase:\n1. Ve a "Build" > "Storage" > pestaña "Reglas" (Rules).\n2. Cambia la regla a: allow read, write: if true;\n3. Dale a "Publicar" (Publish).`);
         } else {
-             alert(`Hubo un error al procesar o subir la imagen: ${error?.message || 'Error de red o permisos.'}`);
+             alert(`Hubo un error al procesar o subir el archivo: ${error?.message || 'Error de red o permisos.'}`);
         }
     } finally {
         setIsProcessing(false);
@@ -343,12 +343,12 @@ const MediaUploader: React.FC<MediaUploaderProps> = ({ label, value, onChange, t
                         className="w-full bg-gray-900 border border-gray-600 pl-9 pr-3 py-2 rounded-lg text-sm text-white focus:ring-2 focus:ring-primary/50 outline-none placeholder-gray-500" 
                         placeholder="https://..." 
                     />
-                    <div className="absolute left-3 top-2.5 text-gray-500">{type === 'image' ? <ImageIcon size={16}/> : <Youtube size={16}/>}</div>
+                    <div className="absolute left-3 top-2.5 text-gray-500">{type === 'image' ? <ImageIcon size={16}/> : type === 'audio' ? <Volume2 size={16}/> : <Youtube size={16}/>}</div>
                 </div>
             )}
             {activeMethod === 'upload' && (
                 <div className={`border-2 border-dashed border-primary/20 bg-primary/10 rounded-lg p-6 text-center relative cursor-pointer ${isProcessing ? 'opacity-50' : ''}`}>
-                    <input type="file" accept="image/*" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" disabled={isProcessing} />
+                    <input type="file" accept={type === 'audio' ? 'audio/*' : 'image/*'} onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" disabled={isProcessing} />
                     <div className="pointer-events-none">
                         {isProcessing ? <Loader2 size={28} className="animate-spin text-primary mx-auto" /> : <Upload size={28} className="mx-auto text-primary/50" />}
                     </div>
@@ -358,6 +358,11 @@ const MediaUploader: React.FC<MediaUploaderProps> = ({ label, value, onChange, t
         {value && type === 'image' && (
              <div className="h-32 w-full bg-gray-900 border-t border-gray-700 flex items-center justify-center overflow-hidden">
                 <img src={value} className="h-full object-contain" />
+             </div>
+        )}
+        {value && type === 'audio' && (
+             <div className="w-full bg-gray-900 border-t border-gray-700 p-2 flex items-center justify-center">
+                <audio src={value} controls className="w-full max-w-sm h-10" />
              </div>
         )}
       </div>
@@ -3210,9 +3215,18 @@ export const AdminPanel: React.FC = () => {
                 <SectionHeader title="General / Footer" subtitle="Configura la información del pie de página." />
                 <h3 className="text-md font-bold text-gray-300 uppercase tracking-wide border-b border-gray-700 pb-2 mb-4">Stream y Contacto</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <InputGroup label="URL del Streaming">
+                    <InputGroup label="URL del Streaming en Vivo (Principal)">
                     <input type="text" value={formData.general.streamUrl || ''} onChange={e => setFormData(prev => ({...prev, general: {...prev.general, streamUrl: e.target.value}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" />
                     </InputGroup>
+                    <div className="md:col-span-2">
+                         <MediaUploader 
+                            label="Audio de Respaldo (Si falla la señal en vivo)"
+                            type="audio"
+                            value={formData.general.fallbackStreamUrl || ''}
+                            onChange={v => setFormData(p => ({...p, general: {...p.general, fallbackStreamUrl: v}}))}
+                        />
+                         <p className="text-xs text-gray-400 mt-1">Este audio se reproducirá automáticamente si la URL del streaming principal falla. Ideal para avisos de "Sin Energía Eléctrica" o identificadores de la radio.</p>
+                    </div>
                     <InputGroup label="Email de Contacto">
                     <input type="email" value={formData.general.contactEmail || ''} onChange={e => setFormData(prev => ({...prev, general: {...prev.general, contactEmail: e.target.value}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" />
                     </InputGroup>
