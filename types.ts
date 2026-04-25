@@ -1,7 +1,7 @@
 export interface SocialLinks {
   facebook: string;
   instagram: string;
-  twitter: string;
+  tiktok: string;
   youtube: string;
   whatsapp: string;
 }
@@ -71,7 +71,7 @@ export interface ChatConfig {
 export interface GalleryItem {
   id: string;
   url: string;
-  type?: 'image' | 'instagram' | 'tiktok' | 'facebook' | 'twitter';
+  type?: 'image' | 'instagram' | 'tiktok' | 'facebook';
   format: 'landscape' | 'portrait'; // 16:9 or 9:16
   caption?: string;
 }
@@ -242,7 +242,7 @@ export interface Client {
   whatsapp: string;
   facebook?: string;
   instagram?: string;
-  twitter?: string;
+  tiktok?: string;
   website?: string;
   address?: string;
   mapUrl?: string;

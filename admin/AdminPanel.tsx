@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useConfig } from '../context/ConfigContext';
 import { SiteConfig, HeroSlide, PodcastEpisode, GalleryItem, NavItemConfig, FontFamily, Client, AutoDJTrack } from '../types';
-import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Twitter, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2 } from 'lucide-react';
+import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2 } from 'lucide-react';
 
 // --- CONSTANTS ---
 const FONT_OPTIONS: { value: FontFamily; label: string }[] = [
@@ -1400,7 +1400,7 @@ export const AdminPanel: React.FC = () => {
       whatsapp: "",
       facebook: "",
       instagram: "",
-      twitter: "",
+      tiktok: "",
       website: "",
       address: "",
       mapUrl: "",
@@ -2569,11 +2569,11 @@ export const AdminPanel: React.FC = () => {
                                                 className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg text-xs" 
                                             />
                                         </InputGroup>
-                                        <InputGroup label="Twitter">
+                                        <InputGroup label="TikTok URL">
                                             <input 
                                                 type="text" 
-                                                value={client.twitter || ''} 
-                                                onChange={e => updateClient(client.id, 'twitter', e.target.value)}
+                                                value={client.tiktok || ''} 
+                                                onChange={e => updateClient(client.id, 'tiktok', e.target.value)}
                                                 className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg text-xs" 
                                             />
                                         </InputGroup>
@@ -2670,7 +2670,6 @@ export const AdminPanel: React.FC = () => {
                                             <option value="instagram">Instagram Post</option>
                                             <option value="tiktok">TikTok Video</option>
                                             <option value="facebook">Facebook Post</option>
-                                            <option value="twitter">X (Twitter) Post</option>
                                         </select>
                                     </InputGroup>
                                     

@@ -4,7 +4,8 @@ import { RadioPlayer } from './RadioPlayer';
 import Chat from './Chat';
 import { ClientGallery } from './ClientGallery';
 import { SocialEmbed } from './SocialEmbed';
-import { Menu, X, Facebook, Instagram, Twitter, Youtube, Phone, Mail, MapPin, Radio, ChevronLeft, ChevronRight, Sun, Moon, PlayCircle, Video, Heart, CreditCard, Tv, Play, MessageSquare, Users, Mic2, Newspaper, Calendar, User, ArrowRight, ChevronDown } from 'lucide-react';
+import { Menu, X, Facebook, Instagram, Youtube, Phone, Mail, MapPin, Radio, ChevronLeft, ChevronRight, Sun, Moon, PlayCircle, Video, Heart, CreditCard, Tv, Play, MessageSquare, Users, Mic2, Newspaper, Calendar, User, ArrowRight, ChevronDown } from 'lucide-react';
+import { TikTok } from './TikTokIcon';
 import { NewsItem } from '../types';
 
 interface NavLinkProps {
@@ -1167,7 +1168,7 @@ const PublicView: React.FC = () => {
                 <div className="flex space-x-4">
                     <a href={config.social.facebook} target="_blank" rel="noreferrer" className="hover:text-secondary"><Facebook /></a>
                     <a href={config.social.instagram} target="_blank" rel="noreferrer" className="hover:text-secondary"><Instagram /></a>
-                    <a href={config.social.twitter} target="_blank" rel="noreferrer" className="hover:text-secondary"><Twitter /></a>
+                    <a href={config.social.tiktok} target="_blank" rel="noreferrer" className="hover:text-secondary"><TikTok /></a>
                     <a href={config.social.youtube} target="_blank" rel="noreferrer" className="hover:text-secondary"><Youtube /></a>
                 </div>
                 </div>

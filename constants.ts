@@ -227,8 +227,8 @@ export const DEFAULT_CONFIG: SiteConfig = {
         },
         {
             id: 'gal-2',
-            url: "https://twitter.com/SupercriollaFM/status/1764654321098765432",
-            type: 'twitter',
+            url: "https://www.tiktok.com/@tiktok/video/7106594312292453675",
+            type: 'tiktok',
             format: 'landscape',
             caption: "Anuncio del Gran Festival Llanero"
         },
@@ -385,7 +385,7 @@ export const DEFAULT_CONFIG: SiteConfig = {
   social: {
     facebook: "https://facebook.com",
     instagram: "https://instagram.com",
-    twitter: "https://twitter.com",
+    tiktok: "https://tiktok.com",
     youtube: "https://youtube.com",
     whatsapp: "https://whatsapp.com"
   }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Client } from '../types';
-import { Facebook, Instagram, Twitter, Globe, MapPin, MessageCircle, X, ChevronLeft, ChevronRight, Phone, Plus, Users } from 'lucide-react';
+import { Facebook, Instagram, Globe, MapPin, MessageCircle, X, ChevronLeft, ChevronRight, Phone, Plus, Users } from 'lucide-react';
+import { TikTok } from './TikTokIcon';
 
 interface ClientGalleryProps {
   clients: Client[];
@@ -199,9 +200,9 @@ export const ClientGallery: React.FC<ClientGalleryProps> = ({ clients, primaryCo
                                     <Instagram size={20} />
                                 </a>
                             )}
-                            {selectedClient.twitter && (
-                                <a href={selectedClient.twitter} target="_blank" rel="noreferrer" className="w-12 h-12 rounded-full bg-surface-alt border border-white/10 flex items-center justify-center text-on-surface-muted hover:text-secondary hover:border-secondary transition-all hover:scale-110">
-                                    <Twitter size={20} />
+                            {selectedClient.tiktok && (
+                                <a href={selectedClient.tiktok} target="_blank" rel="noreferrer" className="w-12 h-12 rounded-full bg-surface-alt border border-white/10 flex items-center justify-center text-on-surface-muted hover:text-secondary hover:border-secondary transition-all hover:scale-110">
+                                    <TikTok size={20} />
                                 </a>
                             )}
                         </div>
