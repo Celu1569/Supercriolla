@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useConfig } from '../context/ConfigContext';
-import { SiteConfig, HeroSlide, PodcastEpisode, GalleryItem, NavItemConfig, FontFamily, Client } from '../types';
+import { SiteConfig, HeroSlide, PodcastEpisode, GalleryItem, NavItemConfig, FontFamily, Client, AutoDJTrack } from '../types';
 import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Twitter, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2 } from 'lucide-react';
 
 // --- CONSTANTS ---
@@ -368,6 +368,121 @@ const MediaUploader: React.FC<MediaUploaderProps> = ({ label, value, onChange, t
       </div>
     </div>
   );
+};
+
+// --- AUTO DJ MANAGER ---
+interface AutoDJManagerProps {
+    tracks: AutoDJTrack[];
+    mode: 'alphabetical' | 'random';
+    onChange: (tracks: AutoDJTrack[], mode: 'alphabetical' | 'random') => void;
+}
+
+const AutoDJManager: React.FC<AutoDJManagerProps> = ({ tracks = [], mode = 'alphabetical', onChange }) => {
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        setIsUploading(true);
+        setUploadProgress(0);
+        
+        try {
+            const newTracks: AutoDJTrack[] = [];
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const url = await uploadFileToStorage(file, 'auto_dj');
+                newTracks.push({
+                    id: uuidv4(),
+                    url,
+                    title: file.name.replace(/\.[^/.]+$/, "")
+                });
+                setUploadProgress(Math.round(((i + 1) / files.length) * 100));
+            }
+            
+            onChange([...tracks, ...newTracks], mode);
+        } catch (error: any) {
+            console.error("Error uploading Auto DJ tracks:", error);
+             if (error?.message === 'storage/unauthorized') {
+                alert(`⚠️ ERROR DE PERMISOS DE FIREBASE STORAGE ⚠️`);
+             } else {
+                alert(`Error: ${error?.message}`);
+             }
+        } finally {
+            setIsUploading(false);
+            setUploadProgress(0);
+            if(e.target) e.target.value = ''; // Reset
+        }
+    };
+
+    const removeTrack = (idToRemove: string) => {
+        onChange(tracks.filter(t => t.id !== idToRemove), mode);
+    };
+    
+    const updateAutoDJMode = (newMode: 'alphabetical' | 'random') => {
+        onChange(tracks, newMode);
+    };
+
+    return (
+        <div className="bg-gray-800 p-4 rounded-xl border border-gray-700">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                <div>
+                     <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                        <Volume2 size={16} className="text-primary" /> Auto DJ (Playlist de Respaldo)
+                     </h4>
+                     <p className="text-xs text-gray-400 mt-1">
+                        Sube varias canciones que sonarán automáticamente si el streaming principal se cae.
+                     </p>
+                </div>
+                <div className="flex flex-row items-center gap-2 w-full sm:w-auto overflow-hidden">
+                    <select 
+                        value={mode} 
+                        onChange={(e) => updateAutoDJMode(e.target.value as any)}
+                        className="bg-gray-900 border border-gray-600 text-sm text-white rounded p-2 focus:ring-1 focus:ring-primary flex-1"
+                    >
+                        <option value="alphabetical">En orden (Alfabetico/Subida)</option>
+                        <option value="random">Aleatorio (Random)</option>
+                    </select>
+                    
+                    <label className={`cursor-pointer bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30 px-3 py-2 rounded text-sm font-bold flex items-center gap-2 transition-colors whitespace-nowrap ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                        {isUploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16}/>}
+                        <span>{isUploading ? `${uploadProgress}%` : 'Subir Música'}</span>
+                        <input type="file" accept="audio/*" multiple onChange={handleFileUpload} className="hidden" disabled={isUploading} />
+                    </label>
+                </div>
+            </div>
+
+            {tracks.length === 0 ? (
+                <div className="text-center py-8 bg-gray-900/50 rounded-lg border border-dashed border-gray-700">
+                    <Volume2 size={32} className="mx-auto text-gray-600 mb-2" />
+                    <p className="text-gray-400 text-sm">No hay canciones en el Auto DJ.</p>
+                </div>
+            ) : (
+                <div className="max-h-60 overflow-y-auto pr-2 space-y-2">
+                    {tracks.map((track, i) => (
+                        <div key={track.id} className="flex flex-row items-center justify-between bg-gray-900 p-2 rounded border border-gray-700 hover:border-gray-600 group">
+                            <div className="flex flex-row items-center gap-3 overflow-hidden">
+                                <span className="text-gray-500 font-mono text-xs w-5 text-right">{i + 1}.</span>
+                                <input 
+                                    className="bg-transparent border-none text-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary w-full truncate" 
+                                    value={track.title} 
+                                    onChange={(e) => {
+                                        const newTracks = [...tracks];
+                                        newTracks[i].title = e.target.value;
+                                        onChange(newTracks, mode);
+                                    }}
+                                />
+                            </div>
+                            <button onClick={() => removeTrack(track.id)} className="text-red-400/50 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 p-1">
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
 };
 
 // --- COMPACT HERO SLIDE COMPONENT ---
@@ -3219,13 +3334,18 @@ export const AdminPanel: React.FC = () => {
                     <input type="text" value={formData.general.streamUrl || ''} onChange={e => setFormData(prev => ({...prev, general: {...prev.general, streamUrl: e.target.value}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" />
                     </InputGroup>
                     <div className="md:col-span-2">
-                         <MediaUploader 
-                            label="Audio de Respaldo (Si falla la señal en vivo)"
-                            type="audio"
-                            value={formData.general.fallbackStreamUrl || ''}
-                            onChange={v => setFormData(p => ({...p, general: {...p.general, fallbackStreamUrl: v}}))}
+                        <AutoDJManager 
+                            tracks={formData.general.autoDJTracks || []}
+                            mode={formData.general.autoDJMode || 'alphabetical'}
+                            onChange={(tracks, mode) => setFormData(p => ({
+                                ...p, 
+                                general: {
+                                    ...p.general, 
+                                    autoDJTracks: tracks,
+                                    autoDJMode: mode
+                                }
+                            }))}
                         />
-                         <p className="text-xs text-gray-400 mt-1">Este audio se reproducirá automáticamente si la URL del streaming principal falla. Ideal para avisos de "Sin Energía Eléctrica" o identificadores de la radio.</p>
                     </div>
                     <InputGroup label="Email de Contacto">
                     <input type="email" value={formData.general.contactEmail || ''} onChange={e => setFormData(prev => ({...prev, general: {...prev.general, contactEmail: e.target.value}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" />

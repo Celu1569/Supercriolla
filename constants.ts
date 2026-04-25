@@ -6,6 +6,8 @@ export const DEFAULT_CONFIG: SiteConfig = {
     // User provided stream
     streamUrl: "https://redradioypc.com:8010/live", 
     fallbackStreamUrl: "",
+    autoDJTracks: [],
+    autoDJMode: 'alphabetical',
     logoUrl: "https://cdn-icons-png.flaticon.com/512/7508/7508493.png", // Generic Radio Icon as Logo Placeholder
     contactEmail: "supercriolla@gmail.com",
     contactPhone: "+584144105077",

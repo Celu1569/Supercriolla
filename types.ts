@@ -249,11 +249,19 @@ export interface Client {
   productImages: string[];
 }
 
+export interface AutoDJTrack {
+  id: string;
+  url: string;
+  title: string;
+}
+
 export interface SiteConfig {
   general: {
     stationName: string;
     streamUrl: string;
     fallbackStreamUrl?: string; // Audio file to play when stream fails
+    autoDJTracks?: AutoDJTrack[];
+    autoDJMode?: 'alphabetical' | 'random';
     logoUrl: string; // Deprecated in favor of navigation.logoUrl, kept for legacy compatibility
     contactEmail: string;
     contactPhone: string;

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Play, Pause, Volume2, Volume1, VolumeX, Radio, ListMusic, X, Clock } from 'lucide-react';
 import { useConfig } from '../context/ConfigContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -20,6 +20,28 @@ export const RadioPlayer: React.FC = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [error, setError] = useState(false);
   const [isFallbackMode, setIsFallbackMode] = useState(false);
+  const [autoDJIndex, setAutoDJIndex] = useState(0);
+  
+  const fallbackList = useMemo(() => {
+     let list = config.general.autoDJTracks || [];
+     if (!list || list.length === 0) {
+         if (config.general.fallbackStreamUrl) {
+              return [{ url: config.general.fallbackStreamUrl, title: 'Respaldo', id: 'legacy' }];
+         }
+         return [];
+     }
+     
+     const cloned = [...list];
+     if (config.general.autoDJMode === 'random') {
+          // Fisher-Yates shuffle
+          for (let i = cloned.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [cloned[i], cloned[j]] = [cloned[j], cloned[i]];
+          }
+     }
+     return cloned;
+  }, [config.general.autoDJTracks, config.general.autoDJMode, config.general.fallbackStreamUrl]);
+
   const [metadata, setMetadata] = useState({
     title: 'Cargando...',
     artist: 'Radio en Vivo',
@@ -227,22 +249,46 @@ export const RadioPlayer: React.FC = () => {
     console.error("Audio element error:", message, error);
 
     // Enter fallback mode if main stream fails and fallback is available
-    if (config.general.fallbackStreamUrl && !isFallbackMode) {
-         console.log("Señal caída. Activando audio de respaldo...");
+    if (fallbackList.length > 0 && !isFallbackMode) {
+         console.log("Señal caída. Activando Auto DJ de respaldo...");
          setIsFallbackMode(true);
          setError(false);
          if (audioRef.current) {
-              audioRef.current.src = config.general.fallbackStreamUrl;
-              audioRef.current.loop = true; // loop fallback audio
+              setAutoDJIndex(0);
+              const track = fallbackList[0];
+              audioRef.current.src = track.url;
+              audioRef.current.loop = false;
               audioRef.current.load();
-              audioRef.current.play().catch(e => console.error("Fallback play error:", e));
+              audioRef.current.play().catch(e => console.error("AutoDJ play error:", e));
               setIsPlaying(true);
+              setMetadata(prev => ({ ...prev, title: track.title, artist: 'Auto DJ' }));
          }
          return;
     }
 
+    // Determine if it was an error while trying to play AutoDJ track itself
+    if (isFallbackMode) {
+        // Skip failed track and go to next
+        handleTrackEnded();
+        return;
+    }
+
     setError(true);
     setIsPlaying(false);
+  };
+
+  const handleTrackEnded = () => {
+      if (isFallbackMode && fallbackList.length > 0) {
+          const nextIndex = (autoDJIndex + 1) % fallbackList.length;
+          setAutoDJIndex(nextIndex);
+          const nextTrack = fallbackList[nextIndex];
+          if (audioRef.current) {
+              audioRef.current.src = nextTrack.url;
+              audioRef.current.load();
+              audioRef.current.play().catch(e => console.error("AutoDJ play error:", e));
+              setMetadata(prev => ({ ...prev, title: nextTrack.title, artist: 'Auto DJ' }));
+          }
+      }
   };
 
   // Background checker for live stream recovery
@@ -365,7 +411,7 @@ export const RadioPlayer: React.FC = () => {
 
           {/* Main Content Grid - Now 3 Columns for History Side Panel */}
           <div className="relative z-10 h-full flex flex-col lg:flex-row items-center gap-8 lg:gap-12 px-8 lg:px-12 py-12">
-              <audio ref={audioRef} onError={handleAudioError} preload="none" />
+              <audio ref={audioRef} onError={handleAudioError} onEnded={handleTrackEnded} preload="none" />
               <audio ref={testAudioRef} onCanPlay={handleTestAudioCanPlay} preload="none" className="hidden pointer-events-none" muted />
               
               {/* Visualizer/Cover Area */}
