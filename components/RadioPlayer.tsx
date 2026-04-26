@@ -443,13 +443,14 @@ export const RadioPlayer: React.FC = () => {
       >
           {/* Background Atmosphere */}
           <div className="absolute inset-0 z-0 overflow-hidden bg-[#0a0502]">
-              <div className="absolute inset-0 bg-gradient-to-br from-black/80 via-primary/40 to-black/80 z-10"></div>
+              {/* Overlay adjusted to allow the artwork to cover the dark background more clearly */}
+              <div className="absolute inset-0 bg-gradient-to-br from-black/60 via-primary/20 to-black/60 z-10 pointer-events-none"></div>
               <AnimatePresence mode="wait">
                   {metadata.cover && (
                       <motion.div 
                           key={`main-bg-${metadata.cover}`}
                           initial={{ opacity: 0 }}
-                          animate={{ opacity: 0.35 }}
+                          animate={{ opacity: 0.5 }}
                           exit={{ opacity: 0 }}
                           transition={{ duration: 1.5 }}
                           className="absolute inset-0 z-0 pointer-events-none"
@@ -457,7 +458,7 @@ export const RadioPlayer: React.FC = () => {
                           <img 
                               src={metadata.cover} 
                               alt="" 
-                              className="w-full h-full object-cover blur-[80px] scale-110"
+                              className="w-full h-full object-cover blur-[60px] scale-110"
                               referrerPolicy="no-referrer"
                           />
                       </motion.div>
@@ -490,7 +491,7 @@ export const RadioPlayer: React.FC = () => {
                           <img 
                               src={metadata.cover} 
                               alt="Cover" 
-                              className={`w-full h-full object-cover transition-transform duration-[10000ms] ${isPlaying ? 'scale-125' : 'scale-100'}`}
+                              className="w-full h-full object-cover"
                               referrerPolicy="no-referrer"
                               onError={(e) => {
                                   if (e.currentTarget.src !== config.navigation.logoUrl) {
