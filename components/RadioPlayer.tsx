@@ -71,104 +71,30 @@ export const RadioPlayer: React.FC = () => {
         const logoUrl = encodeURIComponent(config.navigation.logoUrl || "");
         const stationName = encodeURIComponent(config.general.stationName || "");
         
-        let apiData: any = null;
-        let isApiOk = false;
+        const response = await fetch(`/api/metadata?stream=${streamUrl}&logo=${logoUrl}&station=${stationName}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data && (data.title !== undefined || data.artist !== undefined)) {
+            const isGenericString = (s: string) => {
+              if (!s) return true;
+              const lower = s.toLowerCase();
+              return lower.includes("transmision") || lower.includes("en vivo") || lower.includes("recuperando señal") || lower.includes("conectando") || lower === "unknown" || lower === "stream";
+            };
 
-        try {
-           const response = await fetch(`/api/metadata?stream=${streamUrl}&logo=${logoUrl}&station=${stationName}`);
-           if (response.ok) {
-             const data = await response.json();
-             // verify it's actually our JSON format
-             if (data && (data.title !== undefined || data.artist !== undefined)) {
-               apiData = data;
-               isApiOk = true;
-             }
-           }
-        } catch (err) {
-           console.warn("API metadata fetch failed:", err);
-        }
+            const finalCover = data.cover || config.navigation.logoUrl || config.general.logoUrl;
+            const finalArtist = (!data.artist || isGenericString(data.artist)) ? (config.general.stationName || "Radio en Vivo") : data.artist;
+            const finalTitle = (!data.title || isGenericString(data.title)) ? "Música que te mueve" : data.title;
 
-        // --- Client-side Direct Fallback (For static Firebase Hosting) ---
-        if (!isApiOk && streamUrlOrigin) {
-           try {
-              const urlObj = new URL(streamUrlOrigin);
-              const baseUrl = `${urlObj.protocol}//${urlObj.hostname}${urlObj.port ? ':' + urlObj.port : ''}`;
-              
-              // Only attempt if not obviously a different origin requiring CORS, or just try and let it fail silently
-              const directResponse = await fetch(`${baseUrl}/status-json.xsl`);
-              if (directResponse.ok) {
-                  const data = await directResponse.json();
-                  if (data && data.icestats && data.icestats.source) {
-                      const sources = Array.isArray(data.icestats.source) ? data.icestats.source : [data.icestats.source];
-                      const source = sources[0];
-                      const currentPlaying = source?.yp_currently_playing || source?.title || "";
-                      
-                      let artist = "";
-                      let title = "";
-                      if (currentPlaying) {
-                          if (currentPlaying.includes(' - ')) {
-                              const parts = currentPlaying.split(' - ').map((s: string) => s.trim());
-                              artist = parts[0];
-                              title = parts.slice(1).join(' - ');
-                          } else {
-                              title = currentPlaying;
-                          }
-                          apiData = { artist, title, cover: "" };
-                          isApiOk = true;
-                      }
-                  }
-              }
-           } catch (e) {
-              console.warn("Direct metadata fetch failed (CORS or unavailable).", e);
-           }
-        }
-
-        if (isApiOk && apiData) {
-          // Filter generic strings
-          const isGenericString = (s: string) => {
-            if (!s) return true;
-            const lower = s.toLowerCase();
-            return lower.includes("transmision") || 
-                   lower.includes("en vivo") || 
-                   lower.includes("recuperando señal") ||
-                   lower.includes("conectando") ||
-                   lower === "unknown" ||
-                   lower === "stream";
-          };
-
-          // Use provided logo as the ultimate fallback for cover
-          let finalCover = apiData.cover || config.navigation.logoUrl || config.general.logoUrl;
-          
-          let finalArtist = (!apiData.artist || isGenericString(apiData.artist)) 
-            ? (config.general.stationName || "Radio en Vivo")
-            : apiData.artist;
-            
-          let finalTitle = (!apiData.title || isGenericString(apiData.title))
-            ? "Música que te mueve"
-            : apiData.title;
-
-          // If fallback to direct ICEcast doesn't give us artwork, try to find it client-side with iTunes API
-          if (!apiData.cover && apiData.title && apiData.artist && !isGenericString(apiData.title)) {
-              try {
-                  const query = encodeURIComponent(`${apiData.artist} ${apiData.title}`);
-                  const itunesRes = await fetch(`https://itunes.apple.com/search?term=${query}&media=music&limit=1`);
-                  if (itunesRes.ok) {
-                      const itunesData = await itunesRes.json();
-                      if (itunesData.results?.[0]?.artworkUrl100) {
-                          finalCover = itunesData.results[0].artworkUrl100.replace('100x100', '600x600');
-                      }
-                  }
-              } catch(e) {}
+            setMetadata({
+              title: finalTitle,
+              artist: finalArtist,
+              cover: finalCover
+            });
           }
-            
-          setMetadata({
-            title: finalTitle,
-            artist: finalArtist,
-            cover: finalCover
-          });
         }
       } catch (e) {
-        console.error("Metadata fetch error:", e);
+        console.warn("API metadata fetch failed:", e);
       }
     };
 
@@ -458,7 +384,7 @@ export const RadioPlayer: React.FC = () => {
                           <img 
                               src={metadata.cover} 
                               alt="" 
-                              className="w-full h-full object-cover blur-[60px] scale-110"
+                              className="w-full h-full object-cover blur-[10px] scale-110"
                               referrerPolicy="no-referrer"
                           />
                       </motion.div>
