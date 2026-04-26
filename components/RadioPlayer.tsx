@@ -499,13 +499,6 @@ export const RadioPlayer: React.FC = () => {
 
               {/* Permanent History Side Panel (Right) */}
               <div className="hidden lg:flex w-[320px] h-full flex-col bg-white/5 border-l border-white/10 p-6 flex-shrink-0 animate-fade-in-right">
-                  <div className="flex items-center gap-3 mb-6">
-                      <div className="p-2 rounded-lg bg-secondary/10">
-                          <ListMusic size={20} className="text-secondary" />
-                      </div>
-                      <h4 className="text-sm font-black text-white uppercase tracking-widest">Lo Último</h4>
-                  </div>
-                  
                   <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
                       {history.length > 0 ? history.map((track, i) => (
                           <motion.div 
