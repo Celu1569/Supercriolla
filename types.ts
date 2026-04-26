@@ -71,7 +71,7 @@ export interface ChatConfig {
 export interface GalleryItem {
   id: string;
   url: string;
-  type?: 'image' | 'instagram' | 'tiktok' | 'facebook';
+  type?: 'image' | 'instagram' | 'tiktok' | 'facebook' | 'twitter' | 'youtube';
   format: 'landscape' | 'portrait'; // 16:9 or 9:16
   caption?: string;
 }

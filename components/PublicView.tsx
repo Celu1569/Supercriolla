@@ -4,6 +4,7 @@ import { RadioPlayer } from './RadioPlayer';
 import Chat from './Chat';
 import { ClientGallery } from './ClientGallery';
 import { SocialEmbed } from './SocialEmbed';
+import { SocialCarousel } from './SocialCarousel';
 import { Menu, X, Facebook, Instagram, Youtube, Phone, Mail, MapPin, Radio, ChevronLeft, ChevronRight, Sun, Moon, PlayCircle, Video, Heart, CreditCard, Tv, Play, MessageSquare, Users, Mic2, Newspaper, Calendar, User, ArrowRight, ChevronDown } from 'lucide-react';
 import { TikTok } from './TikTokIcon';
 import { NewsItem } from '../types';
@@ -945,47 +946,8 @@ const PublicView: React.FC = () => {
                     </p>
                 </div>
                 
-                {/* Masonry Grid Layout */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 auto-rows-auto">
-                    {config.content.gallery.images.map((img) => (
-                        <div 
-                            key={img.id}
-                            className={`relative group overflow-hidden rounded-xl shadow-md hover:shadow-xl transition-all duration-300 
-                                ${img.format === 'portrait' ? 'row-span-2' : 'row-span-1'}
-                                flex flex-col
-                            `}
-                        >
-                            {(!img.type || img.type === 'image') ? (
-                                <div className="relative h-full w-full overflow-hidden">
-                                    <img 
-                                        src={getDirectImageUrl(img.url)} 
-                                        alt={img.caption || "Gallery"} 
-                                        className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700"
-                                        referrerPolicy="no-referrer"
-                                    />
-                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-300 flex items-end p-4">
-                                        {img.caption && (
-                                            <p className="text-white font-medium transform translate-y-full group-hover:translate-y-0 transition-transform duration-300 opacity-0 group-hover:opacity-100">
-                                                {img.caption}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="w-full h-full min-h-[400px] flex flex-col bg-surface-alt p-2">
-                                    <div className="flex-1 overflow-hidden rounded-lg flex justify-center items-center">
-                                        <SocialEmbed url={img.url} type={img.type as any} />
-                                    </div>
-                                    {img.caption && (
-                                        <div className="mt-2 p-2 text-xs text-on-surface-muted italic border-t border-white/5">
-                                            {img.caption}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
+                {/* Horizontal Carousel Layout */}
+                <SocialCarousel items={config.content.gallery.images} />
             </div>
         </section>
       )}

@@ -2670,6 +2670,8 @@ export const AdminPanel: React.FC = () => {
                                             <option value="instagram">Instagram Post</option>
                                             <option value="tiktok">TikTok Video</option>
                                             <option value="facebook">Facebook Post</option>
+                                            <option value="twitter">X (Twitter) Post</option>
+                                            <option value="youtube">YouTube (Short/Video)</option>
                                         </select>
                                     </InputGroup>
                                     
