@@ -48,7 +48,7 @@ export const RadioPlayer: React.FC = () => {
     cover: ''
   });
   const [history, setHistory] = useState<TrackHistory[]>([]);
-  const [isVisible, setIsVisible] = useState(true);
+  const [isVisible, setIsVisible] = useState(false);
   const historyRef = useRef<HTMLDivElement>(null);
 
   // Keep track of config updates to initialize default cover if needed
