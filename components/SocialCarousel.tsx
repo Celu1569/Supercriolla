@@ -50,20 +50,20 @@ export const SocialCarousel: React.FC<SocialCarouselProps> = ({ items }) => {
       
       <div 
         ref={scrollRef}
-        className="flex overflow-x-auto gap-6 sm:gap-8 pb-8 hide-scrollbar w-full py-4 snap-x snap-mandatory lg:snap-none"
+        className="flex overflow-x-auto gap-4 sm:gap-6 pb-8 hide-scrollbar w-full py-4"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onTouchStart={() => setIsHovered(true)}
-        onTouchEnd={() => setIsHovered(false)}
+        onTouchEnd={() => setTimeout(() => setIsHovered(false), 2000)}
       >
         {items.map((img) => (
           <div 
             key={img.id}
-            className="flex-none snap-center relative shadow-xl rounded-[2rem] bg-surface-alt border border-white/5 overflow-hidden transition-all hover:scale-105 duration-500"
+            className="flex-none relative shadow-xl rounded-[2rem] bg-surface-alt border border-white/5 overflow-hidden transition-all hover:scale-[1.02] duration-500 max-w-[85vw]"
             style={{ 
-                width: img.format === 'portrait' ? '300px' : '450px',
-                height: img.format === 'portrait' ? '550px' : '350px'
+                width: img.format === 'portrait' ? '300px' : '400px',
+                height: img.format === 'portrait' ? '520px' : '300px'
             }}
           >
             {(!img.type || img.type === 'image') ? (
