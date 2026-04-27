@@ -71,30 +71,97 @@ export const RadioPlayer: React.FC = () => {
         const logoUrl = encodeURIComponent(config.navigation.logoUrl || "");
         const stationName = encodeURIComponent(config.general.stationName || "");
         
-        const response = await fetch(`/api/metadata?stream=${streamUrl}&logo=${logoUrl}&station=${stationName}`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data && (data.title !== undefined || data.artist !== undefined)) {
+        let apiData: any = null;
+        let isApiOk = false;
+
+        // 1. Intentar la ruta de backend local si existe (ej. en desarrollo local o servidor express)
+        try {
+          const response = await fetch(`/api/metadata?stream=${streamUrl}&logo=${logoUrl}&station=${stationName}`);
+          if (response.ok) {
+            const data = await response.json();
+            // Comprobamos la estructura
+            if (data && (data.title !== undefined || data.artist !== undefined)) {
+              apiData = data;
+              isApiOk = true;
+            }
+          }
+        } catch (e) {
+            // Ignorar y caer al fallback
+        }
+
+        // 2. Fallback: Intentar obtener metadata directamente de ICEcast usando un proxy de CORS público
+        // Esto es esencial para sitios estáticos como Netlify
+        if (!isApiOk && streamUrlOrigin) {
+           try {
+             const urlObj = new URL(streamUrlOrigin);
+             const baseUrl = `${urlObj.protocol}//${urlObj.hostname}${urlObj.port ? ':' + urlObj.port : ''}`;
+             const targetUrl = encodeURIComponent(`${baseUrl}/status-json.xsl`);
+             
+             const proxyResponse = await fetch(`https://api.allorigins.win/get?url=${targetUrl}`);
+             if (proxyResponse.ok) {
+                 const proxyData = await proxyResponse.json();
+                 const data = JSON.parse(proxyData.contents);
+                 if (data && data.icestats && data.icestats.source) {
+                     const sources = Array.isArray(data.icestats.source) ? data.icestats.source : [data.icestats.source];
+                     const source = sources[0];
+                     const currentPlaying = source?.yp_currently_playing || source?.title || "";
+                     
+                     let artist = "";
+                     let title = "";
+                     if (currentPlaying) {
+                         if (currentPlaying.includes(' - ')) {
+                             const parts = currentPlaying.split(' - ').map((s: string) => s.trim());
+                             artist = parts[0];
+                             title = parts.slice(1).join(' - ');
+                         } else {
+                             title = currentPlaying;
+                         }
+                         apiData = { artist, title, cover: "" };
+                         isApiOk = true;
+                     }
+                 }
+             }
+           } catch(e) {
+               console.warn("Proxy metadata fetch failed bypass.", e);
+           }
+        }
+
+        // 3. Procesar y actualizar datos
+        if (isApiOk && apiData) {
             const isGenericString = (s: string) => {
               if (!s) return true;
               const lower = s.toLowerCase();
               return lower.includes("transmision") || lower.includes("en vivo") || lower.includes("recuperando señal") || lower.includes("conectando") || lower === "unknown" || lower === "stream";
             };
 
-            const finalCover = data.cover || config.navigation.logoUrl || config.general.logoUrl;
-            const finalArtist = (!data.artist || isGenericString(data.artist)) ? (config.general.stationName || "Radio en Vivo") : data.artist;
-            const finalTitle = (!data.title || isGenericString(data.title)) ? "Música que te mueve" : data.title;
+            let finalCover = apiData.cover || config.navigation.logoUrl || config.general.logoUrl;
+            let finalArtist = (!apiData.artist || isGenericString(apiData.artist)) ? (config.general.stationName || "Radio en Vivo") : apiData.artist;
+            let finalTitle = (!apiData.title || isGenericString(apiData.title)) ? "Música que te mueve" : apiData.title;
+
+            // 4. Buscar la carátula en iTunes (API gratuita y compatible con CORS)
+            if (!apiData.cover && finalArtist !== "Radio en Vivo" && finalTitle !== "Música que te mueve") {
+                try {
+                    const query = encodeURIComponent(`${finalArtist} ${finalTitle}`);
+                    const itunesRes = await fetch(`https://itunes.apple.com/search?term=${query}&media=music&limit=1`);
+                    if (itunesRes.ok) {
+                        const itunesData = await itunesRes.json();
+                        if (itunesData.results && itunesData.results.length > 0 && itunesData.results[0].artworkUrl100) {
+                            finalCover = itunesData.results[0].artworkUrl100.replace('100x100', '600x600');
+                        }
+                    }
+                } catch(e) {
+                   // Fallback falló
+                }
+            }
 
             setMetadata({
               title: finalTitle,
               artist: finalArtist,
               cover: finalCover
             });
-          }
         }
       } catch (e) {
-        console.warn("API metadata fetch failed:", e);
+        console.warn("Complete metadata fetch failed:", e);
       }
     };
 
