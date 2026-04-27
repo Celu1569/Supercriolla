@@ -127,39 +127,41 @@ export const RadioPlayer: React.FC = () => {
         }
 
         // 3. Procesar y actualizar datos
-        if (isApiOk && apiData) {
-            const isGenericString = (s: string) => {
-              if (!s) return true;
-              const lower = s.toLowerCase();
-              return lower.includes("transmision") || lower.includes("en vivo") || lower.includes("recuperando señal") || lower.includes("conectando") || lower === "unknown" || lower === "stream";
-            };
+        const isGenericString = (s: string) => {
+            if (!s) return true;
+            const lower = s.toLowerCase();
+            return lower.includes("transmision") || lower.includes("en vivo") || lower.includes("recuperando señal") || lower.includes("conectando") || lower === "unknown" || lower === "stream";
+        };
 
-            let finalCover = apiData.cover || config.navigation.logoUrl || config.general.logoUrl;
-            let finalArtist = (!apiData.artist || isGenericString(apiData.artist)) ? (config.general.stationName || "Radio en Vivo") : apiData.artist;
-            let finalTitle = (!apiData.title || isGenericString(apiData.title)) ? "Música que te mueve" : apiData.title;
+        const currentCover = apiData?.cover || "";
+        const currentTitle = apiData?.title || "";
+        const currentArtist = apiData?.artist || "";
 
-            // 4. Buscar la carátula en iTunes (API gratuita y compatible con CORS)
-            if (!apiData.cover && finalArtist !== "Radio en Vivo" && finalTitle !== "Música que te mueve") {
-                try {
-                    const query = encodeURIComponent(`${finalArtist} ${finalTitle}`);
-                    const itunesRes = await fetch(`https://itunes.apple.com/search?term=${query}&media=music&limit=1`);
-                    if (itunesRes.ok) {
-                        const itunesData = await itunesRes.json();
-                        if (itunesData.results && itunesData.results.length > 0 && itunesData.results[0].artworkUrl100) {
-                            finalCover = itunesData.results[0].artworkUrl100.replace('100x100', '600x600');
-                        }
+        let finalCover = currentCover || config.navigation.logoUrl || config.general.logoUrl;
+        let finalArtist = (!currentArtist || isGenericString(currentArtist)) ? (config.general.stationName || "Radio en Vivo") : currentArtist;
+        let finalTitle = (!currentTitle || isGenericString(currentTitle)) ? "Música que te mueve" : currentTitle;
+
+        // 4. Buscar la carátula en iTunes (API gratuita y compatible con CORS)
+        if (!currentCover && finalArtist !== "Radio en Vivo" && finalTitle !== "Música que te mueve") {
+            try {
+                const query = encodeURIComponent(`${finalArtist} ${finalTitle}`);
+                const itunesRes = await fetch(`https://itunes.apple.com/search?term=${query}&media=music&limit=1`);
+                if (itunesRes.ok) {
+                    const itunesData = await itunesRes.json();
+                    if (itunesData.results && itunesData.results.length > 0 && itunesData.results[0].artworkUrl100) {
+                        finalCover = itunesData.results[0].artworkUrl100.replace('100x100', '600x600');
                     }
-                } catch(e) {
-                   // Fallback falló
                 }
+            } catch(e) {
+               // Fallback falló
             }
-
-            setMetadata({
-              title: finalTitle,
-              artist: finalArtist,
-              cover: finalCover
-            });
         }
+
+        setMetadata({
+          title: finalTitle,
+          artist: finalArtist,
+          cover: finalCover
+        });
       } catch (e) {
         console.warn("Complete metadata fetch failed:", e);
       }
