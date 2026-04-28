@@ -1866,6 +1866,7 @@ export const AdminPanel: React.FC = () => {
           <TabButton id="header" activeTab={activeTab} onClick={setActiveTab} icon={Compass} label="Menú" />
           <TabButton id="sections" activeTab={activeTab} onClick={setActiveTab} icon={Grid} label="Secciones" />
           <TabButton id="hero" activeTab={activeTab} onClick={setActiveTab} icon={Home} label="Banner" />
+          <TabButton id="ribbon" activeTab={activeTab} onClick={setActiveTab} icon={Type} label="Cintillos" />
           <TabButton id="topvideos" activeTab={activeTab} onClick={setActiveTab} icon={PlayCircle} label="Top Videos" />
           <TabButton id="podcast" activeTab={activeTab} onClick={setActiveTab} icon={Mic2} label="Podcast" />
           <TabButton id="program" activeTab={activeTab} onClick={setActiveTab} icon={Calendar} label="Program" />
