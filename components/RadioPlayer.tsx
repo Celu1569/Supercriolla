@@ -64,6 +64,8 @@ export const RadioPlayer: React.FC = () => {
 
   // Real metadata fetcher
   useEffect(() => {
+    let isSubscribed = true;
+
     const fetchMetadata = async () => {
       try {
         const streamUrlOrigin = config.general.streamUrl || "";
@@ -74,13 +76,44 @@ export const RadioPlayer: React.FC = () => {
         let apiData: any = null;
         let isApiOk = false;
 
+        const isGenericString = (s: string) => {
+            if (!s) return true;
+            const lower = s.toLowerCase();
+            return lower.includes("transmision") || lower.includes("en vivo") || lower.includes("recuperando señal") || lower.includes("conectando") || lower === "unknown" || lower === "stream";
+        };
+
+        // Helper to fetch with timeout
+        const fetchWithTimeout = async (url: string, timeoutMs: number = 5000) => {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+                const response = await fetch(url, { signal: controller.signal });
+                clearTimeout(id);
+                return response;
+            } catch (err) {
+                clearTimeout(id);
+                throw err;
+            }
+        };
+
+        // Set some default fallback IMMEDIATELY if no metadata yet, so we don't get stuck on Cargando
+        if (metadata.title === 'Cargando...') {
+           if (isSubscribed) {
+              setMetadata({
+                  title: config.general.stationName || "Radio en Vivo",
+                  artist: "Música que te mueve",
+                  cover: config.navigation.logoUrl || config.general.logoUrl || ""
+              });
+           }
+        }
+
         // 1. Intentar la ruta de backend local si existe (ej. en desarrollo local o servidor express)
         try {
-          const response = await fetch(`/api/metadata?stream=${streamUrl}&logo=${logoUrl}&station=${stationName}`);
+          const response = await fetchWithTimeout(`/api/metadata?stream=${streamUrl}&logo=${logoUrl}&station=${stationName}`, 3000);
           if (response.ok) {
             const data = await response.json();
-            // Comprobamos la estructura
-            if (data && (data.title !== undefined || data.artist !== undefined)) {
+            // Comprobamos la estructura (ignoramos HTML fallbacks de SPA)
+            if (data && !data.html && (data.title !== undefined || data.artist !== undefined)) {
               apiData = data;
               isApiOk = true;
             }
@@ -97,27 +130,30 @@ export const RadioPlayer: React.FC = () => {
              const baseUrl = `${urlObj.protocol}//${urlObj.hostname}${urlObj.port ? ':' + urlObj.port : ''}`;
              const targetUrl = encodeURIComponent(`${baseUrl}/status-json.xsl`);
              
-             const proxyResponse = await fetch(`https://api.allorigins.win/get?url=${targetUrl}`);
+             // allorigins wrapper
+             const proxyResponse = await fetchWithTimeout(`https://api.allorigins.win/get?url=${targetUrl}`, 5000);
              if (proxyResponse.ok) {
                  const proxyData = await proxyResponse.json();
-                 const data = JSON.parse(proxyData.contents);
-                 if (data && data.icestats && data.icestats.source) {
-                     const sources = Array.isArray(data.icestats.source) ? data.icestats.source : [data.icestats.source];
-                     const source = sources[0];
-                     const currentPlaying = source?.yp_currently_playing || source?.title || "";
-                     
-                     let artist = "";
-                     let title = "";
-                     if (currentPlaying) {
-                         if (currentPlaying.includes(' - ')) {
-                             const parts = currentPlaying.split(' - ').map((s: string) => s.trim());
-                             artist = parts[0];
-                             title = parts.slice(1).join(' - ');
-                         } else {
-                             title = currentPlaying;
+                 if (proxyData.contents) {
+                     const data = JSON.parse(proxyData.contents);
+                     if (data && data.icestats && data.icestats.source) {
+                         const sources = Array.isArray(data.icestats.source) ? data.icestats.source : [data.icestats.source];
+                         const source = sources[0];
+                         const currentPlaying = source?.yp_currently_playing || source?.title || "";
+                         
+                         let artist = "";
+                         let title = "";
+                         if (currentPlaying) {
+                             if (currentPlaying.includes(' - ')) {
+                                 const parts = currentPlaying.split(' - ').map((s: string) => s.trim());
+                                 artist = parts[0];
+                                 title = parts.slice(1).join(' - ');
+                             } else {
+                                 title = currentPlaying;
+                             }
+                             apiData = { artist, title, cover: "" };
+                             isApiOk = true;
                          }
-                         apiData = { artist, title, cover: "" };
-                         isApiOk = true;
                      }
                  }
              }
@@ -127,41 +163,45 @@ export const RadioPlayer: React.FC = () => {
         }
 
         // 3. Procesar y actualizar datos
-        const isGenericString = (s: string) => {
-            if (!s) return true;
-            const lower = s.toLowerCase();
-            return lower.includes("transmision") || lower.includes("en vivo") || lower.includes("recuperando señal") || lower.includes("conectando") || lower === "unknown" || lower === "stream";
-        };
-
         const currentCover = apiData?.cover || "";
         const currentTitle = apiData?.title || "";
         const currentArtist = apiData?.artist || "";
 
-        let finalCover = currentCover || config.navigation.logoUrl || config.general.logoUrl;
+        let finalCover = currentCover || config.navigation.logoUrl || config.general.logoUrl || "";
         let finalArtist = (!currentArtist || isGenericString(currentArtist)) ? (config.general.stationName || "Radio en Vivo") : currentArtist;
         let finalTitle = (!currentTitle || isGenericString(currentTitle)) ? "Música que te mueve" : currentTitle;
+
+        // Apply fast metadata update before iTunes search
+        if (isSubscribed) {
+           setMetadata({
+              title: finalTitle,
+              artist: finalArtist,
+              cover: finalCover
+           });
+        }
 
         // 4. Buscar la carátula en iTunes (API gratuita y compatible con CORS)
         if (!currentCover && finalArtist !== "Radio en Vivo" && finalTitle !== "Música que te mueve") {
             try {
                 const query = encodeURIComponent(`${finalArtist} ${finalTitle}`);
-                const itunesRes = await fetch(`https://itunes.apple.com/search?term=${query}&media=music&limit=1`);
+                const itunesRes = await fetchWithTimeout(`https://itunes.apple.com/search?term=${query}&media=music&limit=1`, 4000);
                 if (itunesRes.ok) {
                     const itunesData = await itunesRes.json();
                     if (itunesData.results && itunesData.results.length > 0 && itunesData.results[0].artworkUrl100) {
                         finalCover = itunesData.results[0].artworkUrl100.replace('100x100', '600x600');
+                        if (isSubscribed) {
+                            setMetadata({
+                               title: finalTitle,
+                               artist: finalArtist,
+                               cover: finalCover
+                            });
+                        }
                     }
                 }
             } catch(e) {
                // Fallback falló
             }
         }
-
-        setMetadata({
-          title: finalTitle,
-          artist: finalArtist,
-          cover: finalCover
-        });
       } catch (e) {
         console.warn("Complete metadata fetch failed:", e);
       }
@@ -170,7 +210,10 @@ export const RadioPlayer: React.FC = () => {
     const interval = setInterval(fetchMetadata, 15000); // 15s
     fetchMetadata();
     
-    return () => clearInterval(interval);
+    return () => {
+       isSubscribed = false;
+       clearInterval(interval);
+    };
   }, [config.general.streamUrl, config.navigation.logoUrl, config.general.stationName]);
 
   // Track History updates
