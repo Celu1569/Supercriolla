@@ -1128,10 +1128,10 @@ const PublicView: React.FC = () => {
                 <div>
                 <h3 className="text-2xl font-heading font-bold mb-6 text-secondary">{config.general.stationName}</h3>
                 <div className="flex space-x-4">
-                    <a href={config.social.facebook} target="_blank" rel="noreferrer" className="hover:text-secondary"><Facebook /></a>
-                    <a href={config.social.instagram} target="_blank" rel="noreferrer" className="hover:text-secondary"><Instagram /></a>
-                    <a href={config.social.tiktok} target="_blank" rel="noreferrer" className="hover:text-secondary"><TikTok /></a>
-                    <a href={config.social.youtube} target="_blank" rel="noreferrer" className="hover:text-secondary"><Youtube /></a>
+                    {config.social.instagram && <a href={config.social.instagram} target="_blank" rel="noreferrer" className="hover:text-secondary"><Instagram /></a>}
+                    {config.social.tiktok && <a href={config.social.tiktok} target="_blank" rel="noreferrer" className="hover:text-secondary"><TikTok /></a>}
+                    {config.social.youtube && <a href={config.social.youtube} target="_blank" rel="noreferrer" className="hover:text-secondary"><Youtube /></a>}
+                    {config.social.whatsapp && <a href={config.social.whatsapp} target="_blank" rel="noreferrer" className="hover:text-secondary"><Phone /></a>}
                 </div>
                 </div>
                 

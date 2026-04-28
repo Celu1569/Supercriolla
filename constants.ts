@@ -284,7 +284,6 @@ export const DEFAULT_CONFIG: SiteConfig = {
         bannerUrl: "https://images.unsplash.com/photo-1486299267070-83823f5448dd?q=80&w=1000&auto=format&fit=crop",
         whatsapp: "+584140000001",
         instagram: "https://instagram.com/queseraelllano",
-        facebook: "https://facebook.com/queseraelllano",
         address: "Av. Principal, Valencia, Carabobo",
         mapUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3926.368383214534!2d-68.0044!3d10.2333!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTDCsDE0JzAwLjAiTiA2OMKwMDAnMTUuOCJX!5e0!3m2!1ses!2sve!4v1634567890123!5m2!1ses!2sve",
         productImages: [
@@ -383,7 +382,6 @@ export const DEFAULT_CONFIG: SiteConfig = {
     }
   },
   social: {
-    facebook: "https://facebook.com",
     instagram: "https://instagram.com",
     tiktok: "https://tiktok.com",
     youtube: "https://youtube.com",

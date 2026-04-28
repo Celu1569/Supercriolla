@@ -1398,7 +1398,6 @@ export const AdminPanel: React.FC = () => {
       name: "Nuevo Cliente",
       bannerUrl: "",
       whatsapp: "",
-      facebook: "",
       instagram: "",
       tiktok: "",
       website: "",
@@ -2552,15 +2551,7 @@ export const AdminPanel: React.FC = () => {
                                         </InputGroup>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <InputGroup label="Facebook">
-                                            <input 
-                                                type="text" 
-                                                value={client.facebook || ''} 
-                                                onChange={e => updateClient(client.id, 'facebook', e.target.value)}
-                                                className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg text-xs" 
-                                            />
-                                        </InputGroup>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <InputGroup label="Instagram">
                                             <input 
                                                 type="text" 
@@ -2669,8 +2660,6 @@ export const AdminPanel: React.FC = () => {
                                             <option value="image">Imagen / Foto</option>
                                             <option value="instagram">Instagram Post</option>
                                             <option value="tiktok">TikTok Video</option>
-                                            <option value="facebook">Facebook Post</option>
-                                            <option value="twitter">X (Twitter) Post</option>
                                             <option value="youtube">YouTube (Short/Video)</option>
                                         </select>
                                     </InputGroup>
@@ -3363,9 +3352,9 @@ export const AdminPanel: React.FC = () => {
                 </div>
                 <h3 className="text-md font-bold text-gray-300 uppercase tracking-wide border-b border-gray-700 pb-2 mb-4 mt-8">Redes Sociales</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                     {Object.entries(formData.social).map(([key, val]) => (
+                     {(['instagram', 'tiktok', 'youtube', 'whatsapp'] as const).map(key => (
                         <InputGroup key={key} label={key.charAt(0).toUpperCase() + key.slice(1)}>
-                            <input type="text" value={val || ''} onChange={e => setFormData(prev => {
+                            <input type="text" value={formData.social[key] || ''} onChange={e => setFormData(prev => {
                                 const newSocial = { ...prev.social, [key]: e.target.value };
                                 return { ...prev, social: newSocial as any };
                             })} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" />

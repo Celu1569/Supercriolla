@@ -190,11 +190,6 @@ export const ClientGallery: React.FC<ClientGalleryProps> = ({ clients, primaryCo
                     <div className="flex items-center gap-8">
                         <span className="text-xs font-bold text-on-surface-muted uppercase tracking-[0.2em]">Siguenos</span>
                         <div className="flex gap-5">
-                            {selectedClient.facebook && (
-                                <a href={selectedClient.facebook} target="_blank" rel="noreferrer" className="w-12 h-12 rounded-full bg-surface-alt border border-white/10 flex items-center justify-center text-on-surface-muted hover:text-secondary hover:border-secondary transition-all hover:scale-110">
-                                    <Facebook size={20} />
-                                </a>
-                            )}
                             {selectedClient.instagram && (
                                 <a href={selectedClient.instagram} target="_blank" rel="noreferrer" className="w-12 h-12 rounded-full bg-surface-alt border border-white/10 flex items-center justify-center text-on-surface-muted hover:text-secondary hover:border-secondary transition-all hover:scale-110">
                                     <Instagram size={20} />
