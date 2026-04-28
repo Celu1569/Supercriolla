@@ -162,12 +162,12 @@ const PublicView: React.FC = () => {
   const [activeSections, setActiveSections] = useState({
     hero: true,
     topvideos: true,
-    podcast: true,
-    program: true,
-    gallery: true,
-    clients: true,
-    news: true,
-    donations: true,
+    podcast: false,
+    program: false,
+    gallery: false,
+    clients: false,
+    news: false,
+    donations: false,
     contact: true
   });
 
@@ -237,25 +237,25 @@ const PublicView: React.FC = () => {
 
   const toggleSection = (section: keyof typeof activeSections) => {
     setActiveSections(prev => {
-        const newState = !prev[section];
-        if (newState) {
-            setTimeout(() => {
-                const element = document.getElementById(section as string);
-                if (element) {
-                    const offset = dynamicNavHeight; 
-                    const bodyRect = document.body.getBoundingClientRect().top;
-                    const elementRect = element.getBoundingClientRect().top;
-                    const elementPosition = elementRect - bodyRect;
-                    const offsetPosition = elementPosition - offset;
+        const isAlreadyOpen = prev[section];
+        
+        setTimeout(() => {
+            const element = document.getElementById(section as string);
+            if (element) {
+                const offset = dynamicNavHeight; 
+                const bodyRect = document.body.getBoundingClientRect().top;
+                const elementRect = element.getBoundingClientRect().top;
+                const elementPosition = elementRect - bodyRect;
+                const offsetPosition = elementPosition - offset;
 
-                    window.scrollTo({
-                        top: offsetPosition,
-                        behavior: "smooth"
-                    });
-                }
-            }, 100);
-        }
-        return { ...prev, [section]: newState };
+                window.scrollTo({
+                    top: offsetPosition,
+                    behavior: "smooth"
+                });
+            }
+        }, isAlreadyOpen ? 10 : 150); // wait slightly longer if it needs to render
+
+        return { ...prev, [section]: true };
     });
     setMobileMenuOpen(false);
   };
