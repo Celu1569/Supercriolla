@@ -10,6 +10,7 @@ interface ConfigContextType {
   updateConfig: (newConfig: SiteConfig) => void;
   resetConfig: () => void;
   isAuthenticated: boolean;
+  isConfigLoaded: boolean;
   login: (username?: string, password?: string) => Promise<boolean>;
   logout: () => void;
 }
@@ -104,19 +105,13 @@ const deepClean = (obj: any, seen = new WeakSet()): any => {
 export const ConfigProvider = ({ children }: ConfigProviderProps) => {
   const [config, setConfig] = useState<SiteConfig>(DEFAULT_CONFIG);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isConfigLoaded, setIsConfigLoaded] = useState(false);
 
   // Sync config with Firestore
   useEffect(() => {
-    // Attempt local storage fallback just in case network is disconnected
-    const savedLocal = localStorage.getItem('radio_site_config');
-    if (savedLocal) {
-        try {
-            setConfig(JSON.parse(savedLocal));
-        } catch (e) {}
-    }
-
     if (!hasFirebaseKeys) {
         console.log("Firebase keys missing. Operating in standalone mode with default config.");
+        setIsConfigLoaded(true);
         return;
     }
 
@@ -190,22 +185,22 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
             appearance: { ...DEFAULT_CONFIG.appearance, ...parsed.appearance }
           };
           
-          localStorage.setItem('radio_site_config', JSON.stringify(merged));
           setConfig(merged);
         } else {
-          localStorage.setItem('radio_site_config', JSON.stringify(parsed));
           setConfig(parsed);
         }
       } else {
         // If doc doesn't exist, just use default locally. An admin will create it when they save.
         setConfig(DEFAULT_CONFIG);
       }
+      setIsConfigLoaded(true);
     }, (error) => {
       console.error('Firestore Error sync config: ', JSON.stringify({
         error: error instanceof Error ? error.message : String(error),
         operationType: 'get',
         path: 'settings/config'
       }));
+      setIsConfigLoaded(true);
     });
 
     return () => unsubscribe();
@@ -215,9 +210,8 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
     const cleaned = deepClean(newConfig);
     if (!cleaned) return; 
     
-    // Always update locally
+    // Always update locally immediately for snappy UX
     setConfig(cleaned);
-    localStorage.setItem('radio_site_config', JSON.stringify(cleaned));
 
     if (!hasFirebaseKeys) {
         console.warn("Cannot sync to Firestore: Firebase keys missing.");
@@ -245,7 +239,6 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
   const resetConfig = async () => {
     if (confirm("¿Estás seguro de restablecer toda la configuración por defecto?")) {
         setConfig(DEFAULT_CONFIG);
-        localStorage.setItem('radio_site_config', JSON.stringify(DEFAULT_CONFIG));
 
         if (!hasFirebaseKeys) return;
 
@@ -270,12 +263,7 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
     const cleanUser = (username || '').trim().toLowerCase();
     const cleanPass = (password || '').trim();
 
-    console.log("--- LOGIN ATTEMPT ---");
-    console.log("User input:", `"${cleanUser}"`);
-    console.log("Pass input length:", cleanPass.length);
-
     if (!hasFirebaseKeys) {
-        console.log("Modo standalone (sin Firebase configurado).");
         if (cleanUser === 'admin' && (cleanPass === 'admin' || cleanPass === 'uncionradio123' || cleanPass === 'admin123')) {
             setIsAuthenticated(true);
             localStorage.setItem('radio_admin_auth', 'true');
@@ -298,27 +286,19 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
         const data = snap.data();
         validUser = (data.username || validUser).trim().toLowerCase();
         validPass = (data.password || validPass).trim();
-        console.log("Credenciales remotas encontradas:", validUser);
-      } else {
-        console.log("No se encontró documento remoto o error en lectura, usando base predefinida.");
       }
 
-      // Check against current valid credentials OR emergency defaults
       const matchesRemote = (cleanUser === validUser && cleanPass === validPass);
       const matchesEmergency = (cleanUser === 'admin' && (cleanPass === 'admin' || cleanPass === 'uncionradio123' || cleanPass === 'admin123'));
 
       if (matchesRemote || matchesEmergency) {
         setIsAuthenticated(true);
         localStorage.setItem('radio_admin_auth', 'true');
-        console.log("Login exitoso.");
         return true;
       }
       
-      console.warn("Credenciales no coinciden.");
       return false;
     } catch (e) {
-      console.error("Error excepcional en login:", e);
-      // Fallback absoluto de emergencia
       if (cleanUser === 'admin' && (cleanPass === 'admin' || cleanPass === 'uncionradio123' || cleanPass === 'admin123')) {
           setIsAuthenticated(true);
           localStorage.setItem('radio_admin_auth', 'true');
@@ -339,7 +319,7 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
   };
 
   return (
-    <ConfigContext.Provider value={{ config, updateConfig, resetConfig, isAuthenticated, login, logout }}>
+    <ConfigContext.Provider value={{ config, updateConfig, resetConfig, isAuthenticated, isConfigLoaded, login, logout }}>
       {children}
     </ConfigContext.Provider>
   );

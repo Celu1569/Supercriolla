@@ -43,8 +43,17 @@ const ThemeApplicator: React.FC = () => {
     return null;
 };
 
+const AppLoader = () => {
+    return (
+        <div className="fixed inset-0 min-h-screen bg-[#030712] flex flex-col items-center justify-center z-50">
+            <div className="w-16 h-16 border-4 border-white/20 border-t-white/80 rounded-full animate-spin"></div>
+            <p className="mt-4 text-white/50 text-sm animate-pulse tracking-widest uppercase">Cargando...</p>
+        </div>
+    );
+};
+
 const AppContent: React.FC = () => {
-  // Simple hash-based router for demo purposes
+  const { isConfigLoaded } = useConfig();
   const [route, setRoute] = useState(window.location.hash || '#/');
 
   useEffect(() => {
@@ -56,7 +65,10 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  // Use a fragment to render the theme applicator alongside the route
+  if (!isConfigLoaded) {
+      return <AppLoader />;
+  }
+
   return (
     <>
         <ThemeApplicator />

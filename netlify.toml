@@ -5,6 +5,16 @@ publish = "dist"
 [build.environment]
 NODE_VERSION = "20"
 
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
 [[redirects]]
 from = "/api/*"
 to = "/.netlify/functions/:splat"
