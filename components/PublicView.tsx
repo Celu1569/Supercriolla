@@ -319,7 +319,10 @@ const PublicView: React.FC = () => {
                                 return (
                                     <button
                                         key={child.id}
-                                        onClick={() => isChildAnchor ? toggleSection(childSectionId as any) : window.open(child.link, '_blank')}
+                                        onClick={() => {
+                                            if (isMobile) setMobileMenuOpen(false);
+                                            isChildAnchor ? toggleSection(childSectionId as any) : window.open(child.link, '_blank');
+                                        }}
                                         className="w-full text-left uppercase text-sm font-bold tracking-wider"
                                         style={{ color: isChildActive ? navActiveColor : navStyle.color }}
                                     >
@@ -353,7 +356,10 @@ const PublicView: React.FC = () => {
                                 return (
                                     <button
                                         key={child.id}
-                                        onClick={() => isChildAnchor ? toggleSection(childSectionId as any) : window.open(child.link, '_blank')}
+                                        onClick={() => {
+                                            setMobileMenuOpen(false);
+                                            isChildAnchor ? toggleSection(childSectionId as any) : window.open(child.link, '_blank');
+                                        }}
                                         className={`w-full text-left px-4 py-3 text-sm rounded-lg transition-colors ${
                                             isChildActive ? 'bg-primary text-white' : 'text-on-surface-muted hover:bg-white/5 hover:text-on-surface'
                                         }`}
@@ -375,7 +381,10 @@ const PublicView: React.FC = () => {
                 style={{ color: navStyle.color }} 
                 activeColor={navActiveColor} 
                 isActive={isActive} 
-                onClick={() => isAnchor ? toggleSection(sectionId as any) : window.open(item.link, '_blank')}
+                onClick={() => {
+                   if (isMobile) setMobileMenuOpen(false);
+                   isAnchor ? toggleSection(sectionId as any) : window.open(item.link, '_blank');
+                }}
             >
                 {item.label}
             </NavLink>
@@ -432,7 +441,7 @@ const PublicView: React.FC = () => {
         </div>
 
         {mobileMenuOpen && (
-          <div className="md:hidden absolute top-full left-0 w-full px-4 py-6 flex flex-col space-y-4 shadow-xl border-t border-white/10" style={navStyle}>
+          <div className="md:hidden absolute top-full left-0 w-full px-4 py-6 flex flex-col space-y-4 shadow-xl border-t border-white/10" style={{ backgroundColor: config.navigation.navBackgroundColor !== 'transparent' ? config.navigation.navBackgroundColor : '#000000', color: config.navigation.navTextColor }}>
              {renderNavItems(true)}
           </div>
         )}
@@ -504,7 +513,10 @@ const PublicView: React.FC = () => {
                     {index === currentSlide && (
                         <div 
                             className="animate-fade-in-up w-full"
-                            style={{ maxWidth: slide.contentMaxWidth ? `${slide.contentMaxWidth}px` : '100%' }}
+                            style={{ 
+                                maxWidth: slide.contentMaxWidth ? `${slide.contentMaxWidth}px` : '100%',
+                                transform: `translate(${slide.offsetX || 0}px, ${slide.offsetY || 0}px)`
+                            }}
                         >
                             <h1 
                                 className={`mb-4 tracking-wide ${getShadowClass(slide.titleShadow || slide.textShadow)}`}
@@ -516,7 +528,7 @@ const PublicView: React.FC = () => {
                                     borderRadius: slide.titleHighlight ? '0.2em' : '0',
                                     display: slide.titleHighlight ? 'inline-block' : 'block',
                                     color: slide.titleColor || slide.textColor || '#ffffff',
-                                    fontSize: slide.titleSize ? `${slide.titleSize}px` : undefined,
+                                    fontSize: slide.titleSize ? `clamp(${Math.max(20, Math.round(slide.titleSize * 0.45))}px, 5vw + 0.5rem, ${slide.titleSize}px)` : undefined,
                                     lineHeight: '1.2',
                                     ...getOutlineStyle(slide.titleOutline || slide.textOutline, slide.titleOutlineColor, slide.titleOutlineWidth)
                                 }}
@@ -533,7 +545,7 @@ const PublicView: React.FC = () => {
                                     borderRadius: slide.subtitleHighlight ? '0.2em' : '0',
                                     display: slide.subtitleHighlight ? 'inline-block' : 'block',
                                     color: slide.subtitleColor || slide.textColor || '#ffffff',
-                                    fontSize: slide.subtitleSize ? `${slide.subtitleSize}px` : undefined,
+                                    fontSize: slide.subtitleSize ? `clamp(${Math.max(14, Math.round(slide.subtitleSize * 0.6))}px, 3vw + 0.5rem, ${slide.subtitleSize}px)` : undefined,
                                     lineHeight: '1.4',
                                     ...getOutlineStyle(slide.subtitleOutline || slide.textOutline, slide.subtitleOutlineColor, slide.subtitleOutlineWidth)
                                 }}

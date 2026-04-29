@@ -548,7 +548,7 @@ const CompactHeroSlide: React.FC<CompactHeroSlideProps> = ({ slide, index, onUpd
                                  'justify-center'
                              }`}
                          >
-                             <div style={{ maxWidth: slide.contentMaxWidth ? `${slide.contentMaxWidth / 3.5}px` : '100%' }}>
+                             <div style={{ maxWidth: slide.contentMaxWidth ? `${slide.contentMaxWidth / 3.5}px` : '100%', transform: `translate(${slide.offsetX ? slide.offsetX/3.5 : 0}px, ${slide.offsetY ? slide.offsetY/3.5 : 0}px)` }}>
                                  <h5 
                                      className="font-bold leading-tight mb-2"
                                      style={{ 
@@ -727,6 +727,39 @@ const CompactHeroSlide: React.FC<CompactHeroSlideProps> = ({ slide, index, onUpd
                                    />
                                    <span className="text-[10px] text-white w-8 text-right font-mono">{slide.contentMaxWidth || 800}</span>
                                </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-2">
+                              <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-lg border border-gray-700">
+                                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Posición X</span>
+                                   <div className="flex items-center bg-gray-950 border border-gray-700 rounded px-2 w-[110px]">
+                                       <input 
+                                           type="range" 
+                                           min="-1000" 
+                                           max="1000" 
+                                           step="10"
+                                           value={slide.offsetX || 0} 
+                                           onChange={e => onUpdate('offsetX', parseInt(e.target.value))} 
+                                           className="w-full mr-2 accent-primary h-1" 
+                                       />
+                                       <span className="text-[9px] text-white w-6 text-right font-mono">{slide.offsetX || 0}</span>
+                                   </div>
+                              </div>
+                              <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-lg border border-gray-700">
+                                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Posición Y</span>
+                                   <div className="flex items-center bg-gray-950 border border-gray-700 rounded px-2 w-[110px]">
+                                       <input 
+                                           type="range" 
+                                           min="-500" 
+                                           max="500" 
+                                           step="10"
+                                           value={slide.offsetY || 0} 
+                                           onChange={e => onUpdate('offsetY', parseInt(e.target.value))} 
+                                           className="w-full mr-2 accent-primary h-1" 
+                                       />
+                                       <span className="text-[9px] text-white w-6 text-right font-mono">{slide.offsetY || 0}</span>
+                                   </div>
+                              </div>
                           </div>
 
                           <div className="grid grid-cols-1 gap-3">

@@ -89,6 +89,8 @@ export interface HeroSlide {
   alignment: 'left' | 'center' | 'right'; // Horizontal alignment
   verticalAlignment?: 'top' | 'center' | 'bottom'; // Vertical alignment
   contentMaxWidth?: number; // Max width in pixels for the text container
+  offsetX?: number; // X offset in pixels
+  offsetY?: number; // Y offset in pixels
   
   // Title styles
   titleColor: string;
