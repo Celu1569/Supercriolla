@@ -468,13 +468,19 @@ export const RadioPlayer: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.general.streamUrl]);
 
+  const playerStyle = config.appearance.playerStyle || 'modern';
+  
+  let playerHeight = 'h-[600px]';
+  if (playerStyle === 'minimal') playerHeight = 'lg:h-[200px] h-auto pb-6 lg:pb-0';
+  if (playerStyle === 'full') playerHeight = 'min-h-[85vh] py-12';
+
   // Atmospheric Design for the Main Player with Continuous History
   return (
     <div className="w-full max-w-[1600px] mx-auto overflow-hidden animate-fade-in px-4 my-8">
       <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: isVisible ? 1 : 0, y: isVisible ? 0 : 20 }}
-          className={`relative bg-[#0a0502] rounded-[32px] overflow-hidden border border-white/10 shadow-2xl transition-all duration-500 ${isVisible ? 'h-[600px]' : 'h-0 pointer-events-none mb-0'}`}
+          className={`relative bg-[#0a0502] rounded-[32px] overflow-hidden border border-white/10 shadow-2xl transition-all duration-500 ${isVisible ? playerHeight : 'h-0 pointer-events-none mb-0'}`}
           style={{ 
               display: isVisible ? 'block' : 'none'
           }}
@@ -513,17 +519,17 @@ export const RadioPlayer: React.FC = () => {
               <X size={24} />
           </button>
 
-          {/* Main Content Grid - Now 3 Columns for History Side Panel */}
-          <div className="relative z-10 h-full flex flex-col lg:flex-row items-center gap-8 lg:gap-12 px-8 lg:px-12 py-12">
+          {/* Main Content Grid */}
+          <div className={`relative z-10 h-full flex flex-col lg:flex-row items-center gap-8 px-8 lg:px-12 py-12 ${playerStyle === 'full' ? 'justify-center lg:gap-24' : 'lg:gap-12'}`}>
               <audio ref={audioRef} onError={handleAudioError} onEnded={handleTrackEnded} preload="none" />
               <audio ref={testAudioRef} onCanPlay={handleTestAudioCanPlay} preload="none" className="hidden pointer-events-none" muted />
               
               {/* Visualizer/Cover Area */}
-              <div className="relative group w-full lg:w-[380px] flex-shrink-0 flex items-center justify-center">
+              <div className={`relative group w-full flex-shrink-0 flex items-center justify-center ${playerStyle === 'minimal' ? 'lg:w-[140px] pt-4 lg:pt-0' : playerStyle === 'full' ? 'lg:w-[450px]' : 'lg:w-[380px]'}`}>
                   
                   <motion.div 
                       whileHover={{ scale: 1.02 }}
-                      className="relative z-10 aspect-square w-full rounded-[40px] overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.6)] border-2 border-white/10 bg-gray-900 group"
+                      className={`relative z-10 aspect-square overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.6)] border-2 border-white/10 bg-gray-900 group ${playerStyle === 'minimal' ? 'w-[140px] rounded-3xl' : 'w-full rounded-[40px]'}`}
                   >
                       {metadata.cover ? (
                           <img 
@@ -551,8 +557,8 @@ export const RadioPlayer: React.FC = () => {
                                   exit={{ opacity: 0 }}
                                   className="absolute inset-0 bg-black/40 flex items-center justify-center"
                               >
-                                  <div className="w-24 h-24 rounded-full bg-secondary/20 backdrop-blur-sm border border-secondary/30 flex items-center justify-center">
-                                      <Play size={40} className="text-secondary ml-2 fill-current" />
+                                  <div className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-secondary/20 backdrop-blur-sm border border-secondary/30 flex items-center justify-center">
+                                      <Play size={playerStyle === 'minimal' ? 24 : 40} className="text-secondary ml-1 md:ml-2 fill-current" />
                                   </div>
                               </motion.div>
                           )}
@@ -561,38 +567,38 @@ export const RadioPlayer: React.FC = () => {
               </div>
 
               {/* Info & Core Controls (Center) */}
-              <div className="flex-1 w-full text-center lg:text-left flex flex-col items-center lg:items-start min-w-0">
-                  <div className="mb-8 space-y-4 w-full">
+              <div className={`flex-1 w-full text-center flex flex-col min-w-0 ${playerStyle === 'full' ? 'items-center max-w-2xl' : 'lg:text-left items-center lg:items-start'}`}>
+                  <div className={`mb-8 space-y-4 w-full ${playerStyle === 'full' ? 'mt-8 lg:mt-0' : ''}`}>
                       <motion.div 
                           initial={{ opacity: 0, x: -10 }}
                           animate={{ opacity: 1, x: 0 }}
-                          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary/10 border border-secondary/20 text-secondary text-xs font-bold tracking-widest uppercase"
+                          className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary/10 border border-secondary/20 text-secondary text-xs font-bold tracking-widest uppercase ${playerStyle === 'full' ? 'mx-auto' : ''}`}
                       >
                           <span className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-secondary animate-pulse' : 'bg-gray-500'}`}></span>
                           {isPlaying ? 'Al Aire Ahora' : 'Radio en Pausa'}
                       </motion.div>
                       
                       <div className="space-y-3">
-                         <h2 className="text-3xl lg:text-4xl font-heading font-black text-white leading-tight break-words line-clamp-2 drop-shadow-lg" title={metadata.title}>
+                         <h2 className={`${playerStyle === 'minimal' ? 'text-2xl lg:text-3xl' : playerStyle === 'full' ? 'text-4xl md:text-5xl lg:text-7xl font-black' : 'text-3xl lg:text-4xl'} font-heading font-bold text-white leading-tight break-words line-clamp-2 drop-shadow-lg`} title={metadata.title}>
                              {metadata.title}
                          </h2>
-                         <h3 className="text-lg lg:text-xl font-sans font-medium text-secondary/80 truncate w-full" title={metadata.artist}>
+                         <h3 className={`${playerStyle === 'full' ? 'text-xl lg:text-3xl' : 'text-lg lg:text-xl'} font-sans font-medium text-secondary/80 truncate w-full`} title={metadata.artist}>
                              {metadata.artist}
                          </h3>
                       </div>
                   </div>
 
-                  <div className="flex items-center gap-8 mb-10">
+                  <div className={`flex items-center gap-8 mb-4 lg:mb-10 ${playerStyle === 'full' ? 'justify-center mx-auto' : ''}`}>
                       <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={togglePlay}
-                          className="w-16 h-16 rounded-full bg-secondary text-primary flex items-center justify-center shadow-[0_0_20px_rgba(251,191,36,0.3)] hover:shadow-[0_0_30px_rgba(251,191,36,0.5)] transition-all"
+                          className="w-16 h-16 rounded-full bg-secondary text-primary flex items-center justify-center shadow-[0_0_20px_rgba(251,191,36,0.3)] hover:shadow-[0_0_30px_rgba(251,191,36,0.5)] transition-all flex-shrink-0"
                       >
                           {isPlaying ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
                       </motion.button>
 
-                      <div className="w-[200px] lg:w-[260px] flex items-center gap-4 group">
+                      <div className="w-[180px] md:w-[200px] lg:w-[260px] flex items-center gap-4 group">
                           <button onClick={toggleMute} className="text-white/40 hover:text-white transition-colors">
                               {getVolumeIcon()}
                           </button>
@@ -609,16 +615,17 @@ export const RadioPlayer: React.FC = () => {
                   </div>
               </div>
 
-              {/* Permanent History Side Panel (Right) */}
-              <div className="hidden lg:flex w-[320px] h-full flex-col bg-white/5 border-l border-white/10 p-6 flex-shrink-0 animate-fade-in-right">
+              {/* Permanent History Side Panel (Right) - Hidden on Minimal */}
+              {playerStyle !== 'minimal' && (
+              <div className={`hidden lg:flex flex-col bg-white/5 border-white/10 p-6 flex-shrink-0 animate-fade-in-right ${playerStyle === 'full' ? 'w-full max-w-2xl mt-12 mb-0 border-t rounded-3xl h-[280px]' : 'w-[320px] h-full border-l'}`}>
                   <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
                       {history.length > 0 ? history.map((track, i) => (
                           <motion.div 
-                              initial={{ opacity: 0, x: 20 }}
-                              animate={{ opacity: 1, x: 0 }}
+                              initial={{ opacity: 0, x: playerStyle === 'full' ? 0 : 20, y: playerStyle === 'full' ? 20 : 0 }}
+                              animate={{ opacity: 1, x: 0, y: 0 }}
                               transition={{ delay: i * 0.1 }}
                               key={i} 
-                              className="flex items-center gap-4 group p-2 rounded-xl hover:bg-white/5 transition-colors"
+                              className={`flex items-center gap-4 group p-2 rounded-xl hover:bg-white/5 transition-colors ${playerStyle === 'full' ? 'bg-white/5' : ''}`}
                           >
                               <div className="w-14 h-14 rounded-xl overflow-hidden bg-white/5 border border-white/10 flex-shrink-0 shadow-lg group-hover:border-secondary/30 transition-colors">
                                   <img 
@@ -628,10 +635,12 @@ export const RadioPlayer: React.FC = () => {
                                       onError={(e) => { e.currentTarget.src = config.navigation.logoUrl || '' }}
                                   />
                               </div>
-                              <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-bold text-white truncate group-hover:text-secondary transition-colors">{track.title}</p>
-                                  <p className="text-xs text-white/40 truncate">{track.artist}</p>
-                                  <div className="flex items-center gap-2 mt-1">
+                              <div className="min-w-0 flex-1 flex items-center justify-between">
+                                  <div className="min-w-0 flex-1">
+                                      <p className="text-sm font-bold text-white truncate group-hover:text-secondary transition-colors">{track.title}</p>
+                                      <p className="text-xs text-white/40 truncate">{track.artist}</p>
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1 ml-4 justify-end flex-shrink-0">
                                       <span className="text-[10px] font-mono text-secondary/60 bg-secondary/5 px-1.5 rounded flex items-center gap-1">
                                           <Clock size={8} /> {track.time}
                                       </span>
@@ -646,6 +655,7 @@ export const RadioPlayer: React.FC = () => {
                       )}
                   </div>
               </div>
+              )}
           </div>
           
           <div className="absolute inset-0 pointer-events-none border-[1px] border-white/5 rounded-[32px]"></div>

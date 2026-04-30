@@ -1913,13 +1913,13 @@ export const AdminPanel: React.FC = () => {
       </nav>
 
       {/* Main Content Area */}
-      <main className="flex-1 w-full bg-gray-950 p-4 md:p-12 mb-20">
-        <div className="max-w-7xl mx-auto bg-gray-900/50 backdrop-blur-sm rounded-3xl shadow-2xl border border-gray-800 p-6 md:p-12 min-h-full">
+      <main className="flex-1 w-full bg-gray-950 p-4 lg:p-8 mb-20">
+        <div className="w-full bg-gray-900/50 backdrop-blur-sm rounded-3xl shadow-2xl border border-gray-800 p-6 xl:p-12 min-h-full">
             
             {activeTab === 'appearance' && (
               <div className="space-y-6 animate-fade-in">
                  <SectionHeader title="Apariencia y Marca" subtitle="Personaliza los colores y fuentes de tu sitio web." />
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
                     <InputGroup label="Color Primario (Dominante)">
                         <div className="flex space-x-2">
                             <input type="color" value={formData.appearance.primaryColor} onChange={e => setFormData(prev => ({...prev, appearance: {...prev.appearance, primaryColor: e.target.value}}))} className="h-11 w-20 rounded-lg cursor-pointer border border-gray-600 bg-transparent" />
@@ -1932,9 +1932,6 @@ export const AdminPanel: React.FC = () => {
                             <input type="text" value={formData.appearance.secondaryColor} onChange={e => setFormData(prev => ({...prev, appearance: {...prev.appearance, secondaryColor: e.target.value}}))} className="flex-1 bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg uppercase" />
                         </div>
                     </InputGroup>
-                 </div>
-                 
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                      <InputGroup label="Color de Títulos">
                         <div className="flex space-x-2">
                             <input type="color" value={formData.appearance.headingColor || formData.appearance.primaryColor} onChange={e => setFormData(prev => ({...prev, appearance: {...prev.appearance, headingColor: e.target.value}}))} className="h-11 w-20 rounded-lg cursor-pointer border border-gray-600 bg-transparent" />
@@ -1949,7 +1946,7 @@ export const AdminPanel: React.FC = () => {
                     </InputGroup>
                  </div>
 
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <InputGroup label="Fuente de Títulos">
                         <select value={formData.appearance.headingFont} onChange={e => setFormData(prev => ({...prev, appearance: {...prev.appearance, headingFont: e.target.value as FontFamily}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg">
                             {FONT_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
@@ -1958,6 +1955,13 @@ export const AdminPanel: React.FC = () => {
                     <InputGroup label="Fuente de Cuerpo">
                         <select value={formData.appearance.bodyFont} onChange={e => setFormData(prev => ({...prev, appearance: {...prev.appearance, bodyFont: e.target.value as FontFamily}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg">
                              {FONT_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                        </select>
+                    </InputGroup>
+                    <InputGroup label="Estilo del Reproductor">
+                        <select value={formData.appearance.playerStyle || 'modern'} onChange={e => setFormData(prev => ({...prev, appearance: {...prev.appearance, playerStyle: e.target.value as 'minimal' | 'modern' | 'full'}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg">
+                            <option value="minimal">Sencillo</option>
+                            <option value="modern">Moderno</option>
+                            <option value="full">Full (Pantalla Completa)</option>
                         </select>
                     </InputGroup>
                  </div>
@@ -2233,7 +2237,7 @@ export const AdminPanel: React.FC = () => {
                  />
                  
                  <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
-                    <div className="space-y-4 max-w-4xl mx-auto">
+                    <div className="space-y-4">
                         {(formData.navigation.items || []).map(item => (
                             <div key={item.id}>
                                 {(() => {
@@ -2355,7 +2359,7 @@ export const AdminPanel: React.FC = () => {
                         </div>
                     </InputGroup>
                 </div>
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     {formData.content.hero.map((slide, index) => (
                         <CompactHeroSlide 
                             key={slide.id} 
@@ -2396,7 +2400,7 @@ export const AdminPanel: React.FC = () => {
                         <h3 className="text-lg font-bold text-white">Episodios</h3>
                         <button onClick={addEpisode} className="bg-secondary text-primary px-4 py-2 rounded-lg font-bold hover:bg-yellow-500 flex items-center text-sm shadow-md"> <Plus size={18} className="mr-1"/> Agregar Episodio </button>
                     </div>
-                    <div className="space-y-4">
+                    <div className="grid grid-cols-1 xl:grid-cols-2 lg:grid-cols-2 gap-6">
                         {formData.content.podcast.episodes.map((ep, idx) => (
                             <div key={ep.id} className="border border-gray-700 p-4 rounded-xl bg-gray-800 shadow-sm flex flex-col space-y-3 hover:bg-gray-750 transition-all relative">
                                 <div className="flex justify-between items-center border-b border-gray-700 pb-2 mb-2">
@@ -2467,9 +2471,9 @@ export const AdminPanel: React.FC = () => {
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-6">
                         {(adminProgramTab === 'week' ? formData.content.program.programs : (formData.content.program.weekendPrograms || []))?.map((prog) => (
-                            <div key={prog.id} className="bg-gray-900 p-6 rounded-xl border border-gray-700 relative group animate-fade-in">
+                            <div key={prog.id} className="bg-gray-900 p-6 rounded-xl border border-gray-700 relative group animate-fade-in flex flex-col">
                                 <button 
                                     onClick={() => adminProgramTab === 'week' ? removeProgram(prog.id) : removeWeekendProgram(prog.id)} 
                                     className="absolute top-4 right-4 text-red-400 hover:text-red-300 p-2 hover:bg-red-900/30 rounded-lg transition-colors"
@@ -2676,12 +2680,44 @@ export const AdminPanel: React.FC = () => {
                              <input type="text" value={formData.content.gallery.description} onChange={(e) => setFormData(prev => ({...prev, content: {...prev.content, gallery: {...prev.content.gallery, description: e.target.value}}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" />
                         </InputGroup>
                      </div>
-                     <div className="flex justify-between items-center border-b border-gray-700 pb-4 pt-6 mb-4">
-                        <h3 className="text-lg font-bold text-white">Imágenes ({formData.content.gallery.images.length})</h3>
-                        <button onClick={addGalleryItem} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 flex items-center text-sm shadow-md transition-transform active:scale-95"> <Plus size={18} className="mr-1"/> Agregar Imagen </button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {formData.content.gallery.images.map((img) => (
+                     
+                     <div className="bg-gray-800 border border-gray-700 p-4 rounded-xl mt-6">
+                        <InputGroup label="Modo de Galería">
+                            <select 
+                                value={formData.content.gallery.mode || 'manual'} 
+                                onChange={(e) => setFormData(prev => ({...prev, content: {...prev.content, gallery: {...prev.content.gallery, mode: e.target.value as 'manual' | 'widget'}}}))}
+                                className="w-full bg-gray-900 border border-gray-600 text-white p-2 rounded-lg"
+                            >
+                                <option value="manual">Manual (Carrusel de Instagram/TikTok)</option>
+                                <option value="widget">Automático (Código Widget / Embed)</option>
+                            </select>
+                            <p className="text-xs text-gray-400 mt-2">
+                                Para un feed automático que se actualice solo, selecciona "Automático" y pega un código widget de plataformas como <a href="https://elfsight.com" target="_blank" rel="noreferrer" className="text-primary hover:underline">Elfsight</a>, <a href="https://lightwidget.com" target="_blank" rel="noreferrer" className="text-primary hover:underline">LightWidget</a> o <a href="https://curator.io" target="_blank" rel="noreferrer" className="text-primary hover:underline">Curator.io</a>.
+                            </p>
+                        </InputGroup>
+
+                        {formData.content.gallery.mode === 'widget' && (
+                            <div className="mt-4 animate-fade-in-up">
+                                <InputGroup label="Código del Widget (HTML/Script)">
+                                    <textarea 
+                                        value={formData.content.gallery.widgetCode || ''} 
+                                        onChange={(e) => setFormData(prev => ({...prev, content: {...prev.content, gallery: {...prev.content.gallery, widgetCode: e.target.value}}}))}
+                                        className="w-full bg-gray-900 border border-gray-600 text-white p-3 rounded-lg font-mono text-sm h-32"
+                                        placeholder={`<script src="...">\n<div class="..."></div>`}
+                                    />
+                                </InputGroup>
+                            </div>
+                        )}
+                     </div>
+
+                     {(!formData.content.gallery.mode || formData.content.gallery.mode === 'manual') && (
+                        <>
+                            <div className="flex justify-between items-center border-b border-gray-700 pb-4 pt-6 mb-4">
+                               <h3 className="text-lg font-bold text-white">Imágenes ({formData.content.gallery.images.length})</h3>
+                               <button onClick={addGalleryItem} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 flex items-center text-sm shadow-md transition-transform active:scale-95"> <Plus size={18} className="mr-1"/> Agregar Imagen </button>
+                           </div>
+                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                               {formData.content.gallery.images.map((img) => (
                             <div key={img.id} className="border border-gray-700 p-4 rounded-xl bg-gray-800 shadow-sm hover:bg-gray-750 transition-all flex flex-col relative group">
                                 <button onClick={() => removeGalleryItem(img.id)} className="absolute top-2 right-2 text-gray-500 hover:text-red-500 bg-gray-900 rounded-full p-1.5 shadow-sm border border-gray-700 z-10" title="Eliminar"> <Trash2 size={16} /> </button>
                                 <div className="mb-4">
@@ -2728,7 +2764,9 @@ export const AdminPanel: React.FC = () => {
                                 </div>
                             </div>
                         ))}
-                    </div>
+                            </div>
+                        </>
+                     )}
                 </div>
                 <SaveAction />
               </div>
@@ -3353,11 +3391,11 @@ export const AdminPanel: React.FC = () => {
               <div className="space-y-6 animate-fade-in">
                 <SectionHeader title="General / Footer" subtitle="Configura la información del pie de página." />
                 <h3 className="text-md font-bold text-gray-300 uppercase tracking-wide border-b border-gray-700 pb-2 mb-4">Stream y Contacto</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <InputGroup label="URL del Streaming en Vivo (Principal)">
-                    <input type="text" value={formData.general.streamUrl || ''} onChange={e => setFormData(prev => ({...prev, general: {...prev.general, streamUrl: e.target.value}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" />
-                    </InputGroup>
-                    <div className="md:col-span-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="md:col-span-2 lg:col-span-4">
+                        <InputGroup label="URL del Streaming en Vivo (Principal)">
+                        <input type="text" value={formData.general.streamUrl || ''} onChange={e => setFormData(prev => ({...prev, general: {...prev.general, streamUrl: e.target.value}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" />
+                        </InputGroup>
                         <AutoDJManager 
                             tracks={formData.general.autoDJTracks || []}
                             mode={formData.general.autoDJMode || 'alphabetical'}
@@ -3385,7 +3423,7 @@ export const AdminPanel: React.FC = () => {
                     </InputGroup>
                 </div>
                 <h3 className="text-md font-bold text-gray-300 uppercase tracking-wide border-b border-gray-700 pb-2 mb-4 mt-8">Redes Sociales</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                      {(['instagram', 'tiktok', 'youtube', 'whatsapp'] as const).map(key => (
                         <InputGroup key={key} label={key.charAt(0).toUpperCase() + key.slice(1)}>
                             <input type="text" value={formData.social[key] || ''} onChange={e => setFormData(prev => {

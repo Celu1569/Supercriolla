@@ -5,6 +5,7 @@ import Chat from './Chat';
 import { ClientGallery } from './ClientGallery';
 import { SocialEmbed } from './SocialEmbed';
 import { SocialCarousel } from './SocialCarousel';
+import { WidgetEmbed } from './WidgetEmbed';
 import { Menu, X, Facebook, Instagram, Youtube, Phone, Mail, MapPin, Radio, ChevronLeft, ChevronRight, Sun, Moon, PlayCircle, Video, Heart, CreditCard, Tv, Play, MessageSquare, Users, Mic2, Newspaper, Calendar, User, ArrowRight, ChevronDown } from 'lucide-react';
 import { TikTok } from './TikTokIcon';
 import { NewsItem } from '../types';
@@ -441,7 +442,7 @@ const PublicView: React.FC = () => {
         </div>
 
         {mobileMenuOpen && (
-          <div className="md:hidden absolute top-full left-0 w-full px-4 py-6 flex flex-col space-y-4 shadow-xl border-t border-white/10" style={{ backgroundColor: config.navigation.navBackgroundColor !== 'transparent' ? config.navigation.navBackgroundColor : '#000000', color: config.navigation.navTextColor }}>
+          <div className="md:hidden absolute z-50 top-full left-0 w-full px-4 py-6 flex flex-col space-y-4 shadow-xl border-t border-white/10" style={{ backgroundColor: config.navigation.navBackgroundColor !== 'transparent' ? config.navigation.navBackgroundColor : '#000000', color: config.navigation.navTextColor }}>
              {renderNavItems(true)}
           </div>
         )}
@@ -528,7 +529,7 @@ const PublicView: React.FC = () => {
                                     borderRadius: slide.titleHighlight ? '0.2em' : '0',
                                     display: slide.titleHighlight ? 'inline-block' : 'block',
                                     color: slide.titleColor || slide.textColor || '#ffffff',
-                                    fontSize: slide.titleSize ? `clamp(${Math.max(20, Math.round(slide.titleSize * 0.45))}px, 5vw + 0.5rem, ${slide.titleSize}px)` : undefined,
+                                    fontSize: slide.titleSize ? `clamp(${Math.max(20, Math.round(slide.titleSize * 0.45))}px, 5vw + 0.5rem, ${slide.titleSize}px)` : 'clamp(28px, 6vw, 48px)',
                                     lineHeight: '1.2',
                                     ...getOutlineStyle(slide.titleOutline || slide.textOutline, slide.titleOutlineColor, slide.titleOutlineWidth)
                                 }}
@@ -545,7 +546,7 @@ const PublicView: React.FC = () => {
                                     borderRadius: slide.subtitleHighlight ? '0.2em' : '0',
                                     display: slide.subtitleHighlight ? 'inline-block' : 'block',
                                     color: slide.subtitleColor || slide.textColor || '#ffffff',
-                                    fontSize: slide.subtitleSize ? `clamp(${Math.max(14, Math.round(slide.subtitleSize * 0.6))}px, 3vw + 0.5rem, ${slide.subtitleSize}px)` : undefined,
+                                    fontSize: slide.subtitleSize ? `clamp(${Math.max(14, Math.round(slide.subtitleSize * 0.6))}px, 3vw + 0.5rem, ${slide.subtitleSize}px)` : 'clamp(14px, 3vw, 20px)',
                                     lineHeight: '1.4',
                                     ...getOutlineStyle(slide.subtitleOutline || slide.textOutline, slide.subtitleOutlineColor, slide.subtitleOutlineWidth)
                                 }}
@@ -958,8 +959,12 @@ const PublicView: React.FC = () => {
                     </p>
                 </div>
                 
-                {/* Horizontal Carousel Layout */}
-                <SocialCarousel items={config.content.gallery.images} />
+                {/* Content Layout */}
+                {config.content.gallery.mode === 'widget' && config.content.gallery.widgetCode ? (
+                    <WidgetEmbed html={config.content.gallery.widgetCode} />
+                ) : (
+                    <SocialCarousel items={config.content.gallery.images} />
+                )}
             </div>
         </section>
       )}

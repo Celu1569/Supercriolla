@@ -41,7 +41,8 @@ export const DEFAULT_CONFIG: SiteConfig = {
     backgroundColor: "#ffffff",
     textColor: "#334155", // Slate 700
     headingFont: "Montserrat",
-    bodyFont: "Inter"
+    bodyFont: "Inter",
+    playerStyle: "modern"
   },
   content: {
     heroInterval: 5000, // 5 Seconds default
@@ -217,6 +218,8 @@ export const DEFAULT_CONFIG: SiteConfig = {
     gallery: {
       title: "Supercriolla Social",
       description: "Sigue nuestras redes sociales y mantente al día con lo mejor del folklore venezolano.",
+      mode: 'manual',
+      widgetCode: '',
       images: [
         {
             id: 'gal-1',

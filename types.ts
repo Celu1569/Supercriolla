@@ -78,6 +78,8 @@ export interface GalleryItem {
 export interface GalleryConfig {
   title: string;
   description: string;
+  mode?: 'manual' | 'widget';
+  widgetCode?: string;
   images: GalleryItem[];
 }
 
@@ -278,6 +280,7 @@ export interface SiteConfig {
     textColor: string;
     headingFont: FontFamily;
     bodyFont: FontFamily;
+    playerStyle?: 'minimal' | 'modern' | 'full';
   };
   content: {
     hero: HeroSlide[]; 
