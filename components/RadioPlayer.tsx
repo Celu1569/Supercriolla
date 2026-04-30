@@ -1,510 +1,287 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { Play, Pause, Volume2, Volume1, VolumeX, Radio, ListMusic, X, Clock } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Volume1, Radio, X, Clock, Disc3 } from 'lucide-react';
 import { useConfig } from '../context/ConfigContext';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface TrackHistory {
-   title: string;
-   artist: string;
-   cover: string;
-   time: string;
+  title: string;
+  artist: string;
+  cover: string;
+  time: string;
 }
 
 export const RadioPlayer: React.FC = () => {
   const { config } = useConfig();
   const audioRef = useRef<HTMLAudioElement>(null);
-  const testAudioRef = useRef<HTMLAudioElement>(null);
+  
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
-  const [prevVolume, setPrevVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
-  const [error, setError] = useState(false);
-  const [isFallbackMode, setIsFallbackMode] = useState(false);
-  const [autoDJIndex, setAutoDJIndex] = useState(0);
-  
-  const fallbackList = useMemo(() => {
-     let list = config.general.autoDJTracks || [];
-     if (!list || list.length === 0) {
-         if (config.general.fallbackStreamUrl) {
-              return [{ url: config.general.fallbackStreamUrl, title: 'Respaldo', id: 'legacy' }];
-         }
-         return [];
-     }
-     
-     const cloned = [...list];
-     if (config.general.autoDJMode === 'random') {
-          // Fisher-Yates shuffle
-          for (let i = cloned.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [cloned[i], cloned[j]] = [cloned[j], cloned[i]];
-          }
-     }
-     return cloned;
-  }, [config.general.autoDJTracks, config.general.autoDJMode, config.general.fallbackStreamUrl]);
+  const [prevVolume, setPrevVolume] = useState(0.8);
+  const [isVisible, setIsVisible] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
   const [metadata, setMetadata] = useState({
-    title: 'Cargando...',
-    artist: 'Radio en Vivo',
+    title: 'Cargando transmisión...',
+    artist: 'Conectando con el servidor',
     cover: ''
   });
   const [history, setHistory] = useState<TrackHistory[]>([]);
-  const [isVisible, setIsVisible] = useState(false);
-  const historyRef = useRef<HTMLDivElement>(null);
 
-  // Keep track of config updates to initialize default cover if needed
+  const playerStyle = config.appearance.playerStyle || 'modern';
+
+  // Make sure we have a clear fallback for images
+  const defaultCover = config.navigation.logoUrl || config.general.logoUrl || '';
+  const stationName = config.general.stationName || 'Radio en Vivo';
+  const defaultSlogan = 'Pasión por lo nuestro'; // Updated per user's manual change
+
+  // Synchronize audio element with state changes
   useEffect(() => {
-    if (metadata.cover === '' && config.navigation.logoUrl) {
-      setMetadata(prev => ({
-        ...prev,
-        artist: prev.artist === 'Radio en Vivo' ? (config.general.stationName || 'En Línea') : prev.artist,
-        cover: config.navigation.logoUrl
-      }));
-    }
-  }, [config.navigation.logoUrl, config.general.stationName, metadata.cover]);
-
-  // Real metadata fetcher
-  useEffect(() => {
-    let isSubscribed = true;
-
-    const fetchMetadata = async () => {
-      try {
-        const streamUrlOrigin = config.general.streamUrl || "";
-        const streamUrl = encodeURIComponent(streamUrlOrigin);
-        const logoUrl = encodeURIComponent(config.navigation.logoUrl || "");
-        const stationName = encodeURIComponent(config.general.stationName || "");
-        
-        let apiData: any = null;
-        let isApiOk = false;
-
-        const isGenericString = (s: string) => {
-            if (!s) return true;
-            const lower = s.toLowerCase();
-            return lower.includes("transmision") || lower.includes("en vivo") || lower.includes("recuperando señal") || lower.includes("conectando") || lower === "unknown" || lower === "stream";
-        };
-
-        // Helper to fetch with timeout
-        const fetchWithTimeout = async (url: string, timeoutMs: number = 5000) => {
-            const controller = new AbortController();
-            const id = setTimeout(() => controller.abort(), timeoutMs);
-            try {
-                const response = await fetch(url, { signal: controller.signal });
-                clearTimeout(id);
-                return response;
-            } catch (err) {
-                clearTimeout(id);
-                throw err;
-            }
-        };
-
-        // Set some default fallback IMMEDIATELY if no metadata yet, so we don't get stuck on Cargando
-        if (metadata.title === 'Cargando...') {
-           if (isSubscribed) {
-              setMetadata({
-                  title: config.general.stationName || "Radio en Vivo",
-                  artist: "Música que te mueve",
-                  cover: config.navigation.logoUrl || config.general.logoUrl || ""
-              });
-           }
-        }
-
-        // 1. Intentar la ruta de backend local si existe (ej. en desarrollo local o servidor express)
-        try {
-          const response = await fetchWithTimeout(`/api/metadata?stream=${streamUrl}&logo=${logoUrl}&station=${stationName}`, 3000);
-          if (response.ok) {
-            const data = await response.json();
-            // Comprobamos la estructura (ignoramos HTML fallbacks de SPA)
-            if (data && !data.html && (data.title !== undefined || data.artist !== undefined)) {
-              apiData = data;
-              isApiOk = true;
-            }
-          }
-        } catch (e) {
-            // Ignorar y caer al fallback
-        }
-
-        // 2. Fallback: Intentar obtener metadata directamente de ICEcast usando un proxy de CORS público
-        // Esto es esencial para sitios estáticos como Netlify
-        if (!isApiOk && streamUrlOrigin) {
-           try {
-             const urlObj = new URL(streamUrlOrigin);
-             const baseUrl = `${urlObj.protocol}//${urlObj.hostname}${urlObj.port ? ':' + urlObj.port : ''}`;
-             const targetUrl = encodeURIComponent(`${baseUrl}/status-json.xsl`);
-             
-             // allorigins wrapper
-             const proxyResponse = await fetchWithTimeout(`https://api.allorigins.win/get?url=${targetUrl}`, 5000);
-             if (proxyResponse.ok) {
-                 const proxyData = await proxyResponse.json();
-                 if (proxyData.contents) {
-                     const data = JSON.parse(proxyData.contents);
-                     if (data && data.icestats && data.icestats.source) {
-                         const sources = Array.isArray(data.icestats.source) ? data.icestats.source : [data.icestats.source];
-                         const source = sources[0];
-                         const currentPlaying = source?.yp_currently_playing || source?.title || "";
-                         
-                         let artist = "";
-                         let title = "";
-                         if (currentPlaying) {
-                             if (currentPlaying.includes(' - ')) {
-                                 const parts = currentPlaying.split(' - ').map((s: string) => s.trim());
-                                 artist = parts[0];
-                                 title = parts.slice(1).join(' - ');
-                             } else {
-                                 title = currentPlaying;
-                             }
-                             apiData = { artist, title, cover: "" };
-                             isApiOk = true;
-                         }
-                     }
-                 }
-             }
-           } catch(e) {
-               console.warn("Proxy metadata fetch failed bypass.", e);
-           }
-        }
-
-        // 3. Procesar y actualizar datos
-        const currentCover = apiData?.cover || "";
-        const currentTitle = apiData?.title || "";
-        const currentArtist = apiData?.artist || "";
-
-        let finalCover = currentCover || config.navigation.logoUrl || config.general.logoUrl || "";
-        let finalArtist = (!currentArtist || isGenericString(currentArtist)) ? (config.general.stationName || "Radio en Vivo") : currentArtist;
-        let finalTitle = (!currentTitle || isGenericString(currentTitle)) ? "Música que te mueve" : currentTitle;
-
-        // Apply fast metadata update before iTunes search
-        if (isSubscribed) {
-           setMetadata({
-              title: finalTitle,
-              artist: finalArtist,
-              cover: finalCover
-           });
-        }
-
-        // 4. Buscar la carátula en iTunes (API gratuita y compatible con CORS)
-        if (!currentCover && finalArtist !== "Radio en Vivo" && finalTitle !== "Música que te mueve") {
-            try {
-                const query = encodeURIComponent(`${finalArtist} ${finalTitle}`);
-                const itunesRes = await fetchWithTimeout(`https://itunes.apple.com/search?term=${query}&media=music&limit=1`, 4000);
-                if (itunesRes.ok) {
-                    const itunesData = await itunesRes.json();
-                    if (itunesData.results && itunesData.results.length > 0 && itunesData.results[0].artworkUrl100) {
-                        finalCover = itunesData.results[0].artworkUrl100.replace('100x100', '600x600');
-                        if (isSubscribed) {
-                            setMetadata({
-                               title: finalTitle,
-                               artist: finalArtist,
-                               cover: finalCover
-                            });
-                        }
-                    }
-                }
-            } catch(e) {
-               // Fallback falló
-            }
-        }
-      } catch (e) {
-        console.warn("Complete metadata fetch failed:", e);
-      }
-    };
-
-    const interval = setInterval(fetchMetadata, 15000); // 15s
-    fetchMetadata();
-    
-    return () => {
-       isSubscribed = false;
-       clearInterval(interval);
-    };
-  }, [config.general.streamUrl, config.navigation.logoUrl, config.general.stationName]);
-
-  // Track History updates
-  const lastTrackRef = useRef<string>('');
-  useEffect(() => {
-     if (metadata.title && metadata.title !== "Señal en directo" && metadata.title !== "Recuperando señal...") {
-         const trackId = `${metadata.title}-${metadata.artist}`;
-         if (lastTrackRef.current !== trackId) {
-             lastTrackRef.current = trackId;
-             setHistory(prev => {
-                 // Prevent duplicates
-                 if (prev[0]?.title === metadata.title) return prev;
-                 
-                 const newTrack = {
-                     title: metadata.title,
-                     artist: metadata.artist,
-                     cover: metadata.cover || config.navigation.logoUrl || '',
-                     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                 };
-                 // Filter out the same title if it was playing previously so we don't spam the list, taking the newest time
-                 return [newTrack, ...prev.filter(t => t.title !== metadata.title)].slice(0, 5);
-             });
-         }
-     }
-  }, [metadata, config.navigation.logoUrl]);
-
-  const togglePlay = () => {
-    if (!audioRef.current) return;
-
-    if (isPlaying) {
-      audioRef.current.pause();
-      // Clear src to stop downloading data in background, but safely
-      audioRef.current.removeAttribute("src");
-      setIsPlaying(false);
-      setIsFallbackMode(false);
-      if (testAudioRef.current) {
-          testAudioRef.current.removeAttribute("src");
-      }
-    } else {
-      if (!config.general.streamUrl) {
-          setError(true);
-          console.error("No stream URL missing");
-          return;
-      }
-      setError(false);
-      // Re-load stream to ensure it's fresh and not stuck in a buffer
-      const streamUrl = config.general.streamUrl;
-      let finalUrl = streamUrl;
-      
-      // Handle different stream formats and common radio platform hacks
-      if (streamUrl) {
-          // Shoutcast direct IP:PORT hack (only if it's just domain:port or IP:port)
-          const isSimpleUrl = /^https?:\/\/[^/]+\/?$/.test(streamUrl);
-          
-          if (isSimpleUrl && !streamUrl.includes('?') && !streamUrl.includes(';') && !streamUrl.includes('.mp3') && !streamUrl.includes('.aac')) {
-              finalUrl = `${streamUrl}${streamUrl.endsWith('/') ? '' : '/'};`;
-          }
-          // Listen2MyRadio listen.php hack
-          else if (streamUrl.includes('listen.php') && !streamUrl.includes('.mp3')) {
-              finalUrl = `${streamUrl}&.mp3`;
-          }
-      }
-
-      audioRef.current.src = finalUrl;
-      audioRef.current.load();
-      
-      const playPromise = audioRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            setIsPlaying(true);
-            setError(false);
-          })
-          .catch((err) => {
-            console.error("Playback error:", err.message);
-            setError(true);
-            setIsPlaying(false);
-          });
-      }
-    }
-  };
-
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVol = parseFloat(e.target.value);
-    setVolume(newVol);
     if (audioRef.current) {
-      audioRef.current.volume = newVol;
+        audioRef.current.volume = isMuted ? 0 : volume;
     }
-    
-    if (newVol === 0) {
-      setIsMuted(true);
-    } else if (isMuted) {
-      setIsMuted(false);
-    }
-  };
+  }, [volume, isMuted]);
 
-  const toggleMute = () => {
-    if (audioRef.current) {
-      if (isMuted) {
-        const volToRestore = prevVolume > 0 ? prevVolume : 0.5;
-        audioRef.current.volume = volToRestore;
-        setVolume(volToRestore);
-        setIsMuted(false);
-      } else {
-        setPrevVolume(volume);
-        audioRef.current.volume = 0;
-        setVolume(0);
-        setIsMuted(true);
-      }
-    }
-  };
-
-  const getVolumeIcon = () => {
-    if (isMuted || volume === 0) return <VolumeX size={20} />;
-    if (volume < 0.5) return <Volume1 size={20} />;
-    return <Volume2 size={20} />;
-  };
-
-  const handleAudioError = (e: any) => {
-    // If we deliberately cleared the source to pause a stream, ignore the error
-    if (!audioRef.current?.getAttribute("src") && !audioRef.current?.src) {
-        return;
-    }
-    const error = e.target.error;
-    let message = "Error desconocido";
-    
-    if (error) {
-        switch (error.code) {
-            case 1: message = "Abortado por el usuario"; break;
-            case 2: message = "Error de red"; break;
-            case 3: message = "Error de decodificación"; break;
-            case 4: message = "Fuente no compatible o no encontrada"; break;
-        }
-    }
-    
-    console.error("Audio element error:", message, error);
-
-    // Enter fallback mode if main stream fails and fallback is available
-    if (fallbackList.length > 0 && !isFallbackMode) {
-         console.log("Señal caída. Activando Auto DJ de respaldo...");
-         setIsFallbackMode(true);
-         setError(false);
-         if (audioRef.current) {
-              setAutoDJIndex(0);
-              const track = fallbackList[0];
-              audioRef.current.src = track.url;
-              audioRef.current.loop = false;
-              audioRef.current.load();
-              audioRef.current.play().catch(e => console.error("AutoDJ play error:", e));
-              setIsPlaying(true);
-              setMetadata(prev => ({ ...prev, title: track.title, artist: 'Auto DJ' }));
-         }
-         return;
-    }
-
-    // Determine if it was an error while trying to play AutoDJ track itself
-    if (isFallbackMode) {
-        // Skip failed track and go to next
-        handleTrackEnded();
-        return;
-    }
-
-    setError(true);
-    setIsPlaying(false);
-  };
-
-  const handleTrackEnded = () => {
-      if (isFallbackMode && fallbackList.length > 0) {
-          const nextIndex = (autoDJIndex + 1) % fallbackList.length;
-          setAutoDJIndex(nextIndex);
-          const nextTrack = fallbackList[nextIndex];
-          if (audioRef.current) {
-              audioRef.current.src = nextTrack.url;
-              audioRef.current.load();
-              audioRef.current.play().catch(e => console.error("AutoDJ play error:", e));
-              setMetadata(prev => ({ ...prev, title: nextTrack.title, artist: 'Auto DJ' }));
-          }
-      }
-  };
-
-  // Background checker for live stream recovery
+  // Restart audio if stream changes
   useEffect(() => {
-     let checkInterval: any;
-     if (isFallbackMode && config.general.streamUrl) {
-         checkInterval = setInterval(() => {
-             if (testAudioRef.current) {
-                 const streamUrl = config.general.streamUrl;
-                 let testUrl = streamUrl;
-                 const isSimpleUrl = /^https?:\/\/[^/]+\/?$/.test(streamUrl);
-                 if (isSimpleUrl && !streamUrl.includes('?') && !streamUrl.includes(';') && !streamUrl.includes('.mp3') && !streamUrl.includes('.aac')) {
-                     testUrl = `${streamUrl}${streamUrl.endsWith('/') ? '' : '/'};`;
-                 } else if (streamUrl.includes('listen.php') && !streamUrl.includes('.mp3')) {
-                     testUrl = `${streamUrl}&.mp3`;
-                 }
-                 testUrl = testUrl + (testUrl.includes('?') ? '&' : '?') + `test=${Date.now()}`;
-                 
-                 testAudioRef.current.src = testUrl;
-                 testAudioRef.current.load(); 
-             }
-         }, 30000); // Check every 30s
+     if (audioRef.current && isPlaying) {
+         audioRef.current.pause();
+         setIsPlaying(false);
+         // slight delay then play again
+         setTimeout(() => {
+            togglePlay();
+         }, 500);
      }
-     return () => clearInterval(checkInterval);
-  }, [isFallbackMode, config.general.streamUrl]);
-
-  const handleTestAudioCanPlay = () => {
-      // The main stream is back online!
-      if (isFallbackMode) {
-          console.log("¡La señal en vivo regresó!");
-          setIsFallbackMode(false);
-          if (testAudioRef.current) {
-              testAudioRef.current.removeAttribute("src"); // Stop test
-          }
-          if (audioRef.current && isPlaying) {
-              const streamUrl = config.general.streamUrl;
-              let finalUrl = streamUrl;
-              if (streamUrl) {
-                  const isSimpleUrl = /^https?:\/\/[^/]+\/?$/.test(streamUrl);
-                  if (isSimpleUrl && !streamUrl.includes('?') && !streamUrl.includes(';') && !streamUrl.includes('.mp3') && !streamUrl.includes('.aac')) {
-                      finalUrl = `${streamUrl}${streamUrl.endsWith('/') ? '' : '/'};`;
-                  } else if (streamUrl.includes('listen.php') && !streamUrl.includes('.mp3')) {
-                      finalUrl = `${streamUrl}&.mp3`;
-                  }
-              }
-              audioRef.current.src = finalUrl;
-              audioRef.current.loop = false;
-              audioRef.current.load();
-              audioRef.current.play().catch(e => console.error("Stream resume play error:", e));
-          }
-      }
-  };
-
-  // Sync stream URL updates
-  useEffect(() => {
-    if(audioRef.current) {
-        setError(false);
-        if(isPlaying) {
-            const streamUrl = config.general.streamUrl;
-            let finalUrl = streamUrl;
-            if (streamUrl) {
-                const isSimpleUrl = /^https?:\/\/[^/]+\/?$/.test(streamUrl);
-                if (isSimpleUrl && !streamUrl.includes('?') && !streamUrl.includes(';') && !streamUrl.includes('.mp3') && !streamUrl.includes('.aac')) {
-                    finalUrl = `${streamUrl}${streamUrl.endsWith('/') ? '' : '/'};`;
-                } else if (streamUrl.includes('listen.php') && !streamUrl.includes('.mp3')) {
-                    finalUrl = `${streamUrl}&.mp3`;
-                }
-            }
-            audioRef.current.src = finalUrl;
-            audioRef.current.load();
-            audioRef.current.play().catch(e => console.error("Auto-play error:", e));
-        }
-    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.general.streamUrl]);
 
-  const playerStyle = config.appearance.playerStyle || 'modern';
-  
-  let playerHeight = 'h-auto lg:h-[600px]';
-  if (playerStyle === 'minimal') playerHeight = 'h-auto';
-  if (playerStyle === 'full') playerHeight = 'min-h-[85vh] h-auto flex flex-col justify-center py-12';
+  // Metadata Fetcher Effect
+  useEffect(() => {
+    let isActive = true;
 
-  // Atmospheric Design for the Main Player with Continuous History
+    const fetchMetadata = async () => {
+      try {
+        const streamUrl = config.general.streamUrl || "";
+        
+        let fetchedTitle = "";
+        let fetchedArtist = "";
+        let fetchedCover = "";
+
+        // Attempt proxy fetch from Icecast status-json.xsl via allorigins
+        try {
+            if (streamUrl) {
+                const urlObj = new URL(streamUrl);
+                const baseUrl = `${urlObj.protocol}//${urlObj.hostname}${urlObj.port ? ':' + urlObj.port : ''}`;
+                const targetUrl = encodeURIComponent(`${baseUrl}/status-json.xsl`);
+                 
+                const proxyRes = await fetch(`https://api.allorigins.win/get?url=${targetUrl}`);
+                if (proxyRes.ok) {
+                    const proxyData = await proxyRes.json();
+                    if (proxyData.contents) {
+                        const data = JSON.parse(proxyData.contents);
+                        if (data?.icestats?.source) {
+                            const sources = Array.isArray(data.icestats.source) ? data.icestats.source : [data.icestats.source];
+                            const source = sources[0];
+                            const currentlyPlaying = source?.yp_currently_playing || source?.title || "";
+                            
+                            if (currentlyPlaying) {
+                                if (currentlyPlaying.includes(' - ')) {
+                                    const parts = currentlyPlaying.split(' - ').map((s: string) => s.trim());
+                                    fetchedArtist = parts[0];
+                                    fetchedTitle = parts.slice(1).join(' - ');
+                                } else {
+                                    fetchedTitle = currentlyPlaying;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            // Ignore proxy failure
+            console.log("metadata proxy fallback used");
+        }
+
+        // Processing the values
+        const isGeneric = (str: string) => {
+            if (!str) return true;
+            const lower = str.toLowerCase();
+            return lower.includes('stream') || lower.includes('en vivo') || lower === 'unknown';
+        };
+
+        let finalTitle = isGeneric(fetchedTitle) ? defaultSlogan : fetchedTitle;
+        let finalArtist = isGeneric(fetchedArtist) ? stationName : fetchedArtist;
+        let finalCover = fetchedCover || defaultCover;
+
+        // Try getting artwork from iTunes if we have real track info
+        if (finalArtist !== stationName && finalTitle !== defaultSlogan) {
+            try {
+                const query = encodeURIComponent(`${finalArtist} ${finalTitle}`);
+                const itunesRes = await fetch(`https://itunes.apple.com/search?term=${query}&media=music&limit=1`);
+                if (itunesRes.ok) {
+                    const itunesData = await itunesRes.json();
+                    if (itunesData.results?.[0]?.artworkUrl100) {
+                        finalCover = itunesData.results[0].artworkUrl100.replace('100x100bb', '600x600bb').replace('100x100', '600x600');
+                    }
+                }
+            } catch (e) {
+                // Ignore iTunes failure
+            }
+        }
+
+        if (isActive) {
+            setMetadata({
+                title: finalTitle,
+                artist: finalArtist,
+                cover: finalCover
+            });
+            setHasError(false);
+        }
+      } catch (e) {
+         console.warn("Metadata error", e);
+         if (isActive && metadata.title === 'Cargando transmisión...') {
+             setMetadata({ title: defaultSlogan, artist: stationName, cover: defaultCover });
+         }
+      }
+    };
+
+    fetchMetadata();
+    const interval = setInterval(fetchMetadata, 15000);
+    return () => {
+        isActive = false;
+        clearInterval(interval);
+    };
+  }, [config.general.streamUrl, config.general.stationName, defaultSlogan, defaultCover]);
+
+  // History sync
+  useEffect(() => {
+      const trackId = `${metadata.title}-${metadata.artist}`;
+      // Do not log fallbacks or generics
+      if (metadata.title !== defaultSlogan && metadata.title !== 'Cargando transmisión...') {
+          setHistory(prev => {
+              if (prev[0]?.title === metadata.title) return prev;
+              
+              const newTrack = {
+                  title: metadata.title,
+                  artist: metadata.artist,
+                  cover: metadata.cover || defaultCover,
+                  time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              };
+              return [newTrack, ...prev.filter(t => t.title !== metadata.title)].slice(0, 7);
+          });
+      }
+  }, [metadata, defaultSlogan, defaultCover]);
+
+  const togglePlay = () => {
+      if (!audioRef.current) return;
+      
+      if (isPlaying) {
+          audioRef.current.pause();
+          setIsPlaying(false);
+          audioRef.current.removeAttribute('src'); // Stop buffering
+      } else {
+          setHasError(false);
+          let rawUrl = config.general.streamUrl || '';
+          
+          if (!rawUrl) {
+              setHasError(true);
+              return;
+          }
+
+          // Anti-cache / shoutcast hacks
+          let finalUrl = rawUrl;
+          if (/^https?:\/\/[^/]+\/?$/.test(rawUrl) && !rawUrl.includes('?')) {
+              finalUrl = `${rawUrl}${rawUrl.endsWith('/') ? '' : '/'};`;
+          } else if (rawUrl.includes('listen.php') && !rawUrl.includes('.mp3')) {
+              finalUrl = `${rawUrl}&.mp3`;
+          }
+
+          // Add timestamp to bypass iOS/browser cache locks on live streams
+          finalUrl += (finalUrl.includes('?') ? '&' : '?') + `cb=${Date.now()}`;
+
+          audioRef.current.src = finalUrl;
+          audioRef.current.load();
+          
+          const p = audioRef.current.play();
+          if (p !== undefined) {
+              p.then(() => setIsPlaying(true)).catch(e => {
+                  console.error("Play error:", e);
+                  setHasError(true);
+                  setIsPlaying(false);
+              });
+          }
+      }
+  };
+
+  const getVolumeIcon = () => {
+      if (isMuted || volume === 0) return <VolumeX size={20} />;
+      if (volume < 0.4) return <Volume1 size={20} />;
+      return <Volume2 size={20} />;
+  };
+
+  const toggleMute = () => {
+      if (isMuted) {
+          setIsMuted(false);
+          setVolume(prevVolume > 0 ? prevVolume : 0.8);
+      } else {
+          setPrevVolume(volume);
+          setIsMuted(true);
+          setVolume(0);
+      }
+  };
+
+  // --- Dynamic Styles ---
+  let containerClasses = "";
+  let innerClasses = "";
+  let coverClasses = "";
+  let titleClasses = "";
+  let playBtnClasses = "";
+
+  if (playerStyle === 'minimal') {
+      containerClasses = "h-auto rounded-[24px] lg:rounded-[32px] overflow-hidden";
+      innerClasses = "flex flex-col lg:flex-row items-center gap-6 p-6 lg:p-8 w-full";
+      coverClasses = "w-[120px] h-[120px] lg:w-[140px] lg:h-[140px] rounded-[18px]";
+      titleClasses = "text-2xl font-bold truncate";
+      playBtnClasses = "w-14 h-14";
+  } else if (playerStyle === 'full') {
+      containerClasses = "min-h-[85vh] rounded-[32px] overflow-hidden flex flex-col justify-center";
+      innerClasses = "flex flex-col items-center justify-center gap-10 p-8 lg:p-12 max-w-5xl mx-auto w-full flex-1";
+      coverClasses = "w-[300px] sm:w-[400px] lg:w-[500px] aspect-square rounded-[40px] shadow-[0_30px_60px_rgba(0,0,0,0.6)]";
+      titleClasses = "text-4xl sm:text-5xl lg:text-7xl font-black";
+      playBtnClasses = "w-24 h-24";
+  } else {
+      // Modern (default)
+      containerClasses = "h-auto lg:h-[500px] xl:h-[600px] rounded-[32px] overflow-hidden";
+      innerClasses = "flex flex-col lg:flex-row items-center gap-8 lg:gap-12 p-8 lg:p-12 h-full w-full";
+      coverClasses = "w-[240px] sm:w-[300px] lg:w-[380px] aspect-square rounded-[32px] lg:rounded-[40px] shadow-[0_20px_50px_rgba(0,0,0,0.5)]";
+      titleClasses = "text-3xl lg:text-5xl font-black";
+      playBtnClasses = "w-16 h-16 sm:w-20 sm:h-20";
+  }
+
   return (
     <div className="w-full max-w-[1600px] mx-auto overflow-hidden animate-fade-in px-4 my-8">
+      
+      {/* Expanding Player */}
       <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: isVisible ? 1 : 0, y: isVisible ? 0 : 20 }}
-          className={`relative bg-[#0a0502] rounded-[32px] overflow-hidden border border-white/10 shadow-2xl transition-all duration-500 ${isVisible ? playerHeight : 'h-0 pointer-events-none mb-0'}`}
-          style={{ 
-              display: isVisible ? (playerStyle === 'full' ? 'flex' : 'block') : 'none'
-          }}
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: isVisible ? 1 : 0, height: isVisible ? 'auto' : 0 }}
+          className={`relative bg-[#060608] border border-white/10 shadow-2xl transition-all duration-700 ease-out origin-bottom ${containerClasses}`}
+          style={{ display: isVisible ? 'flex' : 'none' }}
       >
-          {/* Background Atmosphere */}
-          <div className="absolute inset-0 z-0 overflow-hidden bg-[#0a0502]">
-              {/* Overlay adjusted to allow the artwork to cover the dark background more clearly */}
-              <div className="absolute inset-0 bg-gradient-to-br from-black/60 via-primary/20 to-black/60 z-10 pointer-events-none"></div>
-              <AnimatePresence mode="wait">
+          {/* Audio Element Hidden */}
+          <audio ref={audioRef} onEnded={() => setIsPlaying(false)} onError={() => { setHasError(true); setIsPlaying(false); }} preload="none" />
+
+          {/* Deep Atmosphere Backgrounds */}
+          <div className="absolute inset-0 pointer-events-none z-0">
+              <div className="absolute inset-0 bg-gradient-to-br from-black/80 via-[#0a0502]/90 to-[#120803]/80 z-10"></div>
+              <AnimatePresence>
                   {metadata.cover && (
                       <motion.div 
-                          key={`main-bg-${metadata.cover}`}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 0.5 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 1.5 }}
-                          className="absolute inset-0 z-0 pointer-events-none"
+                          key={metadata.cover}
+                          initial={{ opacity: 0 }} animate={{ opacity: 0.35 }} exit={{ opacity: 0 }} transition={{ duration: 2 }}
+                          className="absolute inset-0"
                       >
-                          <img 
-                              src={metadata.cover} 
-                              alt="" 
-                              className="w-full h-full object-cover blur-[10px] scale-110"
-                              referrerPolicy="no-referrer"
-                          />
+                          <img src={metadata.cover} alt="blur" className="w-full h-full object-cover blur-[80px] scale-125 saturate-[1.5]" />
                       </motion.div>
                   )}
               </AnimatePresence>
@@ -513,52 +290,40 @@ export const RadioPlayer: React.FC = () => {
           {/* Close Button */}
           <button 
               onClick={() => setIsVisible(false)}
-              className="absolute top-8 right-8 z-30 p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all border border-white/10"
-              title="Cerrar reproductor"
+              className="absolute top-6 right-6 z-50 p-3 rounded-full bg-black/40 hover:bg-black/80 text-white/70 hover:text-white backdrop-blur-md transition-all border border-white/10"
           >
               <X size={24} />
           </button>
 
-          {/* Main Content Grid */}
-          <div className={`relative z-10 w-full flex ${playerStyle === 'full' ? 'flex-col justify-center items-center py-12 lg:py-20 lg:max-w-6xl mx-auto' : 'flex-col lg:flex-row h-full py-12 items-center'} gap-8 px-4 sm:px-8 lg:px-12 ${playerStyle === 'full' ? 'lg:gap-16' : 'lg:gap-12'}`}>
-              <audio ref={audioRef} onError={handleAudioError} onEnded={handleTrackEnded} preload="none" />
-              <audio ref={testAudioRef} onCanPlay={handleTestAudioCanPlay} preload="none" className="hidden pointer-events-none" muted />
+          {/* Player Inner Layout */}
+          <div className={`relative z-20 ${innerClasses}`}>
               
-              {/* Visualizer/Cover Area */}
-              <div className={`relative group w-full flex-shrink-0 flex justify-center items-center ${playerStyle === 'minimal' ? 'lg:w-[160px] pt-4 lg:pt-0' : playerStyle === 'full' ? 'lg:w-[500px]' : 'lg:w-[380px]'}`}>
-                  
+              {/* Cover Art Area */}
+              <div className="flex-shrink-0 flex items-center justify-center relative group">
                   <motion.div 
-                      whileHover={{ scale: 1.02 }}
-                      className={`relative z-10 aspect-square overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.6)] border-2 border-white/10 bg-gray-900 group flex items-center justify-center ${playerStyle === 'minimal' ? 'w-[160px] h-[160px] rounded-[32px]' : 'w-full max-w-[320px] lg:max-w-full rounded-[40px] lg:rounded-[60px]'}`}
+                      whileHover={{ scale: 1.02 }} transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                      className={`relative z-10 bg-gray-900 border border-white/10 overflow-hidden flex items-center justify-center ${coverClasses}`}
                   >
                       {metadata.cover ? (
                           <img 
                               src={metadata.cover} 
-                              alt="Cover" 
-                              className="w-full h-full object-cover min-h-full min-w-full"
-                              referrerPolicy="no-referrer"
-                              onError={(e) => {
-                                  if (e.currentTarget.src !== config.navigation.logoUrl) {
-                                      e.currentTarget.src = config.navigation.logoUrl || '';
-                                  }
-                              }}
+                              alt="Cover Artwork" 
+                              className={`w-full h-full object-cover `}
+                              onError={(e) => { e.currentTarget.src = defaultCover; }}
                           />
                       ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-gray-900">
-                              <Radio className="text-secondary/20 w-24 h-24 lg:w-32 lg:h-32" />
-                          </div>
+                          <Disc3 className="w-1/3 h-1/3 text-white/10 animate-pulse" />
                       )}
                       
+                      {/* Playback Overlay Hint on Cover */}
                       <AnimatePresence>
                           {!isPlaying && (
                               <motion.div 
-                                  initial={{ opacity: 0 }}
-                                  animate={{ opacity: 1 }}
-                                  exit={{ opacity: 0 }}
-                                  className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none"
+                                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                  className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center pointer-events-none"
                               >
-                                  <div className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-secondary/20 backdrop-blur-sm border border-secondary/30 flex items-center justify-center">
-                                      <Play size={playerStyle === 'minimal' ? 24 : 40} className="text-secondary ml-1 md:ml-2 fill-current" />
+                                  <div className={`rounded-full bg-secondary text-primary flex items-center justify-center mb-4 ${playerStyle === 'full' ? 'w-24 h-24' : 'w-16 h-16'}`}>
+                                      <Play size={playerStyle === 'full' ? 40 : 28} fill="currentColor" className="ml-1 md:ml-2" />
                                   </div>
                               </motion.div>
                           )}
@@ -566,110 +331,110 @@ export const RadioPlayer: React.FC = () => {
                   </motion.div>
               </div>
 
-              {/* Info & Core Controls (Center) */}
-              <div className={`flex-1 w-full flex flex-col min-w-0 z-20 relative text-center ${playerStyle === 'full' ? 'items-center lg:max-w-4xl mx-auto' : 'lg:text-left items-center lg:items-start'} ${playerStyle === 'minimal' ? 'justify-center' : ''}`}>
-                  <div className={`mb-6 lg:mb-8 space-y-4 w-full ${playerStyle === 'full' ? 'mt-4 lg:mt-6' : ''}`}>
-                      <motion.div 
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary/20 backdrop-blur-md border border-secondary/30 text-white font-bold tracking-widest uppercase text-[10px] md:text-xs shadow-lg ${playerStyle === 'full' ? 'mx-auto' : ''}`}
-                      >
-                          <span className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-secondary animate-pulse shadow-[0_0_10px_theme(colors.secondary)]' : 'bg-gray-400'}`}></span>
-                          {isPlaying ? 'Al Aire Ahora' : 'Radio en Pausa'}
-                      </motion.div>
-                      
-                      <div className="space-y-2 lg:space-y-3 px-2">
-                         <h2 className={`${playerStyle === 'minimal' ? 'text-2xl lg:text-4xl' : playerStyle === 'full' ? 'text-3xl sm:text-5xl lg:text-7xl font-black' : 'text-3xl lg:text-5xl font-black'} font-heading font-bold text-white leading-tight break-words line-clamp-2 drop-shadow-xl`} title={metadata.title}>
-                             {metadata.title}
-                         </h2>
-                         <h3 className={`${playerStyle === 'full' ? 'text-xl sm:text-2xl lg:text-3xl' : 'text-lg lg:text-2xl'} font-sans font-medium text-gray-300 truncate w-full drop-shadow-md`} title={metadata.artist}>
-                             {metadata.artist}
-                         </h3>
-                      </div>
+              {/* Info & Controls */}
+              <div className={`flex flex-col min-w-0 z-20 w-full ${playerStyle === 'minimal' ? 'flex-1 text-center lg:text-left' : playerStyle === 'full' ? 'items-center text-center max-w-4xl' : 'flex-1 lg:text-left text-center'}`}>
+                  
+                  {/* Status Badge */}
+                  <motion.div 
+                      key={isPlaying ? 'playing' : 'paused'}
+                      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                      className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full backdrop-blur-md shadow-lg border text-xs font-bold tracking-widest uppercase mb-4 lg:mb-6
+                                  ${isPlaying ? 'bg-secondary/20 border-secondary/40 text-white' : 'bg-white/5 border-white/10 text-white/50'}
+                                  ${(playerStyle === 'full' || playerStyle === 'minimal' && window.innerWidth < 1024) ? 'mx-auto' : ''}`}
+                  >
+                      <span className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-secondary animate-pulse shadow-[0_0_10px_theme(colors.secondary)]' : 'bg-gray-500'}`}></span>
+                      {hasError ? 'Error de Transmisión' : isPlaying ? 'Al Aire Ahora' : 'Radio en Pausa'}
+                  </motion.div>
+                  
+                  {/* Title & Artist */}
+                  <div className="space-y-2 mb-6 lg:mb-10 w-full px-2">
+                      <h2 className={`${titleClasses} font-heading leading-tight text-white drop-shadow-2xl`}>
+                          {metadata.title}
+                      </h2>
+                      <h3 className={`font-sans font-medium text-white/70 drop-shadow-md truncate w-full ${playerStyle === 'minimal' ? 'text-lg lg:text-xl' : playerStyle === 'full' ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl'}`}>
+                          {metadata.artist}
+                      </h3>
                   </div>
 
-                  <div className={`flex items-center gap-6 sm:gap-8 mb-4 lg:mb-10 w-full ${playerStyle === 'full' ? 'justify-center mx-auto max-w-2xl' : 'justify-center lg:justify-start'} ${playerStyle === 'minimal' ? 'lg:mb-0' : ''}`}>
+                  {/* Core Interactions */}
+                  <div className={`flex items-center gap-6 sm:gap-8 w-full ${playerStyle === 'full' ? 'justify-center mx-auto' : playerStyle === 'minimal' ? 'justify-center lg:justify-start' : 'justify-center lg:justify-start'}`}>
+                      
+                      {/* Big Play Button */}
                       <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.95 }}
+                          whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                           onClick={togglePlay}
-                          className={`${playerStyle === 'minimal' ? 'w-14 h-14' : playerStyle === 'full' ? 'w-20 h-20 sm:w-24 sm:h-24' : 'w-16 h-16'} rounded-full bg-secondary text-primary flex items-center justify-center shadow-[0_0_20px_rgba(251,191,36,0.3)] hover:shadow-[0_0_30px_rgba(251,191,36,0.5)] transition-all flex-shrink-0`}
+                          className={`${playBtnClasses} rounded-full bg-secondary text-primary flex items-center justify-center shadow-[0_0_30px_rgba(251,191,36,0.2)] hover:shadow-[0_0_40px_rgba(251,191,36,0.5)] transition-all flex-shrink-0 z-10`}
                       >
-                          {isPlaying ? <Pause size={playerStyle === 'full' ? 40 : 32} fill="currentColor" /> : <Play size={playerStyle === 'full' ? 40 : 32} fill="currentColor" className="ml-1 md:ml-2" />}
+                          {isPlaying ? <Pause size={playerStyle === 'minimal' ? 24 : 32} fill="currentColor" /> : <Play size={playerStyle === 'minimal' ? 24 : 32} fill="currentColor" className="ml-1 md:ml-2" />}
                       </motion.button>
 
-                      <div className={`w-[160px] sm:w-[200px] lg:w-[260px] flex items-center gap-4 group`}>
-                          <button onClick={toggleMute} className="text-white/40 hover:text-white transition-colors flex-shrink-0">
+                      {/* Volume Slider */}
+                      <div className="flex-1 max-w-[200px] lg:max-w-[280px] flex items-center gap-3 md:gap-4 bg-white/5 border border-white/10 rounded-full px-4 md:px-5 py-3 md:py-4 backdrop-blur-md">
+                          <button onClick={toggleMute} className="text-white/50 hover:text-white transition-colors flex-shrink-0">
                               {getVolumeIcon()}
                           </button>
-                          <div className="flex-1 relative flex items-center h-10 w-full">
-                              <input
-                                  type="range"
-                                  min="0" max="1" step="0.01"
-                                  value={volume}
-                                  onChange={handleVolumeChange}
-                                  className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-secondary"
-                              />
-                          </div>
+                          <input
+                              type="range"
+                              min="0" max="1" step="0.01"
+                              value={volume}
+                              onChange={(e) => {
+                                  const val = parseFloat(e.target.value);
+                                  setVolume(val);
+                                  if (val > 0) setIsMuted(false);
+                                  else setIsMuted(true);
+                              }}
+                              className="w-full h-1.5 bg-white/20 rounded-full appearance-none cursor-pointer accent-secondary"
+                          />
                       </div>
                   </div>
               </div>
 
-              {/* Permanent History Side Panel (Right) - Hidden on Minimal */}
+              {/* History Side Panel (Only in Modern/Full if space allows, or tucked below) */}
               {playerStyle !== 'minimal' && (
-              <div className={`hidden lg:flex flex-col bg-white/5 border-white/10 p-6 flex-shrink-0 animate-fade-in-right ${playerStyle === 'full' ? 'w-full max-w-2xl mt-12 mb-0 border-t rounded-3xl h-[280px]' : 'w-[320px] h-full border-l'}`}>
-                  <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
-                      {history.length > 0 ? history.map((track, i) => (
-                          <motion.div 
-                              initial={{ opacity: 0, x: playerStyle === 'full' ? 0 : 20, y: playerStyle === 'full' ? 20 : 0 }}
-                              animate={{ opacity: 1, x: 0, y: 0 }}
-                              transition={{ delay: i * 0.1 }}
-                              key={i} 
-                              className={`flex items-center gap-4 group p-2 rounded-xl hover:bg-white/5 transition-colors ${playerStyle === 'full' ? 'bg-white/5' : ''}`}
-                          >
-                              <div className="w-14 h-14 rounded-xl overflow-hidden bg-white/5 border border-white/10 flex-shrink-0 shadow-lg group-hover:border-secondary/30 transition-colors">
-                                  <img 
-                                      src={track.cover || config.navigation.logoUrl} 
-                                      alt="" 
-                                      className="w-full h-full object-cover" 
-                                      onError={(e) => { e.currentTarget.src = config.navigation.logoUrl || '' }}
-                                  />
-                              </div>
-                              <div className="min-w-0 flex-1 flex items-center justify-between">
+                  <div className={`hidden lg:flex flex-col bg-black/20 backdrop-blur-xl border border-white/10 rounded-[24px] p-6 flex-shrink-0 ${playerStyle === 'full' ? 'w-full max-w-3xl mt-8 h-[240px]' : 'w-[320px] xl:w-[380px] h-full ml-auto'}`}>
+                      <h4 className="text-white/50 text-xs font-bold uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                          <ListMusic size={14} /> Historial
+                      </h4>
+                      <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                          {history.length > 0 ? history.map((track, i) => (
+                              <motion.div 
+                                  initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
+                                  key={i + track.time} 
+                                  className="flex items-center gap-4 group p-2.5 rounded-[16px] hover:bg-white/10 transition-colors"
+                              >
+                                  <img src={track.cover} alt="cover" className="w-12 h-12 rounded-xl object-cover border border-white/10 shadow-md flex-shrink-0" />
                                   <div className="min-w-0 flex-1">
                                       <p className="text-sm font-bold text-white truncate group-hover:text-secondary transition-colors">{track.title}</p>
-                                      <p className="text-xs text-white/40 truncate">{track.artist}</p>
+                                      <p className="text-xs text-white/50 truncate font-medium">{track.artist}</p>
                                   </div>
-                                  <div className="flex items-center gap-2 mt-1 ml-4 justify-end flex-shrink-0">
-                                      <span className="text-[10px] font-mono text-secondary/60 bg-secondary/5 px-1.5 rounded flex items-center gap-1">
-                                          <Clock size={8} /> {track.time}
-                                      </span>
-                                  </div>
+                                  <span className="text-[10px] font-mono text-white/30 bg-white/5 px-2 py-1 rounded-md flex items-center gap-1 flex-shrink-0">
+                                      <Clock size={10} /> {track.time}
+                                  </span>
+                              </motion.div>
+                          )) : (
+                              <div className="h-full flex flex-col items-center justify-center text-center opacity-30 text-white">
+                                  <Disc3 size={32} className="mb-3 animate-[spin_5s_linear_infinite]" />
+                                  <p className="text-sm font-medium">No hay canciones</p>
                               </div>
-                          </motion.div>
-                      )) : (
-                          <div className="h-full flex flex-col items-center justify-center text-center opacity-30">
-                              <Radio size={40} className="mb-4" />
-                              <p className="text-xs">Actualizando historial...</p>
-                          </div>
-                      )}
+                          )}
+                      </div>
                   </div>
-              </div>
               )}
           </div>
-          
-          <div className="absolute inset-0 pointer-events-none border-[1px] border-white/5 rounded-[32px]"></div>
       </motion.div>
-      
+
+      {/* Button to open player when hidden */}
       {!isVisible && (
-          <div className="py-4 flex justify-center">
-               <button 
+          <div className="py-6 flex justify-center w-full animate-fade-in">
+              <motion.button 
+                  whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                   onClick={() => setIsVisible(true)}
-                  className="flex items-center gap-3 px-10 py-5 bg-secondary text-primary font-black rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all text-lg ring-4 ring-secondary/10"
-               >
-                  <Radio className="animate-pulse" />
-                  ESCUCHAR EN VIVO
-               </button>
+                  className="flex items-center gap-3 px-8 lg:px-12 py-4 lg:py-5 bg-gradient-to-r from-secondary to-yellow-500 text-primary font-black rounded-full shadow-[0_20px_40px_rgba(251,191,36,0.3)] text-lg lg:text-xl ring-4 ring-secondary/20 relative overflow-hidden group"
+              >
+                  <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                  <Radio className="relative z-10 animate-pulse" />
+                  <span className="relative z-10 tracking-widest uppercase">Escuchar en Vivo</span>
+              </motion.button>
           </div>
       )}
     </div>
