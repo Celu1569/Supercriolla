@@ -470,9 +470,9 @@ export const RadioPlayer: React.FC = () => {
 
   const playerStyle = config.appearance.playerStyle || 'modern';
   
-  let playerHeight = 'h-[600px]';
-  if (playerStyle === 'minimal') playerHeight = 'lg:h-[200px] h-auto pb-6 lg:pb-0';
-  if (playerStyle === 'full') playerHeight = 'min-h-[85vh] py-12';
+  let playerHeight = 'h-auto lg:h-[600px]';
+  if (playerStyle === 'minimal') playerHeight = 'h-auto';
+  if (playerStyle === 'full') playerHeight = 'min-h-[85vh] h-auto flex flex-col justify-center py-12';
 
   // Atmospheric Design for the Main Player with Continuous History
   return (
@@ -482,7 +482,7 @@ export const RadioPlayer: React.FC = () => {
           animate={{ opacity: isVisible ? 1 : 0, y: isVisible ? 0 : 20 }}
           className={`relative bg-[#0a0502] rounded-[32px] overflow-hidden border border-white/10 shadow-2xl transition-all duration-500 ${isVisible ? playerHeight : 'h-0 pointer-events-none mb-0'}`}
           style={{ 
-              display: isVisible ? 'block' : 'none'
+              display: isVisible ? (playerStyle === 'full' ? 'flex' : 'block') : 'none'
           }}
       >
           {/* Background Atmosphere */}
@@ -520,22 +520,22 @@ export const RadioPlayer: React.FC = () => {
           </button>
 
           {/* Main Content Grid */}
-          <div className={`relative z-10 h-full flex flex-col lg:flex-row items-center gap-8 px-8 lg:px-12 py-12 ${playerStyle === 'full' ? 'justify-center lg:gap-24' : 'lg:gap-12'}`}>
+          <div className={`relative z-10 w-full flex ${playerStyle === 'full' ? 'flex-col justify-center items-center py-12 lg:py-20 lg:max-w-6xl mx-auto' : 'flex-col lg:flex-row h-full py-12 items-center'} gap-8 px-4 sm:px-8 lg:px-12 ${playerStyle === 'full' ? 'lg:gap-16' : 'lg:gap-12'}`}>
               <audio ref={audioRef} onError={handleAudioError} onEnded={handleTrackEnded} preload="none" />
               <audio ref={testAudioRef} onCanPlay={handleTestAudioCanPlay} preload="none" className="hidden pointer-events-none" muted />
               
               {/* Visualizer/Cover Area */}
-              <div className={`relative group w-full flex-shrink-0 flex items-center justify-center ${playerStyle === 'minimal' ? 'lg:w-[140px] pt-4 lg:pt-0' : playerStyle === 'full' ? 'lg:w-[450px]' : 'lg:w-[380px]'}`}>
+              <div className={`relative group w-full flex-shrink-0 flex justify-center items-center ${playerStyle === 'minimal' ? 'lg:w-[160px] pt-4 lg:pt-0' : playerStyle === 'full' ? 'lg:w-[500px]' : 'lg:w-[380px]'}`}>
                   
                   <motion.div 
                       whileHover={{ scale: 1.02 }}
-                      className={`relative z-10 aspect-square overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.6)] border-2 border-white/10 bg-gray-900 group ${playerStyle === 'minimal' ? 'w-[140px] rounded-3xl' : 'w-full rounded-[40px]'}`}
+                      className={`relative z-10 aspect-square overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.6)] border-2 border-white/10 bg-gray-900 group flex items-center justify-center ${playerStyle === 'minimal' ? 'w-[160px] h-[160px] rounded-[32px]' : 'w-full max-w-[320px] lg:max-w-full rounded-[40px] lg:rounded-[60px]'}`}
                   >
                       {metadata.cover ? (
                           <img 
                               src={metadata.cover} 
                               alt="Cover" 
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-cover min-h-full min-w-full"
                               referrerPolicy="no-referrer"
                               onError={(e) => {
                                   if (e.currentTarget.src !== config.navigation.logoUrl) {
@@ -545,7 +545,7 @@ export const RadioPlayer: React.FC = () => {
                           />
                       ) : (
                           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-gray-900">
-                              <Radio className="text-secondary/20 w-32 h-32" />
+                              <Radio className="text-secondary/20 w-24 h-24 lg:w-32 lg:h-32" />
                           </div>
                       )}
                       
@@ -555,7 +555,7 @@ export const RadioPlayer: React.FC = () => {
                                   initial={{ opacity: 0 }}
                                   animate={{ opacity: 1 }}
                                   exit={{ opacity: 0 }}
-                                  className="absolute inset-0 bg-black/40 flex items-center justify-center"
+                                  className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none"
                               >
                                   <div className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-secondary/20 backdrop-blur-sm border border-secondary/30 flex items-center justify-center">
                                       <Play size={playerStyle === 'minimal' ? 24 : 40} className="text-secondary ml-1 md:ml-2 fill-current" />
@@ -567,42 +567,42 @@ export const RadioPlayer: React.FC = () => {
               </div>
 
               {/* Info & Core Controls (Center) */}
-              <div className={`flex-1 w-full text-center flex flex-col min-w-0 ${playerStyle === 'full' ? 'items-center max-w-2xl' : 'lg:text-left items-center lg:items-start'}`}>
-                  <div className={`mb-8 space-y-4 w-full ${playerStyle === 'full' ? 'mt-8 lg:mt-0' : ''}`}>
+              <div className={`flex-1 w-full flex flex-col min-w-0 z-20 relative text-center ${playerStyle === 'full' ? 'items-center lg:max-w-4xl mx-auto' : 'lg:text-left items-center lg:items-start'} ${playerStyle === 'minimal' ? 'justify-center' : ''}`}>
+                  <div className={`mb-6 lg:mb-8 space-y-4 w-full ${playerStyle === 'full' ? 'mt-4 lg:mt-6' : ''}`}>
                       <motion.div 
                           initial={{ opacity: 0, x: -10 }}
                           animate={{ opacity: 1, x: 0 }}
-                          className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary/10 border border-secondary/20 text-secondary text-xs font-bold tracking-widest uppercase ${playerStyle === 'full' ? 'mx-auto' : ''}`}
+                          className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary/20 backdrop-blur-md border border-secondary/30 text-white font-bold tracking-widest uppercase text-[10px] md:text-xs shadow-lg ${playerStyle === 'full' ? 'mx-auto' : ''}`}
                       >
-                          <span className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-secondary animate-pulse' : 'bg-gray-500'}`}></span>
+                          <span className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-secondary animate-pulse shadow-[0_0_10px_theme(colors.secondary)]' : 'bg-gray-400'}`}></span>
                           {isPlaying ? 'Al Aire Ahora' : 'Radio en Pausa'}
                       </motion.div>
                       
-                      <div className="space-y-3">
-                         <h2 className={`${playerStyle === 'minimal' ? 'text-2xl lg:text-3xl' : playerStyle === 'full' ? 'text-4xl md:text-5xl lg:text-7xl font-black' : 'text-3xl lg:text-4xl'} font-heading font-bold text-white leading-tight break-words line-clamp-2 drop-shadow-lg`} title={metadata.title}>
+                      <div className="space-y-2 lg:space-y-3 px-2">
+                         <h2 className={`${playerStyle === 'minimal' ? 'text-2xl lg:text-4xl' : playerStyle === 'full' ? 'text-3xl sm:text-5xl lg:text-7xl font-black' : 'text-3xl lg:text-5xl font-black'} font-heading font-bold text-white leading-tight break-words line-clamp-2 drop-shadow-xl`} title={metadata.title}>
                              {metadata.title}
                          </h2>
-                         <h3 className={`${playerStyle === 'full' ? 'text-xl lg:text-3xl' : 'text-lg lg:text-xl'} font-sans font-medium text-secondary/80 truncate w-full`} title={metadata.artist}>
+                         <h3 className={`${playerStyle === 'full' ? 'text-xl sm:text-2xl lg:text-3xl' : 'text-lg lg:text-2xl'} font-sans font-medium text-gray-300 truncate w-full drop-shadow-md`} title={metadata.artist}>
                              {metadata.artist}
                          </h3>
                       </div>
                   </div>
 
-                  <div className={`flex items-center gap-8 mb-4 lg:mb-10 ${playerStyle === 'full' ? 'justify-center mx-auto' : ''}`}>
+                  <div className={`flex items-center gap-6 sm:gap-8 mb-4 lg:mb-10 w-full ${playerStyle === 'full' ? 'justify-center mx-auto max-w-2xl' : 'justify-center lg:justify-start'} ${playerStyle === 'minimal' ? 'lg:mb-0' : ''}`}>
                       <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={togglePlay}
-                          className="w-16 h-16 rounded-full bg-secondary text-primary flex items-center justify-center shadow-[0_0_20px_rgba(251,191,36,0.3)] hover:shadow-[0_0_30px_rgba(251,191,36,0.5)] transition-all flex-shrink-0"
+                          className={`${playerStyle === 'minimal' ? 'w-14 h-14' : playerStyle === 'full' ? 'w-20 h-20 sm:w-24 sm:h-24' : 'w-16 h-16'} rounded-full bg-secondary text-primary flex items-center justify-center shadow-[0_0_20px_rgba(251,191,36,0.3)] hover:shadow-[0_0_30px_rgba(251,191,36,0.5)] transition-all flex-shrink-0`}
                       >
-                          {isPlaying ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
+                          {isPlaying ? <Pause size={playerStyle === 'full' ? 40 : 32} fill="currentColor" /> : <Play size={playerStyle === 'full' ? 40 : 32} fill="currentColor" className="ml-1 md:ml-2" />}
                       </motion.button>
 
-                      <div className="w-[180px] md:w-[200px] lg:w-[260px] flex items-center gap-4 group">
-                          <button onClick={toggleMute} className="text-white/40 hover:text-white transition-colors">
+                      <div className={`w-[160px] sm:w-[200px] lg:w-[260px] flex items-center gap-4 group`}>
+                          <button onClick={toggleMute} className="text-white/40 hover:text-white transition-colors flex-shrink-0">
                               {getVolumeIcon()}
                           </button>
-                          <div className="flex-1 relative flex items-center h-10">
+                          <div className="flex-1 relative flex items-center h-10 w-full">
                               <input
                                   type="range"
                                   min="0" max="1" step="0.01"
