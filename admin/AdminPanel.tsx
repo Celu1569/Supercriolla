@@ -1946,7 +1946,7 @@ export const AdminPanel: React.FC = () => {
                     </InputGroup>
                  </div>
 
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <InputGroup label="Fuente de Títulos">
                         <select value={formData.appearance.headingFont} onChange={e => setFormData(prev => ({...prev, appearance: {...prev.appearance, headingFont: e.target.value as FontFamily}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg">
                             {FONT_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
@@ -1955,13 +1955,6 @@ export const AdminPanel: React.FC = () => {
                     <InputGroup label="Fuente de Cuerpo">
                         <select value={formData.appearance.bodyFont} onChange={e => setFormData(prev => ({...prev, appearance: {...prev.appearance, bodyFont: e.target.value as FontFamily}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg">
                              {FONT_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                        </select>
-                    </InputGroup>
-                    <InputGroup label="Estilo del Reproductor">
-                        <select value={formData.appearance.playerStyle || 'modern'} onChange={e => setFormData(prev => ({...prev, appearance: {...prev.appearance, playerStyle: e.target.value as 'minimal' | 'modern' | 'full'}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg">
-                            <option value="minimal">Sencillo</option>
-                            <option value="modern">Moderno</option>
-                            <option value="full">Full (Pantalla Completa)</option>
                         </select>
                     </InputGroup>
                  </div>

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { Play, Pause, Volume2, VolumeX, Volume1, Radio, X, Clock, Disc3 } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Volume1, Radio, X, Clock, Disc3, ListMusic, Maximize, Minimize2, Monitor } from 'lucide-react';
 import { useConfig } from '../context/ConfigContext';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -28,7 +28,16 @@ export const RadioPlayer: React.FC = () => {
   });
   const [history, setHistory] = useState<TrackHistory[]>([]);
 
-  const playerStyle = config.appearance.playerStyle || 'modern';
+  const [playerStyle, setPlayerStyle] = useState<'minimal' | 'modern' | 'full'>(() => {
+      if (typeof window !== 'undefined') {
+          return (localStorage.getItem('radio_player_style') as 'minimal' | 'modern' | 'full') || 'modern';
+      }
+      return 'modern';
+  });
+
+  useEffect(() => {
+      localStorage.setItem('radio_player_style', playerStyle);
+  }, [playerStyle]);
 
   // Make sure we have a clear fallback for images
   const defaultCover = config.navigation.logoUrl || config.general.logoUrl || '';
@@ -287,13 +296,41 @@ export const RadioPlayer: React.FC = () => {
               </AnimatePresence>
           </div>
 
-          {/* Close Button */}
-          <button 
-              onClick={() => setIsVisible(false)}
-              className="absolute top-6 right-6 z-50 p-3 rounded-full bg-black/40 hover:bg-black/80 text-white/70 hover:text-white backdrop-blur-md transition-all border border-white/10"
-          >
-              <X size={24} />
-          </button>
+          {/* Top Controls Area */}
+          <div className="absolute top-4 right-4 lg:top-6 lg:right-6 z-50 flex items-center gap-3">
+              {/* Layout Toggles */}
+              <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md border border-white/10 rounded-full p-1 opacity-90 hover:opacity-100 transition-opacity">
+                  <button 
+                      onClick={() => setPlayerStyle('minimal')} 
+                      className={`p-2 rounded-full cursor-pointer transition-colors ${playerStyle === 'minimal' ? 'bg-secondary text-primary' : 'text-white/60 hover:text-white hover:bg-white/10'}`} 
+                      title="Vista Mini"
+                  >
+                      <Minimize2 size={16} strokeWidth={2.5} />
+                  </button>
+                  <button 
+                      onClick={() => setPlayerStyle('modern')} 
+                      className={`p-2 rounded-full cursor-pointer transition-colors ${playerStyle === 'modern' ? 'bg-secondary text-primary' : 'text-white/60 hover:text-white hover:bg-white/10'}`} 
+                      title="Vista Clásica"
+                  >
+                      <Monitor size={16} strokeWidth={2.5} />
+                  </button>
+                  <button 
+                      onClick={() => setPlayerStyle('full')} 
+                      className={`p-2 rounded-full cursor-pointer transition-colors ${playerStyle === 'full' ? 'bg-secondary text-primary' : 'text-white/60 hover:text-white hover:bg-white/10'}`} 
+                      title="Vista de Escenario"
+                  >
+                      <Maximize size={16} strokeWidth={2.5} />
+                  </button>
+              </div>
+
+              {/* Close Button */}
+              <button 
+                  onClick={() => setIsVisible(false)}
+                  className="p-3 rounded-full bg-black/40 hover:bg-black/80 text-white/70 hover:text-white backdrop-blur-md transition-all border border-white/10"
+              >
+                  <X size={20} strokeWidth={2.5} />
+              </button>
+          </div>
 
           {/* Player Inner Layout */}
           <div className={`relative z-20 ${innerClasses}`}>

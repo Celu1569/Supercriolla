@@ -280,7 +280,6 @@ export interface SiteConfig {
     textColor: string;
     headingFont: FontFamily;
     bodyFont: FontFamily;
-    playerStyle?: 'minimal' | 'modern' | 'full';
   };
   content: {
     hero: HeroSlide[]; 

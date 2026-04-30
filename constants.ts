@@ -41,8 +41,7 @@ export const DEFAULT_CONFIG: SiteConfig = {
     backgroundColor: "#ffffff",
     textColor: "#334155", // Slate 700
     headingFont: "Montserrat",
-    bodyFont: "Inter",
-    playerStyle: "modern"
+    bodyFont: "Inter"
   },
   content: {
     heroInterval: 5000, // 5 Seconds default
