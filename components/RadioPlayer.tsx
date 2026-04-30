@@ -10,6 +10,9 @@ interface TrackHistory {
   time: string;
 }
 
+// Cache to avoid hitting iTunes API repeatedly for the same song
+const COVER_CACHE: Record<string, string> = {};
+
 export const RadioPlayer: React.FC = () => {
   const { config } = useConfig();
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -76,30 +79,96 @@ export const RadioPlayer: React.FC = () => {
         let fetchedArtist = "";
         let fetchedCover = "";
 
-        // Attempt proxy fetch from Icecast status-json.xsl via allorigins
+        // Attempt proxy fetch via allorigins
         try {
             if (streamUrl) {
                 const urlObj = new URL(streamUrl);
                 const baseUrl = `${urlObj.protocol}//${urlObj.hostname}${urlObj.port ? ':' + urlObj.port : ''}`;
-                const targetUrl = encodeURIComponent(`${baseUrl}/status-json.xsl`);
-                 
-                const proxyRes = await fetch(`https://api.allorigins.win/get?url=${targetUrl}`);
+                const encodedIcecast = encodeURIComponent(`${baseUrl}/status-json.xsl`);
+                const encodedShoutcast = encodeURIComponent(`${baseUrl}/stats?json=1`);
+                
+                // Try Icecast first
+                let proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodedIcecast}`);
+                let success = false;
+
                 if (proxyRes.ok) {
                     const proxyData = await proxyRes.json();
-                    if (proxyData.contents) {
-                        const data = JSON.parse(proxyData.contents);
-                        if (data?.icestats?.source) {
-                            const sources = Array.isArray(data.icestats.source) ? data.icestats.source : [data.icestats.source];
-                            const source = sources[0];
-                            const currentlyPlaying = source?.yp_currently_playing || source?.title || "";
-                            
-                            if (currentlyPlaying) {
-                                if (currentlyPlaying.includes(' - ')) {
-                                    const parts = currentlyPlaying.split(' - ').map((s: string) => s.trim());
-                                    fetchedArtist = parts[0];
-                                    fetchedTitle = parts.slice(1).join(' - ');
-                                } else {
-                                    fetchedTitle = currentlyPlaying;
+                    if (proxyData.contents && !proxyData.contents.includes('404')) {
+                        try {
+                            const data = JSON.parse(proxyData.contents);
+                            if (data?.icestats?.source) {
+                                const sources = Array.isArray(data.icestats.source) ? data.icestats.source : [data.icestats.source];
+                                const source = sources[0];
+                                const currentlyPlaying = source?.yp_currently_playing || source?.title || "";
+                                
+                                if (currentlyPlaying) {
+                                    if (currentlyPlaying.includes(' - ')) {
+                                        const parts = currentlyPlaying.split(' - ').map((s: string) => s.trim());
+                                        fetchedArtist = parts[0];
+                                        fetchedTitle = parts.slice(1).join(' - ');
+                                    } else {
+                                        fetchedTitle = currentlyPlaying;
+                                    }
+                                    success = true;
+                                }
+                            }
+                        } catch (e) {
+                            // JSON parse failed (likely not Icecast)
+                        }
+                    }
+                }
+
+                // If Icecast failed, try Shoutcast v2
+                if (!success) {
+                     proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodedShoutcast}`);
+                     if (proxyRes.ok) {
+                          const proxyData = await proxyRes.json();
+                          if (proxyData.contents && !proxyData.contents.includes('404')) {
+                               try {
+                                    const data = JSON.parse(proxyData.contents);
+                                    const currentlyPlaying = data?.songtitle || "";
+                                    
+                                    if (currentlyPlaying) {
+                                        if (currentlyPlaying.includes(' - ')) {
+                                            const parts = currentlyPlaying.split(' - ').map((s: string) => s.trim());
+                                            fetchedArtist = parts[0];
+                                            fetchedTitle = parts.slice(1).join(' - ');
+                                        } else {
+                                            fetchedTitle = currentlyPlaying;
+                                        }
+                                        success = true;
+                                    }
+                               } catch (e) {
+                                   // Not shoutcast either
+                               }
+                          }
+                     }
+                }
+                
+                // If Shoutcast v2 failed, try Shoutcast v1 (7.html)
+                if (!success) {
+                    const encodedShoutcastV1 = encodeURIComponent(`${baseUrl}/7.html`);
+                    proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodedShoutcastV1}`);
+                    if (proxyRes.ok) {
+                        const proxyData = await proxyRes.json();
+                        if (proxyData.contents && proxyData.contents.includes('<html><body>')) {
+                            // Format: <html><body>currentListeners,streamStatus,peakListeners,maxListeners,uniqueListeners,bitrate,songTitle</body></html>
+                            const htmlContent = proxyData.contents;
+                            const match = htmlContent.match(/<body>(.*?)<\/body>/);
+                            if (match && match[1]) {
+                                const parts = match[1].split(',');
+                                if (parts.length >= 7) {
+                                    const currentlyPlaying = parts[6] || "";
+                                    if (currentlyPlaying) {
+                                        if (currentlyPlaying.includes(' - ')) {
+                                            const titleParts = currentlyPlaying.split(' - ').map((s: string) => s.trim());
+                                            fetchedArtist = titleParts[0];
+                                            fetchedTitle = titleParts.slice(1).join(' - ');
+                                        } else {
+                                            fetchedTitle = currentlyPlaying;
+                                        }
+                                        success = true;
+                                    }
                                 }
                             }
                         }
@@ -124,17 +193,35 @@ export const RadioPlayer: React.FC = () => {
 
         // Try getting artwork from iTunes if we have real track info
         if (finalArtist !== stationName && finalTitle !== defaultSlogan) {
-            try {
-                const query = encodeURIComponent(`${finalArtist} ${finalTitle}`);
-                const itunesRes = await fetch(`https://itunes.apple.com/search?term=${query}&media=music&limit=1`);
-                if (itunesRes.ok) {
-                    const itunesData = await itunesRes.json();
-                    if (itunesData.results?.[0]?.artworkUrl100) {
-                        finalCover = itunesData.results[0].artworkUrl100.replace('100x100bb', '600x600bb').replace('100x100', '600x600');
-                    }
+            const cacheKey = `${finalArtist}-${finalTitle}`.toLowerCase();
+            
+            if (COVER_CACHE[cacheKey]) {
+                const cached = COVER_CACHE[cacheKey];
+                if (cached !== 'none') {
+                    finalCover = cached;
                 }
-            } catch (e) {
-                // Ignore iTunes failure
+            } else {
+                try {
+                    // Clean up query for better iTunes search matches
+                    let cleanArtist = finalArtist.replace(/\s*\(.*?\)\s*/g, '').replace(/ft\..*$/i, '');
+                    let cleanTitle = finalTitle.replace(/\s*\(.*?\)\s*/g, '').replace(/ft\..*$/i, '');
+                    
+                    const query = encodeURIComponent(`${cleanArtist} ${cleanTitle}`);
+                    const itunesRes = await fetch(`https://itunes.apple.com/search?term=${query}&media=music&limit=1`);
+                    if (itunesRes.ok) {
+                        const itunesData = await itunesRes.json();
+                        if (itunesData.results?.[0]?.artworkUrl100) {
+                            finalCover = itunesData.results[0].artworkUrl100.replace('100x100bb', '600x600bb').replace('100x100', '600x600');
+                            COVER_CACHE[cacheKey] = finalCover;
+                        } else {
+                            COVER_CACHE[cacheKey] = 'none';
+                        }
+                    } else {
+                        // Rate limit or error, don't cache 'none' so it tries again later
+                    }
+                } catch (e) {
+                    // Ignore iTunes failure
+                }
             }
         }
 
