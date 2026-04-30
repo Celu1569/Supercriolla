@@ -28,9 +28,9 @@ export const RadioPlayer: React.FC = () => {
   });
   const [history, setHistory] = useState<TrackHistory[]>([]);
 
-  const [playerStyle, setPlayerStyle] = useState<'minimal' | 'modern' | 'full'>(() => {
+  const [playerStyle, setPlayerStyle] = useState<'minimal' | 'modern'>(() => {
       if (typeof window !== 'undefined') {
-          return (localStorage.getItem('radio_player_style') as 'minimal' | 'modern' | 'full') || 'modern';
+          return (localStorage.getItem('radio_player_style') as 'minimal' | 'modern') || 'modern';
       }
       return 'modern';
   });
@@ -247,17 +247,11 @@ export const RadioPlayer: React.FC = () => {
   let playBtnClasses = "";
 
   if (playerStyle === 'minimal') {
-      containerClasses = "h-auto rounded-[24px] lg:rounded-[32px] overflow-hidden";
-      innerClasses = "flex flex-col lg:flex-row items-center gap-6 p-6 lg:p-8 w-full";
-      coverClasses = "w-[120px] h-[120px] lg:w-[140px] lg:h-[140px] rounded-[18px]";
+      containerClasses = "h-auto rounded-[24px] lg:rounded-full overflow-hidden max-w-5xl mx-auto";
+      innerClasses = "flex flex-col lg:flex-row items-center justify-center gap-6 p-6 lg:p-4 lg:pr-8 w-full";
+      coverClasses = "w-[120px] h-[120px] lg:w-[100px] lg:h-[100px] rounded-full shadow-lg";
       titleClasses = "text-2xl font-bold truncate";
       playBtnClasses = "w-14 h-14";
-  } else if (playerStyle === 'full') {
-      containerClasses = "min-h-[85vh] rounded-[32px] overflow-hidden flex flex-col justify-center";
-      innerClasses = "flex flex-col items-center justify-center gap-10 p-8 lg:p-12 max-w-5xl mx-auto w-full flex-1";
-      coverClasses = "w-[300px] sm:w-[400px] lg:w-[500px] aspect-square rounded-[40px] shadow-[0_30px_60px_rgba(0,0,0,0.6)]";
-      titleClasses = "text-4xl sm:text-5xl lg:text-7xl font-black";
-      playBtnClasses = "w-24 h-24";
   } else {
       // Modern (default)
       containerClasses = "h-auto lg:h-[500px] xl:h-[600px] rounded-[32px] overflow-hidden";
@@ -314,13 +308,6 @@ export const RadioPlayer: React.FC = () => {
                   >
                       <Monitor size={16} strokeWidth={2.5} />
                   </button>
-                  <button 
-                      onClick={() => setPlayerStyle('full')} 
-                      className={`p-2 rounded-full cursor-pointer transition-colors ${playerStyle === 'full' ? 'bg-secondary text-primary' : 'text-white/60 hover:text-white hover:bg-white/10'}`} 
-                      title="Vista de Escenario"
-                  >
-                      <Maximize size={16} strokeWidth={2.5} />
-                  </button>
               </div>
 
               {/* Close Button */}
@@ -359,8 +346,8 @@ export const RadioPlayer: React.FC = () => {
                                   initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                                   className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center pointer-events-none"
                               >
-                                  <div className={`rounded-full bg-secondary text-primary flex items-center justify-center mb-4 ${playerStyle === 'full' ? 'w-24 h-24' : 'w-16 h-16'}`}>
-                                      <Play size={playerStyle === 'full' ? 40 : 28} fill="currentColor" className="ml-1 md:ml-2" />
+                                  <div className={`rounded-full bg-secondary text-primary flex items-center justify-center mb-4 w-16 h-16`}>
+                                      <Play size={28} fill="currentColor" className="ml-1 md:ml-2" />
                                   </div>
                               </motion.div>
                           )}
@@ -369,32 +356,35 @@ export const RadioPlayer: React.FC = () => {
               </div>
 
               {/* Info & Controls */}
-              <div className={`flex flex-col min-w-0 z-20 w-full ${playerStyle === 'minimal' ? 'flex-1 text-center lg:text-left' : playerStyle === 'full' ? 'items-center text-center max-w-4xl' : 'flex-1 lg:text-left text-center'}`}>
+              <div className={`flex flex-col min-w-0 z-20 w-full ${playerStyle === 'minimal' ? 'flex-1 lg:flex-row items-center lg:items-center text-center lg:text-left gap-6' : 'flex-1 lg:text-left text-center'}`}>
                   
-                  {/* Status Badge */}
-                  <motion.div 
-                      key={isPlaying ? 'playing' : 'paused'}
-                      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                      className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full backdrop-blur-md shadow-lg border text-xs font-bold tracking-widest uppercase mb-4 lg:mb-6
-                                  ${isPlaying ? 'bg-secondary/20 border-secondary/40 text-white' : 'bg-white/5 border-white/10 text-white/50'}
-                                  ${(playerStyle === 'full' || playerStyle === 'minimal' && window.innerWidth < 1024) ? 'mx-auto' : ''}`}
-                  >
-                      <span className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-secondary animate-pulse shadow-[0_0_10px_theme(colors.secondary)]' : 'bg-gray-500'}`}></span>
-                      {hasError ? 'Error de Transmisión' : isPlaying ? 'Al Aire Ahora' : 'Radio en Pausa'}
-                  </motion.div>
-                  
-                  {/* Title & Artist */}
-                  <div className="space-y-2 mb-6 lg:mb-10 w-full px-2">
-                      <h2 className={`${titleClasses} font-heading leading-tight text-white drop-shadow-2xl`}>
-                          {metadata.title}
-                      </h2>
-                      <h3 className={`font-sans font-medium text-white/70 drop-shadow-md truncate w-full ${playerStyle === 'minimal' ? 'text-lg lg:text-xl' : playerStyle === 'full' ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl'}`}>
-                          {metadata.artist}
-                      </h3>
+                  {/* Info Column (Minimal: inline, Modern: stacked) */}
+                  <div className={`flex flex-col ${playerStyle === 'minimal' ? 'flex-1 items-center lg:items-start space-y-1' : 'w-full'}`}>
+                      {/* Status Badge */}
+                      <motion.div 
+                          key={isPlaying ? 'playing' : 'paused'}
+                          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                          className={`inline-flex items-center justify-center gap-2 px-3 py-1 lg:px-4 lg:py-1.5 rounded-full backdrop-blur-md shadow-lg border text-[10px] md:text-xs font-bold tracking-widest uppercase mb-4 lg:mb-6
+                                      ${isPlaying ? 'bg-secondary/20 border-secondary/40 text-white' : 'bg-white/5 border-white/10 text-white/50'}
+                                      ${playerStyle === 'minimal' ? 'lg:mb-2' : ''}`}
+                      >
+                          <span className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-secondary animate-pulse shadow-[0_0_10px_theme(colors.secondary)]' : 'bg-gray-500'}`}></span>
+                          {hasError ? 'Error de Transmisión' : isPlaying ? 'Al Aire Ahora' : 'Radio en Pausa'}
+                      </motion.div>
+                      
+                      {/* Title & Artist */}
+                      <div className={`w-full px-2 lg:px-0 ${playerStyle === 'minimal' ? 'mb-2' : 'space-y-2 mb-6 lg:mb-10'}`}>
+                          <h2 className={`${titleClasses} font-heading leading-tight text-white drop-shadow-2xl`}>
+                              {metadata.title}
+                          </h2>
+                          <h3 className={`font-sans font-medium text-white/70 drop-shadow-md truncate w-full ${playerStyle === 'minimal' ? 'text-sm lg:text-base' : 'text-xl sm:text-2xl'}`}>
+                              {metadata.artist}
+                          </h3>
+                      </div>
                   </div>
 
                   {/* Core Interactions */}
-                  <div className={`flex items-center gap-6 sm:gap-8 w-full ${playerStyle === 'full' ? 'justify-center mx-auto' : playerStyle === 'minimal' ? 'justify-center lg:justify-start' : 'justify-center lg:justify-start'}`}>
+                  <div className={`flex items-center gap-4 sm:gap-6 w-full ${playerStyle === 'minimal' ? 'flex-1 justify-center lg:justify-end max-w-sm ml-auto' : 'justify-center lg:justify-start'}`}>
                       
                       {/* Big Play Button */}
                       <motion.button
@@ -402,11 +392,11 @@ export const RadioPlayer: React.FC = () => {
                           onClick={togglePlay}
                           className={`${playBtnClasses} rounded-full bg-secondary text-primary flex items-center justify-center shadow-[0_0_30px_rgba(251,191,36,0.2)] hover:shadow-[0_0_40px_rgba(251,191,36,0.5)] transition-all flex-shrink-0 z-10`}
                       >
-                          {isPlaying ? <Pause size={playerStyle === 'minimal' ? 24 : 32} fill="currentColor" /> : <Play size={playerStyle === 'minimal' ? 24 : 32} fill="currentColor" className="ml-1 md:ml-2" />}
+                          {isPlaying ? <Pause size={playerStyle === 'minimal' ? 20 : 32} fill="currentColor" /> : <Play size={playerStyle === 'minimal' ? 20 : 32} fill="currentColor" className="ml-1 md:ml-2" />}
                       </motion.button>
 
                       {/* Volume Slider */}
-                      <div className="flex-1 max-w-[200px] lg:max-w-[280px] flex items-center gap-3 md:gap-4 bg-white/5 border border-white/10 rounded-full px-4 md:px-5 py-3 md:py-4 backdrop-blur-md">
+                      <div className={`flex-1 flex flex-row items-center gap-3 bg-white/5 border border-white/10 rounded-full px-4 py-3 backdrop-blur-md ${playerStyle === 'minimal' ? 'max-w-[200px]' : 'max-w-[200px] lg:max-w-[280px] md:gap-4 md:px-5 md:py-4'}`}>
                           <button onClick={toggleMute} className="text-white/50 hover:text-white transition-colors flex-shrink-0">
                               {getVolumeIcon()}
                           </button>
@@ -426,9 +416,9 @@ export const RadioPlayer: React.FC = () => {
                   </div>
               </div>
 
-              {/* History Side Panel (Only in Modern/Full if space allows, or tucked below) */}
+              {/* History Side Panel */}
               {playerStyle !== 'minimal' && (
-                  <div className={`hidden lg:flex flex-col bg-black/20 backdrop-blur-xl border border-white/10 rounded-[24px] p-6 flex-shrink-0 ${playerStyle === 'full' ? 'w-full max-w-3xl mt-8 h-[240px]' : 'w-[320px] xl:w-[380px] h-full ml-auto'}`}>
+                  <div className={`hidden lg:flex flex-col bg-black/20 backdrop-blur-xl border border-white/10 rounded-[24px] p-6 flex-shrink-0 w-[320px] xl:w-[380px] h-full ml-auto`}>
                       <h4 className="text-white/50 text-xs font-bold uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                           <ListMusic size={14} /> Historial
                       </h4>
