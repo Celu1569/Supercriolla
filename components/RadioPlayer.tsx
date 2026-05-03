@@ -75,153 +75,27 @@ export const RadioPlayer: React.FC = () => {
       try {
         const streamUrl = config.general.streamUrl || "";
         
-        let fetchedTitle = "";
-        let fetchedArtist = "";
-        let fetchedCover = "";
+        let finalTitle = defaultSlogan;
+        let finalArtist = stationName;
+        let finalCover = defaultCover;
 
-        // Attempt proxy fetch via allorigins
-        try {
-            if (streamUrl) {
-                const urlObj = new URL(streamUrl);
-                const baseUrl = `${urlObj.protocol}//${urlObj.hostname}${urlObj.port ? ':' + urlObj.port : ''}`;
-                const encodedIcecast = encodeURIComponent(`${baseUrl}/status-json.xsl`);
-                const encodedShoutcast = encodeURIComponent(`${baseUrl}/stats?json=1`);
-                
-                // Try Icecast first
-                let proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodedIcecast}`);
-                let success = false;
-
-                if (proxyRes.ok) {
-                    const proxyData = await proxyRes.json();
-                    if (proxyData.contents && !proxyData.contents.includes('404')) {
-                        try {
-                            const data = JSON.parse(proxyData.contents);
-                            if (data?.icestats?.source) {
-                                const sources = Array.isArray(data.icestats.source) ? data.icestats.source : [data.icestats.source];
-                                const source = sources[0];
-                                const currentlyPlaying = source?.yp_currently_playing || source?.title || "";
-                                
-                                if (currentlyPlaying) {
-                                    if (currentlyPlaying.includes(' - ')) {
-                                        const parts = currentlyPlaying.split(' - ').map((s: string) => s.trim());
-                                        fetchedArtist = parts[0];
-                                        fetchedTitle = parts.slice(1).join(' - ');
-                                    } else {
-                                        fetchedTitle = currentlyPlaying;
-                                    }
-                                    success = true;
-                                }
-                            }
-                        } catch (e) {
-                            // JSON parse failed (likely not Icecast)
-                        }
-                    }
+        // Try getting artwork and metadata from our own proxy API to avoid CORS/SSL issues
+        if (streamUrl) {
+            try {
+                const query = new URLSearchParams({
+                    stream: streamUrl,
+                    station: stationName,
+                    logo: defaultCover
+                });
+                const res = await fetch(`/api/metadata?${query.toString()}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.title && data.title !== "") finalTitle = data.title;
+                    if (data.artist && data.artist !== "") finalArtist = data.artist;
+                    if (data.cover && data.cover !== "") finalCover = data.cover;
                 }
-
-                // If Icecast failed, try Shoutcast v2
-                if (!success) {
-                     proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodedShoutcast}`);
-                     if (proxyRes.ok) {
-                          const proxyData = await proxyRes.json();
-                          if (proxyData.contents && !proxyData.contents.includes('404')) {
-                               try {
-                                    const data = JSON.parse(proxyData.contents);
-                                    const currentlyPlaying = data?.songtitle || "";
-                                    
-                                    if (currentlyPlaying) {
-                                        if (currentlyPlaying.includes(' - ')) {
-                                            const parts = currentlyPlaying.split(' - ').map((s: string) => s.trim());
-                                            fetchedArtist = parts[0];
-                                            fetchedTitle = parts.slice(1).join(' - ');
-                                        } else {
-                                            fetchedTitle = currentlyPlaying;
-                                        }
-                                        success = true;
-                                    }
-                               } catch (e) {
-                                   // Not shoutcast either
-                               }
-                          }
-                     }
-                }
-                
-                // If Shoutcast v2 failed, try Shoutcast v1 (7.html)
-                if (!success) {
-                    const encodedShoutcastV1 = encodeURIComponent(`${baseUrl}/7.html`);
-                    proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodedShoutcastV1}`);
-                    if (proxyRes.ok) {
-                        const proxyData = await proxyRes.json();
-                        if (proxyData.contents && proxyData.contents.includes('<html><body>')) {
-                            // Format: <html><body>currentListeners,streamStatus,peakListeners,maxListeners,uniqueListeners,bitrate,songTitle</body></html>
-                            const htmlContent = proxyData.contents;
-                            const match = htmlContent.match(/<body>(.*?)<\/body>/);
-                            if (match && match[1]) {
-                                const parts = match[1].split(',');
-                                if (parts.length >= 7) {
-                                    const currentlyPlaying = parts[6] || "";
-                                    if (currentlyPlaying) {
-                                        if (currentlyPlaying.includes(' - ')) {
-                                            const titleParts = currentlyPlaying.split(' - ').map((s: string) => s.trim());
-                                            fetchedArtist = titleParts[0];
-                                            fetchedTitle = titleParts.slice(1).join(' - ');
-                                        } else {
-                                            fetchedTitle = currentlyPlaying;
-                                        }
-                                        success = true;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (e) {
-            // Ignore proxy failure
-            console.log("metadata proxy fallback used");
-        }
-
-        // Processing the values
-        const isGeneric = (str: string) => {
-            if (!str) return true;
-            const lower = str.toLowerCase();
-            return lower.includes('stream') || lower.includes('en vivo') || lower === 'unknown';
-        };
-
-        let finalTitle = isGeneric(fetchedTitle) ? defaultSlogan : fetchedTitle;
-        let finalArtist = isGeneric(fetchedArtist) ? stationName : fetchedArtist;
-        let finalCover = fetchedCover || defaultCover;
-
-        // Try getting artwork from iTunes if we have real track info
-        if (finalArtist !== stationName && finalTitle !== defaultSlogan) {
-            const cacheKey = `${finalArtist}-${finalTitle}`.toLowerCase();
-            
-            if (COVER_CACHE[cacheKey]) {
-                const cached = COVER_CACHE[cacheKey];
-                if (cached !== 'none') {
-                    finalCover = cached;
-                }
-            } else {
-                try {
-                    // Clean up query for better iTunes search matches
-                    let cleanArtist = finalArtist.replace(/\s*\(.*?\)\s*/g, '').replace(/ft\..*$/i, '');
-                    let cleanTitle = finalTitle.replace(/\s*\(.*?\)\s*/g, '').replace(/ft\..*$/i, '');
-                    
-                    const query = encodeURIComponent(`${cleanArtist} ${cleanTitle}`);
-                    const itunesRes = await fetch(`https://itunes.apple.com/search?term=${query}&media=music&limit=1`);
-                    if (itunesRes.ok) {
-                        const itunesData = await itunesRes.json();
-                        if (itunesData.results?.[0]?.artworkUrl100) {
-                            finalCover = itunesData.results[0].artworkUrl100.replace('100x100bb', '600x600bb').replace('100x100', '600x600');
-                            COVER_CACHE[cacheKey] = finalCover;
-                        } else {
-                            COVER_CACHE[cacheKey] = 'none';
-                        }
-                    } else {
-                        // Rate limit or error, don't cache 'none' so it tries again later
-                    }
-                } catch (e) {
-                    // Ignore iTunes failure
-                }
+            } catch (e) {
+                console.warn("API proxy fetch error:", e);
             }
         }
 
