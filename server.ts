@@ -172,7 +172,8 @@ async function startServer() {
                 const fullTitle = parts.slice(6).join(',');
                 if (fullTitle && !fullTitle.toLowerCase().includes("transmision")) {
                     if (fullTitle.includes(' - ')) {
-                        [artist, title] = fullTitle.split(' - ').map((s: string) => s.trim());
+                        // Radio format is Title - Artist
+                        [title, artist] = fullTitle.split(' - ').map((s: string) => s.trim());
                     } else {
                         title = fullTitle;
                     }
@@ -190,7 +191,7 @@ async function startServer() {
             if (tm || am || sm) {
                 const ft = sm ? sm[1] : (am ? am[1] : (tm ? tm[1] : ""));
                 if (ft) {
-                    if (ft.includes(' - ')) [artist, title] = ft.split(' - ').map((s: string) => s.trim());
+                    if (ft.includes(' - ')) [title, artist] = ft.split(' - ').map((s: string) => s.trim());
                     else title = ft;
                     metadataFound = true;
                     break;
@@ -205,13 +206,13 @@ async function startServer() {
             const source = sources[0];
             const et = source?.yp_currently_playing || source?.title || "";
             if (et) {
-              if (et.includes(' - ')) [artist, title] = et.split(' - ').map((s: string) => s.trim());
+              if (et.includes(' - ')) [title, artist] = et.split(' - ').map((s: string) => s.trim());
               else title = et;
             }
             break;
         } else if (data && data.songtitle) {
             metadataFound = true;
-            if (data.songtitle.includes(' - ')) [artist, title] = data.songtitle.split(' - ').map((s: string) => s.trim());
+            if (data.songtitle.includes(' - ')) [title, artist] = data.songtitle.split(' - ').map((s: string) => s.trim());
             else title = data.songtitle;
             break;
         } else if (data && data.now_playing) {

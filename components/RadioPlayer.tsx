@@ -208,28 +208,28 @@ export const RadioPlayer: React.FC = () => {
   let playBtnClasses = "";
 
   if (playerStyle === 'minimal') {
-      containerClasses = "h-auto rounded-[32px] lg:rounded-full overflow-hidden max-w-5xl mx-auto";
-      innerClasses = "flex flex-col lg:flex-row items-center justify-center gap-6 p-6 pt-16 md:px-10 lg:py-4 lg:pl-6 lg:pr-[180px] w-full min-h-[140px]";
-      coverClasses = "w-[120px] h-[120px] lg:w-[100px] lg:h-[100px] rounded-full shadow-lg";
+      containerClasses = "h-auto w-full overflow-hidden";
+      innerClasses = "flex flex-col lg:flex-row items-center justify-between gap-6 p-6 pt-16 lg:py-4 lg:pl-10 lg:pr-[240px] w-full max-w-[1920px] mx-auto min-h-[140px]";
+      coverClasses = "w-[120px] h-[120px] lg:w-[100px] lg:h-[100px] rounded-[24px] shadow-lg";
       titleClasses = "text-2xl font-bold truncate";
-      playBtnClasses = "w-14 h-14";
+      playBtnClasses = "w-14 h-14 lg:w-16 lg:h-16";
   } else {
       // Modern (default)
-      containerClasses = "h-auto lg:h-[500px] xl:h-[600px] rounded-[32px] overflow-hidden";
-      innerClasses = "flex flex-col lg:flex-row items-center gap-8 lg:gap-12 p-8 pt-20 lg:p-12 h-full w-full";
+      containerClasses = "h-auto lg:h-[400px] xl:h-[500px] w-full overflow-hidden";
+      innerClasses = "flex flex-col lg:flex-row items-center gap-8 lg:gap-12 p-8 pt-20 lg:p-12 h-full w-full max-w-[1600px] mx-auto";
       coverClasses = "w-[240px] sm:w-[300px] lg:w-[380px] aspect-square rounded-[32px] lg:rounded-[40px] shadow-[0_20px_50px_rgba(0,0,0,0.5)]";
       titleClasses = "text-3xl lg:text-5xl font-black";
       playBtnClasses = "w-16 h-16 sm:w-20 sm:h-20";
   }
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto overflow-hidden animate-fade-in px-4 my-8">
+    <div className="w-full animate-fade-in shadow-2xl z-30 relative">
       
       {/* Expanding Player */}
       <motion.div 
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: isVisible ? 1 : 0, height: isVisible ? 'auto' : 0 }}
-          className={`relative bg-[#060608] border border-white/10 shadow-2xl transition-all duration-700 ease-out origin-bottom ${containerClasses}`}
+          className={`relative bg-[#060608] border-b border-white/10 transition-all duration-700 ease-out origin-top ${containerClasses}`}
           style={{ display: isVisible ? 'flex' : 'none' }}
       >
           {/* Audio Element Hidden */}
@@ -252,8 +252,8 @@ export const RadioPlayer: React.FC = () => {
               <div className="absolute inset-0 bg-black/40 z-10 transition-colors duration-1000"></div>
           </div>
 
-          {/* Top Controls Area */}
-          <div className={`absolute z-50 flex items-center gap-3 ${playerStyle === 'minimal' ? 'top-4 right-4 lg:top-1/2 lg:-translate-y-1/2 lg:right-6' : 'top-4 right-4 lg:top-6 lg:right-6'}`}>
+          {/* Top Controls Area - Absolute ONLY for Modern */}
+          <div className={`z-50 flex items-center gap-3 ${playerStyle === 'minimal' ? 'hidden' : 'absolute top-4 right-4 lg:top-6 lg:right-6'}`}>
               {/* Layout Toggles */}
               <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md border border-white/10 rounded-full p-1 opacity-90 hover:opacity-100 transition-opacity">
                   <button 
@@ -346,7 +346,7 @@ export const RadioPlayer: React.FC = () => {
                   </div>
 
                   {/* Core Interactions */}
-                  <div className={`flex items-center gap-4 sm:gap-6 w-full ${playerStyle === 'minimal' ? 'flex-1 justify-center lg:justify-end max-w-sm ml-auto' : 'justify-center lg:justify-start'}`}>
+                  <div className={`flex items-center gap-4 sm:gap-6 w-full ${playerStyle === 'minimal' ? 'flex-1 justify-between sm:justify-end lg:max-w-[450px] ml-auto' : 'justify-center lg:justify-start'}`}>
                       
                       {/* Big Play Button */}
                       <motion.button
@@ -358,7 +358,7 @@ export const RadioPlayer: React.FC = () => {
                       </motion.button>
 
                       {/* Volume Slider */}
-                      <div className={`flex-1 flex flex-row items-center gap-3 bg-white/5 border border-white/10 rounded-full px-4 py-3 backdrop-blur-md ${playerStyle === 'minimal' ? 'max-w-[200px]' : 'max-w-[200px] lg:max-w-[280px] md:gap-4 md:px-5 md:py-4'}`}>
+                      <div className={`flex-1 flex flex-row items-center gap-3 bg-white/5 border border-white/10 rounded-full px-4 py-3 backdrop-blur-md ${playerStyle === 'minimal' ? 'max-w-full' : 'max-w-[200px] lg:max-w-[280px] md:gap-4 md:px-5 md:py-4'}`}>
                           <button onClick={toggleMute} className="text-white/50 hover:text-white transition-colors flex-shrink-0">
                               {getVolumeIcon()}
                           </button>
@@ -375,6 +375,34 @@ export const RadioPlayer: React.FC = () => {
                               className="w-full h-1.5 bg-white/20 rounded-full appearance-none cursor-pointer accent-secondary"
                           />
                       </div>
+
+                      {/* Minimal Mode inline controls */}
+                      {playerStyle === 'minimal' && (
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                              <div className="flex items-center gap-1 bg-white/5 backdrop-blur-md border border-white/10 rounded-full p-1 opacity-90 transition-opacity">
+                                  <button 
+                                      onClick={() => setPlayerStyle('minimal')} 
+                                      className="p-1.5 rounded-full cursor-pointer transition-colors bg-secondary text-primary" 
+                                      title="Vista Mini"
+                                  >
+                                      <Minimize2 size={16} strokeWidth={2.5} />
+                                  </button>
+                                  <button 
+                                      onClick={() => setPlayerStyle('modern')} 
+                                      className="p-1.5 rounded-full cursor-pointer transition-colors text-white/60 hover:text-white hover:bg-white/10" 
+                                      title="Vista Clásica"
+                                  >
+                                      <Monitor size={16} strokeWidth={2.5} />
+                                  </button>
+                              </div>
+                              <button 
+                                  onClick={() => setIsVisible(false)}
+                                  className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-white/70 hover:text-white backdrop-blur-md transition-all border border-white/10"
+                              >
+                                  <X size={18} strokeWidth={2.5} />
+                              </button>
+                          </div>
+                      )}
                   </div>
               </div>
 
