@@ -209,14 +209,14 @@ export const RadioPlayer: React.FC = () => {
 
   if (playerStyle === 'minimal') {
       containerClasses = "h-auto rounded-[32px] lg:rounded-full overflow-hidden max-w-5xl mx-auto";
-      innerClasses = "flex flex-col lg:flex-row items-center justify-center gap-6 p-6 md:px-10 lg:py-4 lg:pl-6 lg:pr-[180px] w-full min-h-[140px]";
+      innerClasses = "flex flex-col lg:flex-row items-center justify-center gap-6 p-6 pt-16 md:px-10 lg:py-4 lg:pl-6 lg:pr-[180px] w-full min-h-[140px]";
       coverClasses = "w-[120px] h-[120px] lg:w-[100px] lg:h-[100px] rounded-full shadow-lg";
       titleClasses = "text-2xl font-bold truncate";
       playBtnClasses = "w-14 h-14";
   } else {
       // Modern (default)
       containerClasses = "h-auto lg:h-[500px] xl:h-[600px] rounded-[32px] overflow-hidden";
-      innerClasses = "flex flex-col lg:flex-row items-center gap-8 lg:gap-12 p-8 lg:p-12 h-full w-full";
+      innerClasses = "flex flex-col lg:flex-row items-center gap-8 lg:gap-12 p-8 pt-20 lg:p-12 h-full w-full";
       coverClasses = "w-[240px] sm:w-[300px] lg:w-[380px] aspect-square rounded-[32px] lg:rounded-[40px] shadow-[0_20px_50px_rgba(0,0,0,0.5)]";
       titleClasses = "text-3xl lg:text-5xl font-black";
       playBtnClasses = "w-16 h-16 sm:w-20 sm:h-20";
@@ -236,15 +236,15 @@ export const RadioPlayer: React.FC = () => {
           <audio ref={audioRef} onEnded={() => setIsPlaying(false)} onError={() => { setHasError(true); setIsPlaying(false); }} preload="none" />
 
           {/* Deep Atmosphere Backgrounds */}
-          <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-[#060608]">
+          <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-black">
               <AnimatePresence>
                   {metadata.cover && (
                       <motion.div 
                           key={metadata.cover}
-                          initial={{ opacity: 0 }} animate={{ opacity: 0.5 }} exit={{ opacity: 0 }} transition={{ duration: 2 }}
+                          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 2 }}
                           className="absolute inset-0 z-0"
                       >
-                          <img src={metadata.cover} alt="blur" className="w-full h-full object-cover blur-[50px] scale-[1.2] saturate-[1.2]" />
+                          <img src={metadata.cover} alt="blur" className="w-full h-full object-cover blur-[60px] scale-[1.2] saturate-[1.5]" />
                       </motion.div>
                   )}
               </AnimatePresence>
