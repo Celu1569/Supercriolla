@@ -399,16 +399,16 @@ const PublicView: React.FC = () => {
       <nav className="fixed top-0 w-full z-40 shadow-lg border-b border-white/10 transition-all duration-300" style={navStyle}>
         <div className="container mx-auto px-4 py-4 flex items-center justify-between min-h-[80px]">
           {/* Logo & Branding - NOW ALWAYS SHOWS TEXT, LOGO OPTIONAL BESIDE IT */}
-          <div className="flex items-center gap-3 cursor-pointer flex-shrink-0" onClick={() => toggleSection('hero')}>
+          <div className="flex items-center gap-3 cursor-pointer min-w-0 flex-1 md:flex-none" onClick={() => toggleSection('hero')}>
              {config.navigation.showLogo && config.navigation.logoUrl && (
                  <img 
                     src={getDirectImageUrl(config.navigation.logoUrl)} 
                     alt={config.general.stationName} 
-                    className="w-auto object-contain transition-all"
-                    style={{ height: `${config.navigation.logoHeight}px` }} 
+                    className="w-auto object-contain transition-all flex-shrink-0"
+                    style={{ height: `${config.navigation.logoHeight}px`, maxWidth: '50px' }} 
                  />
              )}
-             <div className="text-2xl font-heading font-bold tracking-tighter">
+             <div className="text-xl md:text-2xl font-heading font-bold tracking-tighter truncate">
                 {config.general.stationName}
              </div>
           </div>
@@ -427,7 +427,7 @@ const PublicView: React.FC = () => {
             </button>
           </div>
 
-          <div className="flex items-center space-x-4 md:hidden">
+          <div className="flex items-center space-x-4 md:hidden flex-shrink-0">
             <button 
                 onClick={toggleTheme}
                 className="opacity-80 hover:opacity-100"
