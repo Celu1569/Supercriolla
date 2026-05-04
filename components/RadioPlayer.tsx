@@ -208,8 +208,8 @@ export const RadioPlayer: React.FC = () => {
   let playBtnClasses = "";
 
   if (playerStyle === 'minimal') {
-      containerClasses = "h-auto rounded-[24px] lg:rounded-full overflow-hidden max-w-5xl mx-auto";
-      innerClasses = "flex flex-col lg:flex-row items-center justify-center gap-6 p-6 lg:p-4 lg:pr-8 w-full";
+      containerClasses = "h-auto rounded-[32px] lg:rounded-full overflow-hidden max-w-5xl mx-auto";
+      innerClasses = "flex flex-col lg:flex-row items-center justify-center gap-6 p-6 md:px-10 lg:py-4 lg:pl-6 lg:pr-[180px] w-full min-h-[140px]";
       coverClasses = "w-[120px] h-[120px] lg:w-[100px] lg:h-[100px] rounded-full shadow-lg";
       titleClasses = "text-2xl font-bold truncate";
       playBtnClasses = "w-14 h-14";
@@ -236,23 +236,24 @@ export const RadioPlayer: React.FC = () => {
           <audio ref={audioRef} onEnded={() => setIsPlaying(false)} onError={() => { setHasError(true); setIsPlaying(false); }} preload="none" />
 
           {/* Deep Atmosphere Backgrounds */}
-          <div className="absolute inset-0 pointer-events-none z-0">
-              <div className="absolute inset-0 bg-gradient-to-br from-black/80 via-[#0a0502]/90 to-[#120803]/80 z-10"></div>
+          <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-[#060608]">
               <AnimatePresence>
                   {metadata.cover && (
                       <motion.div 
                           key={metadata.cover}
-                          initial={{ opacity: 0 }} animate={{ opacity: 0.35 }} exit={{ opacity: 0 }} transition={{ duration: 2 }}
-                          className="absolute inset-0"
+                          initial={{ opacity: 0 }} animate={{ opacity: 0.5 }} exit={{ opacity: 0 }} transition={{ duration: 2 }}
+                          className="absolute inset-0 z-0"
                       >
-                          <img src={metadata.cover} alt="blur" className="w-full h-full object-cover blur-[80px] scale-125 saturate-[1.5]" />
+                          <img src={metadata.cover} alt="blur" className="w-full h-full object-cover blur-[50px] scale-[1.2] saturate-[1.2]" />
                       </motion.div>
                   )}
               </AnimatePresence>
+              {/* Dim layer so text stays readable */}
+              <div className="absolute inset-0 bg-black/40 z-10 transition-colors duration-1000"></div>
           </div>
 
           {/* Top Controls Area */}
-          <div className="absolute top-4 right-4 lg:top-6 lg:right-6 z-50 flex items-center gap-3">
+          <div className={`absolute z-50 flex items-center gap-3 ${playerStyle === 'minimal' ? 'top-4 right-4 lg:top-1/2 lg:-translate-y-1/2 lg:right-6' : 'top-4 right-4 lg:top-6 lg:right-6'}`}>
               {/* Layout Toggles */}
               <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md border border-white/10 rounded-full p-1 opacity-90 hover:opacity-100 transition-opacity">
                   <button 
