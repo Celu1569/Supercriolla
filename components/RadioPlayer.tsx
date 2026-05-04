@@ -215,9 +215,9 @@ export const RadioPlayer: React.FC = () => {
       playBtnClasses = "w-14 h-14 lg:w-16 lg:h-16";
   } else {
       // Modern (default)
-      containerClasses = "h-auto lg:h-[400px] xl:h-[500px] w-full overflow-hidden";
+      containerClasses = "h-auto lg:h-[400px] w-full overflow-hidden";
       innerClasses = "flex flex-col lg:flex-row items-center gap-8 lg:gap-12 p-8 pt-20 lg:p-12 h-full w-full max-w-[1600px] mx-auto";
-      coverClasses = "w-[240px] sm:w-[300px] lg:w-[380px] aspect-square rounded-[32px] lg:rounded-[40px] shadow-[0_20px_50px_rgba(0,0,0,0.5)]";
+      coverClasses = "w-[240px] sm:w-[300px] lg:w-[320px] aspect-square rounded-[32px] lg:rounded-[40px] shadow-[0_20px_50px_rgba(0,0,0,0.5)]";
       titleClasses = "text-3xl lg:text-5xl font-black";
       playBtnClasses = "w-16 h-16 sm:w-20 sm:h-20";
   }
@@ -413,7 +413,7 @@ export const RadioPlayer: React.FC = () => {
                           <ListMusic size={14} /> Historial
                       </h4>
                       <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-                          {history.length > 0 ? history.map((track, i) => (
+                          {history.length > 0 ? history.slice(0, 4).map((track, i) => (
                               <motion.div 
                                   initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
                                   key={i + track.time} 
