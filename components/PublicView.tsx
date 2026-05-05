@@ -240,23 +240,25 @@ const PublicView: React.FC = () => {
     setActiveSections(prev => {
         const isAlreadyOpen = prev[section];
         
-        setTimeout(() => {
-            const element = document.getElementById(section as string);
-            if (element) {
-                const offset = dynamicNavHeight; 
-                const bodyRect = document.body.getBoundingClientRect().top;
-                const elementRect = element.getBoundingClientRect().top;
-                const elementPosition = elementRect - bodyRect;
-                const offsetPosition = elementPosition - offset;
+        if (!isAlreadyOpen) {
+            setTimeout(() => {
+                const element = document.getElementById(section as string);
+                if (element) {
+                    const offset = dynamicNavHeight; 
+                    const bodyRect = document.body.getBoundingClientRect().top;
+                    const elementRect = element.getBoundingClientRect().top;
+                    const elementPosition = elementRect - bodyRect;
+                    const offsetPosition = elementPosition - offset;
 
-                window.scrollTo({
-                    top: offsetPosition,
-                    behavior: "smooth"
-                });
-            }
-        }, isAlreadyOpen ? 10 : 150); // wait slightly longer if it needs to render
+                    window.scrollTo({
+                        top: offsetPosition,
+                        behavior: "smooth"
+                    });
+                }
+            }, 150); // wait slightly longer if it needs to render
+        }
 
-        return { ...prev, [section]: true };
+        return { ...prev, [section]: !isAlreadyOpen };
     });
     setMobileMenuOpen(false);
   };
@@ -404,11 +406,11 @@ const PublicView: React.FC = () => {
                  <img 
                     src={getDirectImageUrl(config.navigation.logoUrl)} 
                     alt={config.general.stationName} 
-                    className="w-auto object-contain transition-all flex-shrink-0"
-                    style={{ height: `${config.navigation.logoHeight}px`, maxWidth: '50px' }} 
+                    className="w-auto object-contain transition-all flex-shrink-0 max-w-[150px] md:max-w-none"
+                    style={{ height: `${config.navigation.logoHeight}px` }} 
                  />
              )}
-             <div className="text-xl md:text-2xl font-heading font-bold tracking-tighter truncate">
+             <div className="hidden md:block text-2xl font-heading font-bold tracking-tighter truncate">
                 {config.general.stationName}
              </div>
           </div>

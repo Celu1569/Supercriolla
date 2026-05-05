@@ -41,7 +41,16 @@ export const DEFAULT_CONFIG: SiteConfig = {
     backgroundColor: "#ffffff",
     textColor: "#334155", // Slate 700
     headingFont: "Montserrat",
-    bodyFont: "Inter"
+    bodyFont: "Inter",
+    radioPlayer: {
+      backgroundImages: ["https://upload.wikimedia.org/wikipedia/commons/0/06/Flag_of_Venezuela.svg"],
+      blurIntensity: 0,
+      brightness: 1, // 1 is normal
+      mixBlendMode: 'normal',
+      showAnalyzer: true,
+      opacity: 0.5,
+      animationSpeed: 12
+    }
   },
   content: {
     heroInterval: 5000, // 5 Seconds default

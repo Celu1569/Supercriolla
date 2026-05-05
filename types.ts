@@ -257,6 +257,16 @@ export interface AutoDJTrack {
   title: string;
 }
 
+export interface RadioPlayerConfig {
+  backgroundImages: string[];
+  blurIntensity: number; // css blur filter in px
+  brightness: number; // css brightness filter (e.g., 0.5 for 50%)
+  mixBlendMode: 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'color-dodge' | 'color-burn' | 'hard-light' | 'soft-light' | 'difference' | 'exclusion' | 'hue' | 'saturation' | 'color' | 'luminosity';
+  showAnalyzer: boolean;
+  opacity: number;
+  animationSpeed: number;
+}
+
 export interface SiteConfig {
   general: {
     stationName: string;
@@ -280,6 +290,7 @@ export interface SiteConfig {
     textColor: string;
     headingFont: FontFamily;
     bodyFont: FontFamily;
+    radioPlayer?: RadioPlayerConfig; // New: Advanced styling for Radio Player
   };
   content: {
     hero: HeroSlide[]; 

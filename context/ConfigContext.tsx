@@ -137,8 +137,13 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
             parsed.navigation.navActiveColor === undefined ||
             parsed.content.heroInterval === undefined; 
         
-        if (parsed.appearance && parsed.appearance.primaryColor === "#4c007d") {
-            parsed.appearance.primaryColor = DEFAULT_CONFIG.appearance.primaryColor;
+        if (parsed.appearance) {
+            if (parsed.appearance.primaryColor === "#4c007d") {
+                parsed.appearance.primaryColor = DEFAULT_CONFIG.appearance.primaryColor;
+            }
+            if (!parsed.appearance.radioPlayer) {
+                parsed.appearance.radioPlayer = DEFAULT_CONFIG.appearance.radioPlayer;
+            }
         }
 
         if (!parsed.general?.streamUrl || parsed.general?.streamUrl.includes("listen2myradio.com")) {
@@ -182,7 +187,11 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
                     subtitleOutline: slide.subtitleOutline || slide.textOutline || 'none'
                 }))
             },
-            appearance: { ...DEFAULT_CONFIG.appearance, ...parsed.appearance }
+            appearance: { 
+                ...DEFAULT_CONFIG.appearance, 
+                ...parsed.appearance,
+                radioPlayer: parsed.appearance?.radioPlayer || DEFAULT_CONFIG.appearance.radioPlayer
+            }
           };
           
           setConfig(merged);

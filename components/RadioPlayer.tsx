@@ -16,6 +16,11 @@ const COVER_CACHE: Record<string, string> = {};
 export const RadioPlayer: React.FC = () => {
   const { config } = useConfig();
   const audioRef = useRef<HTMLAudioElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analyzerRef = useRef<AnalyserNode | null>(null);
+  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const animationRef = useRef<number>();
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
@@ -54,16 +59,111 @@ export const RadioPlayer: React.FC = () => {
     }
   }, [volume, isMuted]);
 
+  // Audio Visualizer effect
+  useEffect(() => {
+      if (!audioRef.current || !canvasRef.current || config.appearance.radioPlayer?.showAnalyzer === false) return;
+
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      if (isPlaying) {
+          if (!audioCtxRef.current) {
+              const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+              if (Ctx) {
+                  audioCtxRef.current = new Ctx();
+                  analyzerRef.current = audioCtxRef.current.createAnalyser();
+                  analyzerRef.current.fftSize = 128; // gives 64 frequency bins
+                  try {
+                      sourceRef.current = audioCtxRef.current.createMediaElementSource(audioRef.current);
+                      sourceRef.current.connect(analyzerRef.current);
+                      analyzerRef.current.connect(audioCtxRef.current.destination);
+                  } catch (e) {
+                      console.error("Audio context error (CORS might block this):", e);
+                  }
+              }
+          }
+
+          if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+              audioCtxRef.current.resume();
+          }
+
+          const draw = () => {
+              animationRef.current = requestAnimationFrame(draw);
+              
+              if (!analyzerRef.current) return;
+              const bufferLength = analyzerRef.current.frequencyBinCount;
+              const dataArray = new Uint8Array(bufferLength);
+              analyzerRef.current.getByteFrequencyData(dataArray);
+
+              // Responsive Canvas sizing
+              const width = canvas.width;
+              const height = canvas.height;
+              ctx.clearRect(0, 0, width, height);
+
+              // Usually the last 1/3 of the frequencies in a compressed radio stream have 0 energy.
+              const activeBars = Math.floor(bufferLength * 0.75); // ~48 bars
+              
+              // Calculate width to center the visualizer
+              const spacing = 4;
+              const barWidth = Math.min((width - (activeBars * spacing)) / activeBars, 16);
+              const totalWidth = activeBars * (barWidth + spacing) - spacing;
+              let x = (width - totalWidth) / 2;
+
+              for (let i = 0; i < activeBars; i++) {
+                  const barHeightScale = dataArray[i] / 255;
+                  const barHeight = Math.max(Math.pow(barHeightScale, 1.2) * height * 0.9, 3); // Make peaks slightly more dynamic
+
+                  // Limit colors: Green (low), Yellow (mid), Red (peak)
+                  const gradient = ctx.createLinearGradient(0, height, 0, 0);
+                  gradient.addColorStop(0, '#22c55e'); // Green base
+                  gradient.addColorStop(0.5, '#eab308'); // Yellow middle
+                  gradient.addColorStop(0.9, '#ef4444'); // Red peak
+
+                  ctx.fillStyle = gradient;
+                  
+                  // Fill bar with drop shadow
+                  ctx.shadowBlur = 6;
+                  ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+                  
+                  ctx.beginPath();
+                  ctx.roundRect(x, height - barHeight, barWidth, barHeight, [barWidth/2, barWidth/2, 0, 0]);
+                  ctx.fill();
+                  
+                  ctx.shadowBlur = 0;
+
+                  x += barWidth + spacing;
+              }
+          };
+
+          draw();
+      } else {
+          // Instead of immediate clear, maybe let it naturally decay or just stop drawing
+          if (animationRef.current) {
+              cancelAnimationFrame(animationRef.current);
+          }
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+
+      return () => {
+          if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      };
+  }, [isPlaying, config.appearance.radioPlayer?.showAnalyzer]);
+
   // Restart audio if stream changes
   useEffect(() => {
+     let timeout: NodeJS.Timeout;
      if (audioRef.current && isPlaying) {
          audioRef.current.pause();
          setIsPlaying(false);
          // slight delay then play again
-         setTimeout(() => {
+         timeout = setTimeout(() => {
             togglePlay();
          }, 500);
      }
+     return () => {
+         if (timeout) clearTimeout(timeout);
+     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.general.streamUrl]);
 
@@ -142,19 +242,22 @@ export const RadioPlayer: React.FC = () => {
       }
   }, [metadata, defaultSlogan, defaultCover]);
 
-  const togglePlay = () => {
+  const togglePlay = async () => {
       if (!audioRef.current) return;
       
       if (isPlaying) {
           audioRef.current.pause();
           setIsPlaying(false);
-          audioRef.current.removeAttribute('src'); // Stop buffering
+          audioRef.current.removeAttribute('src');
+          audioRef.current.load(); // Ensure buffering stops completely
       } else {
           setHasError(false);
+          setIsPlaying(true); // Optimistic UI update
           let rawUrl = config.general.streamUrl || '';
           
           if (!rawUrl) {
               setHasError(true);
+              setIsPlaying(false);
               return;
           }
 
@@ -170,15 +273,17 @@ export const RadioPlayer: React.FC = () => {
           finalUrl += (finalUrl.includes('?') ? '&' : '?') + `cb=${Date.now()}`;
 
           audioRef.current.src = finalUrl;
-          audioRef.current.load();
           
-          const p = audioRef.current.play();
-          if (p !== undefined) {
-              p.then(() => setIsPlaying(true)).catch(e => {
+          try {
+              await audioRef.current.play();
+          } catch (e: any) {
+              if (e.name !== 'AbortError') {
                   console.error("Play error:", e);
                   setHasError(true);
                   setIsPlaying(false);
-              });
+              } else {
+                  console.log("Play interrupted (AbortError), ignoring.");
+              }
           }
       }
   };
@@ -233,23 +338,68 @@ export const RadioPlayer: React.FC = () => {
           style={{ display: isVisible ? 'flex' : 'none' }}
       >
           {/* Audio Element Hidden */}
-          <audio ref={audioRef} onEnded={() => setIsPlaying(false)} onError={() => { setHasError(true); setIsPlaying(false); }} preload="none" />
+          <audio ref={audioRef} crossOrigin="anonymous" onEnded={() => setIsPlaying(false)} onError={() => { setHasError(true); setIsPlaying(false); }} preload="none" />
 
           {/* Deep Atmosphere Backgrounds */}
           <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-black">
+              {/* Dynamic Backgrounds */}
+              {config.appearance.radioPlayer?.backgroundImages && config.appearance.radioPlayer.backgroundImages.map((img, idx) => (
+                  <div 
+                      key={idx}
+                      className="absolute inset-0 z-0 transition-all duration-300 pointer-events-none"
+                      style={{
+                          backgroundImage: `url("${img}")`,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          animation: `flagWind ${config.appearance.radioPlayer?.animationSpeed ?? 12}s ease-in-out infinite alternate`,
+                          filter: `blur(${config.appearance.radioPlayer?.blurIntensity ?? 0}px) brightness(${config.appearance.radioPlayer?.brightness ?? 1})`,
+                          mixBlendMode: (config.appearance.radioPlayer?.mixBlendMode && config.appearance.radioPlayer.mixBlendMode !== 'normal') ? config.appearance.radioPlayer.mixBlendMode as any : undefined,
+                          opacity: config.appearance.radioPlayer?.opacity ?? 0.5
+                      }}
+                  />
+              ))}
+
               <AnimatePresence>
                   {metadata.cover && (
                       <motion.div 
                           key={metadata.cover}
                           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 2 }}
-                          className="absolute inset-0 z-0"
+                          className="absolute inset-0 z-0 opacity-40"
                       >
-                          <img src={metadata.cover} alt="blur" className="w-full h-full object-cover blur-[60px] scale-[1.2] saturate-[1.5]" />
+                          <img src={metadata.cover} alt="blur" className="w-full h-full object-cover blur-[70px] scale-[1.3]" />
                       </motion.div>
                   )}
               </AnimatePresence>
               {/* Dim layer so text stays readable */}
-              <div className="absolute inset-0 bg-black/40 z-10 transition-colors duration-1000"></div>
+              <div className="absolute inset-0 bg-black/60 z-10 transition-colors duration-1000"></div>
+
+              {/* Real-time Web Audio API Spectrum Analyzer */}
+              {config.appearance.radioPlayer?.showAnalyzer !== false && (
+                  <canvas 
+                      ref={canvasRef} 
+                      width={1024} 
+                      height={100} 
+                      className={`absolute bottom-0 left-0 right-0 w-full h-20 z-20 pointer-events-none opacity-80 transition-opacity duration-500 ${isPlaying ? 'opacity-80' : 'opacity-0'}`} 
+                  />
+              )}
+
+              <style>{`
+                  @keyframes flagWind {
+                      0% { transform: scale(1.1) rotate(-1deg) translateY(0%) translateX(-1%); }
+                      50% { transform: scale(1.15) rotate(1deg) translateY(2%) translateX(1%); }
+                      100% { transform: scale(1.1) rotate(0deg) translateY(-1%) translateX(2%); }
+                  }
+                  @keyframes analyzerBar {
+                      0% { transform: scaleY(0.1); }
+                      50% { transform: scaleY(1); }
+                      100% { transform: scaleY(0.1); }
+                  }
+                  @keyframes analyzerBigBar {
+                      0% { transform: scaleY(0.2); opacity: 0.5; }
+                      50% { transform: scaleY(0.6); opacity: 0.8; }
+                      100% { transform: scaleY(1); opacity: 1; }
+                  }
+              `}</style>
           </div>
 
           {/* Top Controls Area - Absolute ONLY for Modern */}
@@ -322,17 +472,18 @@ export const RadioPlayer: React.FC = () => {
                   
                   {/* Info Column (Minimal: inline, Modern: stacked) */}
                   <div className={`flex flex-col ${playerStyle === 'minimal' ? 'flex-1 items-center lg:items-start space-y-1' : 'w-full'}`}>
-                      {/* Status Badge */}
-                      <motion.div 
-                          key={isPlaying ? 'playing' : 'paused'}
-                          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                          className={`inline-flex items-center justify-center gap-2 px-3 py-1 lg:px-4 lg:py-1.5 rounded-full backdrop-blur-md shadow-lg border text-[10px] md:text-xs font-bold tracking-widest uppercase mb-4 lg:mb-6
-                                      ${isPlaying ? 'bg-secondary/20 border-secondary/40 text-white' : 'bg-white/5 border-white/10 text-white/50'}
-                                      ${playerStyle === 'minimal' ? 'lg:mb-2' : ''}`}
-                      >
-                          <span className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-secondary animate-pulse shadow-[0_0_10px_theme(colors.secondary)]' : 'bg-gray-500'}`}></span>
-                          {hasError ? 'Error de Transmisión' : isPlaying ? 'Al Aire Ahora' : 'Radio en Pausa'}
-                      </motion.div>
+                          {/* Status Badge */}
+                          <div className={`flex flex-col items-center flex-wrap gap-4 ${playerStyle === 'minimal' ? 'lg:flex-row lg:items-center w-full mb-2' : 'w-full mb-6 lg:mb-8'}`}>
+                              <motion.div 
+                                  key={isPlaying ? 'playing' : 'paused'}
+                                  initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                                  className={`inline-flex items-center justify-center gap-2 px-3 py-1 lg:px-4 lg:py-1.5 rounded-full backdrop-blur-md shadow-lg border text-[10px] md:text-xs font-bold tracking-widest uppercase
+                                              ${isPlaying ? 'bg-secondary/20 border-secondary/40 text-white' : 'bg-white/5 border-white/10 text-white/50'}`}
+                              >
+                                  <span className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-secondary animate-pulse shadow-[0_0_10px_theme(colors.secondary)]' : 'bg-gray-500'}`}></span>
+                                  {hasError ? 'Error de Transmisión' : isPlaying ? 'Al Aire Ahora' : 'Radio en Pausa'}
+                              </motion.div>
+                          </div>
                       
                       {/* Title & Artist */}
                       <div className={`w-full px-2 lg:px-0 ${playerStyle === 'minimal' ? 'mb-2' : 'space-y-2 mb-6 lg:mb-10'}`}>
