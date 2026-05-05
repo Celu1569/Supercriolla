@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { Play, Pause, Volume2, VolumeX, Volume1, Radio, X, Clock, Disc3, ListMusic, Maximize, Minimize2, Monitor } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Volume1, Radio, X, Clock, Disc3, ListMusic, Maximize, Minimize2, Monitor, Share2, Facebook, Twitter, Instagram, MessageCircle } from 'lucide-react';
+import { TikTok } from './TikTokIcon';
 import { useConfig } from '../context/ConfigContext';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -241,6 +242,40 @@ export const RadioPlayer: React.FC = () => {
           });
       }
   }, [metadata, defaultSlogan, defaultCover]);
+
+  const handleShare = (network: string) => {
+      const url = window.location.href;
+      const text = `¡Escuchando ${metadata.title} en vivo!`;
+      
+      switch (network) {
+          case 'facebook':
+              window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
+              break;
+          case 'twitter':
+              window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`, '_blank');
+              break;
+          case 'whatsapp':
+              window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text + " " + url)}`, '_blank');
+              break;
+          case 'instagram':
+          case 'tiktok':
+              if (navigator.share) {
+                  navigator.share({ title: 'Radio en vivo', text, url }).catch(console.error);
+              } else {
+                  navigator.clipboard.writeText(url);
+                  alert("¡Enlace copiado al portapapeles! Listo para pegar en " + network);
+              }
+              break;
+          case 'native':
+              if (navigator.share) {
+                  navigator.share({ title: 'Radio en vivo', text, url }).catch(console.error);
+              } else {
+                  navigator.clipboard.writeText(url);
+                  alert("¡Enlace copiado al portapapeles!");
+              }
+              break;
+      }
+  };
 
   const togglePlay = async () => {
       if (!audioRef.current) return;
@@ -530,6 +565,9 @@ export const RadioPlayer: React.FC = () => {
                       {/* Minimal Mode inline controls */}
                       {playerStyle === 'minimal' && (
                           <div className="flex items-center gap-2 flex-shrink-0">
+                              <button onClick={() => handleShare('native')} className="p-2 rounded-full cursor-pointer transition-colors text-white/50 hover:text-white hover:bg-white/10" title="Compartir">
+                                  <Share2 size={16} strokeWidth={2.5} />
+                              </button>
                               <div className="flex items-center gap-1 bg-white/5 backdrop-blur-md border border-white/10 rounded-full p-1 opacity-90 transition-opacity">
                                   <button 
                                       onClick={() => setPlayerStyle('minimal')} 
@@ -555,6 +593,32 @@ export const RadioPlayer: React.FC = () => {
                           </div>
                       )}
                   </div>
+
+                  {/* Share Buttons */}
+                  {playerStyle === 'modern' && (
+                      <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 sm:gap-3 mt-6 lg:mt-8">
+                          <button onClick={() => handleShare('facebook')} className="p-2.5 rounded-full bg-white/5 hover:bg-[#1877F2] hover:text-white text-white/60 transition-all" title="Compartir en Facebook">
+                              <Facebook size={18} />
+                          </button>
+                          <button onClick={() => handleShare('twitter')} className="p-2.5 rounded-full bg-white/5 hover:bg-black hover:text-white text-white/60 transition-all border border-transparent hover:border-white/20" title="Compartir en X">
+                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/></svg>
+                          </button>
+                          <button onClick={() => handleShare('whatsapp')} className="p-2.5 rounded-full bg-white/5 hover:bg-[#25D366] hover:text-white text-white/60 transition-all" title="Compartir en WhatsApp">
+                              <MessageCircle size={18} />
+                          </button>
+                          <button onClick={() => handleShare('instagram')} className="p-2.5 rounded-full bg-white/5 hover:bg-gradient-to-tr hover:from-[#fdf497] hover:via-[#fd5949] hover:to-[#285AEB] hover:text-white text-white/60 transition-all" title="Compartir en Instagram">
+                              <Instagram size={18} />
+                          </button>
+                          <button onClick={() => handleShare('tiktok')} className="p-2.5 rounded-full bg-white/5 hover:bg-black hover:text-white text-white/60 transition-all border border-transparent hover:border-white/20" title="Compartir en TikTok">
+                              <TikTok size={18} />
+                          </button>
+                          <div className="w-[1px] h-6 bg-white/10 mx-1"></div>
+                          <button onClick={() => handleShare('native')} className="p-2.5 rounded-full bg-white/5 hover:bg-white/20 text-white/60 hover:text-white transition-all flex items-center gap-2 text-xs font-semibold" title="Opciones de compartir">
+                              <Share2 size={16} /> <span className="hidden sm:inline">Compartir</span>
+                          </button>
+                      </div>
+                  )}
+
               </div>
 
               {/* History Side Panel */}

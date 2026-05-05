@@ -1,7 +1,10 @@
 import { Handler } from '@netlify/functions';
+import axios from 'axios';
+import https from 'https';
 
-// Prevent native fetch from rejecting streams with invalid/self-signed SSL certs
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+const httpsAgent = new https.Agent({
+  rejectUnauthorized: false,
+});
 
 export const handler: Handler = async (event, context) => {
   try {
@@ -34,35 +37,23 @@ export const handler: Handler = async (event, context) => {
     
     let metadataFound = false;
 
-    // Helper for fetch with timeout
-    const fetchWithTimeout = async (url: string, timeoutMs: number) => {
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), timeoutMs);
-      try {
-        const response = await fetch(url, { 
-            signal: controller.signal,
-            headers: { 'User-Agent': 'Mozilla/5.0' }
-        });
-        clearTimeout(id);
-        if (!response.ok) return null;
-        return await response.text();
-      } catch (error) {
-        clearTimeout(id);
-        return null;
-      }
-    };
+    const fetchPromises = fetchUrls.map(fetchUrl => 
+      axios.get(fetchUrl, {
+        timeout: 4000,
+        httpsAgent,
+        responseType: 'text',
+        headers: { 'User-Agent': 'Mozilla/5.0' }
+      }).catch(e => null)
+    );
 
-    const fetchPromises = fetchUrls.map(url => fetchWithTimeout(url, 4000));
-
-    for await (const responseText of fetchPromises) {
+    for await (const response of fetchPromises) {
       if (metadataFound) break;
+      if (!response || !response.data) continue;
+      const responseText = response.data.trim();
       if (!responseText) continue;
-      const cleanText = responseText.trim();
-      if (!cleanText) continue;
 
-      // Shoutcast 1
-      if (cleanText.match(/^\d+,\d+,\d+,\d+,\d+,\d+,/)) {
-          const parts = cleanText.split(',');
+      if (responseText.match(/^\d+,\d+,\d+,\d+,\d+,\d+,/)) {
+          const parts = responseText.split(',');
           if (parts.length >= 7) {
               const fullTitle = parts.slice(6).join(',');
               if (fullTitle && !fullTitle.toLowerCase().includes("transmision")) {
@@ -78,10 +69,10 @@ export const handler: Handler = async (event, context) => {
       }
 
       let data: any;
-      try { data = JSON.parse(cleanText.replace(/,\s*([\]}])/g, '$1')); } catch (e) {
-          const tm = cleanText.match(/"title"\s*:\s*"([^"]+)"/);
-          const am = cleanText.match(/"yp_currently_playing"\s*:\s*"([^"]+)"/);
-          const sm = cleanText.match(/"songtitle"\s*:\s*"([^"]+)"/);
+      try { data = JSON.parse(responseText.replace(/,\s*([\]}])/g, '$1')); } catch (e) {
+          const tm = responseText.match(/"title"\s*:\s*"([^"]+)"/);
+          const am = responseText.match(/"yp_currently_playing"\s*:\s*"([^"]+)"/);
+          const sm = responseText.match(/"songtitle"\s*:\s*"([^"]+)"/);
           if (tm || am || sm) {
               const ft = sm ? sm[1] : (am ? am[1] : (tm ? tm[1] : ""));
               if (ft) {
@@ -122,8 +113,7 @@ export const handler: Handler = async (event, context) => {
       const l = val.toLowerCase();
       return l.includes("señal") || l.includes("recuperando") || l.includes("conectando") || 
              l.includes("en vivo") || l.includes("transmision") || l.includes("icecast") || 
-             l.includes("shoutcast") || l.includes("unknown") || l.includes("stream") ||
-             l.includes("supercriolla") || l.includes("nueva era") || l.includes("pasion por lo");
+             l.includes("shoutcast") || l.includes("unknown") || l.includes("stream");
     };
     
     let cover = logo || '';
@@ -133,12 +123,9 @@ export const handler: Handler = async (event, context) => {
     if (title && artist && !isGeneric(title) && !isGeneric(artist) && !isStationName(title) && !isStationName(artist)) {
         try {
           const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(`${artist} ${title}`)}&media=music&limit=1`;
-          const itunesResponse = await fetchWithTimeout(itunesUrl, 3000);
-          if (itunesResponse) {
-             const itunesData = JSON.parse(itunesResponse);
-             if (itunesData?.results?.[0]?.artworkUrl100) {
-               cover = itunesData.results[0].artworkUrl100.replace('100x100', '600x600');
-             }
+          const itunesResponse = await axios.get(itunesUrl, { timeout: 3000 });
+          if (itunesResponse.data?.results?.[0]?.artworkUrl100) {
+            cover = itunesResponse.data.results[0].artworkUrl100.replace('100x100', '600x600');
           }
         } catch (e) { console.error("iTunes error", e); }
     }
