@@ -10,6 +10,9 @@ export const SocialCarousel: React.FC<SocialCarouselProps> = ({ items }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
 
+  // Duplicate items to create a seamless infinite loop
+  const displayItems = [...items, ...items];
+
   useEffect(() => {
     if (!scrollRef.current) return;
     const el = scrollRef.current;
@@ -24,10 +27,11 @@ export const SocialCarousel: React.FC<SocialCarouselProps> = ({ items }) => {
 
       if (!isHovered && el) {
         el.scrollLeft += speed * dt;
-        // Loop back
-        if (el.scrollLeft >= el.scrollWidth - el.clientWidth - 1) {
-          // Wrap around seamlessly if possible, but simplest is jump back
-          el.scrollLeft = 0;
+        
+        // Seamless loop: if we have scrolled past the first half (the original items),
+        // jump back to the start. Because the second half is identical, the jump is invisible.
+        if (el.scrollLeft >= el.scrollWidth / 2) {
+          el.scrollLeft -= el.scrollWidth / 2;
         }
       }
       animationFrameId = requestAnimationFrame(scroll);
@@ -57,9 +61,9 @@ export const SocialCarousel: React.FC<SocialCarouselProps> = ({ items }) => {
         onTouchStart={() => setIsHovered(true)}
         onTouchEnd={() => setTimeout(() => setIsHovered(false), 2000)}
       >
-        {items.map((img) => (
+        {displayItems.map((img, index) => (
           <div 
-            key={img.id}
+            key={`${img.id}-${index}`}
             className="flex-none relative shadow-xl rounded-[2rem] bg-surface-alt border border-white/5 overflow-hidden transition-all hover:scale-[1.02] duration-500 max-w-[85vw]"
             style={{ 
                 width: img.format === 'portrait' ? '300px' : '400px',
@@ -83,13 +87,15 @@ export const SocialCarousel: React.FC<SocialCarouselProps> = ({ items }) => {
                   </div>
               </div>
             ) : (
-              <div className="w-full h-full flex flex-col p-3">
-                  <div className="flex-1 overflow-hidden rounded-2xl bg-black/50">
+              <div className="w-full h-full flex flex-col relative bg-black">
+                  <div className="flex-1 overflow-hidden">
                       <SocialEmbed url={img.url} type={img.type as any} />
                   </div>
                   {img.caption && (
-                      <div className="mt-4 px-2 pb-2 text-sm text-on-surface-muted italic text-center font-medium opacity-80">
-                          {img.caption}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300 flex items-end p-6 pointer-events-none">
+                           <p className="text-white font-medium text-lg shadow-lg">
+                               {img.caption}
+                           </p>
                       </div>
                   )}
               </div>

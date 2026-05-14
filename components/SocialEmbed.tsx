@@ -54,10 +54,10 @@ export const SocialEmbed: React.FC<SocialEmbedProps> = ({ url, type, width = '10
     if (videoId) {
       if (isShort) {
           return (
-            <div className="w-full h-full max-w-sm mx-auto aspect-[9/16] flex justify-center">
+            <div className="w-full h-full flex justify-center bg-black">
               <iframe
                 src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0`}
-                className="w-full h-full border-0 rounded-xl shadow-xl"
+                className="w-full h-full border-0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
                 title="YouTube Embed"
@@ -66,10 +66,10 @@ export const SocialEmbed: React.FC<SocialEmbedProps> = ({ url, type, width = '10
           );
       }
       return (
-        <div className="w-full h-full aspect-video">
+        <div className="w-full h-full bg-black">
           <iframe
             src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0`}
-            className="w-full h-full border-0 rounded-xl shadow-xl"
+            className="w-full h-full border-0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
             title="YouTube Embed"
@@ -88,10 +88,10 @@ export const SocialEmbed: React.FC<SocialEmbedProps> = ({ url, type, width = '10
     const cleanUrl = url.split('?')[0];
     const embedUrl = `${cleanUrl}${cleanUrl.endsWith('/') ? '' : '/'}embed`;
     return (
-      <div className="w-full h-full max-w-md mx-auto aspect-[4/5] flex justify-center">
+      <div className="w-full h-full flex justify-center bg-white rounded-xl overflow-hidden shadow-xl">
         <iframe
           src={embedUrl}
-          className="w-full h-full border-0 rounded-xl bg-white shadow-xl"
+          className="w-full h-full border-0 min-w-full"
           allowtransparency="true"
           frameBorder={0}
           scrolling="no"
@@ -110,10 +110,10 @@ export const SocialEmbed: React.FC<SocialEmbedProps> = ({ url, type, width = '10
     
     if (videoId) {
       return (
-        <div className="w-full h-full max-w-sm mx-auto aspect-[9/16] flex justify-center">
+        <div className="w-full h-full flex justify-center bg-black rounded-xl overflow-hidden shadow-xl">
           <iframe
             src={`https://www.tiktok.com/embed/v2/${videoId}`}
-            className="w-full h-full border-0 rounded-xl shadow-xl"
+            className="w-full h-full border-0 min-w-full"
             allow="fullscreen"
             title="TikTok Embed"
           ></iframe>
