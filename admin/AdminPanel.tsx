@@ -1251,6 +1251,27 @@ export const AdminPanel: React.FC = () => {
     setFormData(prev => ({...prev, content: {...prev.content, gallery: {...prev.content.gallery, images: prev.content.gallery.images.filter(img => img.id !== id)}}}));
   };
 
+  const moveGalleryItem = (index: number, direction: 'up' | 'down') => {
+      setFormData(prev => {
+          const newImages = [...prev.content.gallery.images];
+          if (direction === 'up' && index > 0) {
+              [newImages[index - 1], newImages[index]] = [newImages[index], newImages[index - 1]];
+          } else if (direction === 'down' && index < newImages.length - 1) {
+              [newImages[index + 1], newImages[index]] = [newImages[index], newImages[index + 1]];
+          }
+          return {
+              ...prev,
+              content: {
+                  ...prev.content,
+                  gallery: {
+                      ...prev.content.gallery,
+                      images: newImages
+                  }
+              }
+          };
+      });
+  };
+
   const updateGalleryItem = (id: string, field: keyof GalleryItem, value: any) => {
     setFormData(prev => ({...prev, content: {...prev.content, gallery: {...prev.content.gallery, images: prev.content.gallery.images.map(img => img.id === id ? { ...img, [field]: value } : img)}}}));
   };
@@ -2789,7 +2810,7 @@ export const AdminPanel: React.FC = () => {
                      <div className="bg-gray-800 border border-gray-700 p-4 rounded-xl mt-6">
                         <InputGroup label="Modo de Galería">
                             <select 
-                                value={formData.content.gallery.mode || 'manual'} 
+                                value={formData.content.gallery.mode === 'live' ? 'manual' : (formData.content.gallery.mode || 'manual')} 
                                 onChange={(e) => setFormData(prev => ({...prev, content: {...prev.content, gallery: {...prev.content.gallery, mode: e.target.value as 'manual' | 'widget'}}}))}
                                 className="w-full bg-gray-900 border border-gray-600 text-white p-2 rounded-lg"
                             >
@@ -2815,16 +2836,20 @@ export const AdminPanel: React.FC = () => {
                         )}
                      </div>
 
-                     {(!formData.content.gallery.mode || formData.content.gallery.mode === 'manual') && (
+                     {(!formData.content.gallery.mode || formData.content.gallery.mode === 'manual' || formData.content.gallery.mode === 'live') && (
                         <>
                             <div className="flex justify-between items-center border-b border-gray-700 pb-4 pt-6 mb-4">
                                <h3 className="text-lg font-bold text-white">Imágenes ({formData.content.gallery.images.length})</h3>
                                <button onClick={addGalleryItem} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 flex items-center text-sm shadow-md transition-transform active:scale-95"> <Plus size={18} className="mr-1"/> Agregar Imagen </button>
                            </div>
                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                               {formData.content.gallery.images.map((img) => (
-                            <div key={img.id} className="border border-gray-700 p-4 rounded-xl bg-gray-800 shadow-sm hover:bg-gray-750 transition-all flex flex-col relative group">
-                                <button onClick={() => removeGalleryItem(img.id)} className="absolute top-2 right-2 text-gray-500 hover:text-red-500 bg-gray-900 rounded-full p-1.5 shadow-sm border border-gray-700 z-10" title="Eliminar"> <Trash2 size={16} /> </button>
+                               {formData.content.gallery.images.map((img, index) => (
+                            <div key={img.id} className="border border-gray-700 p-4 pt-10 rounded-xl bg-gray-800 shadow-sm hover:bg-gray-750 transition-all flex flex-col relative group">
+                                <div className="absolute top-2 right-2 flex space-x-1 z-10">
+                                    <button onClick={() => moveGalleryItem(index, 'up')} disabled={index === 0} className={`text-gray-400 bg-gray-900 rounded p-1.5 shadow-sm border border-gray-700 transition-colors ${index === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:text-white hover:bg-gray-700'}`} title="Mover Izquierda"> <ChevronUp size={16} className="-rotate-90"/> </button>
+                                    <button onClick={() => moveGalleryItem(index, 'down')} disabled={index === formData.content.gallery.images.length - 1} className={`text-gray-400 bg-gray-900 rounded p-1.5 shadow-sm border border-gray-700 transition-colors ${index === formData.content.gallery.images.length - 1 ? 'opacity-50 cursor-not-allowed' : 'hover:text-white hover:bg-gray-700'}`} title="Mover Derecha"> <ChevronDown size={16} className="-rotate-90"/> </button>
+                                    <button onClick={() => removeGalleryItem(img.id)} className="text-gray-400 hover:text-red-500 bg-gray-900 rounded p-1.5 shadow-sm border border-gray-700" title="Eliminar"> <Trash2 size={16} /> </button>
+                                </div>
                                 <div className="mb-4">
                                     <InputGroup label="Tipo de Contenido">
                                         <select 

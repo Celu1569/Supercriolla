@@ -80,38 +80,66 @@ const VideoPlayer: React.FC<{ url: string; title: string }> = ({ url, title }) =
     const embedUrl = getYoutubeEmbedUrl(url);
     const isYoutube = embedUrl.includes('youtube.com/embed');
 
-    // KEY prop is crucial here. It forces React to re-mount the iframe when the URL changes.
-    // This fixes the issue where the player wouldn't update content.
-    return (
-        <div className="relative w-full pb-[56.25%] bg-black overflow-hidden shadow-2xl rounded-xl group">
-            {url ? (
-                isYoutube ? (
-                    <iframe
-                        key={embedUrl} 
-                        className="absolute top-0 left-0 w-full h-full"
-                        src={embedUrl}
-                        title={title}
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                    ></iframe>
-                ) : (
-                    <video 
-                        key={url}
-                        className="absolute top-0 left-0 w-full h-full"
-                        controls 
-                        autoPlay
-                        playsInline
-                    >
-                         <source src={url} type="video/mp4" />
-                        Tu navegador no soporta el tag de video.
-                    </video>
-                )
-            ) : (
+    // Simple check if it's a direct video file
+    const isDirectVideo = url.match(/\.(mp4|webm|ogg)$/i);
+
+    // If it's empty, show placeholder
+    if (!url) {
+        return (
+            <div className="relative w-full pb-[56.25%] bg-black overflow-hidden shadow-2xl rounded-xl group">
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 bg-gray-900">
                     <Video size={48} className="mb-2 opacity-50"/>
-                    <p>Selecciona un video para reproducir</p>
+                    <p>Selecciona un video</p>
                 </div>
-            )}
+            </div>
+        );
+    }
+
+    if (isYoutube) {
+        return (
+            <div className="relative w-full pb-[56.25%] bg-black overflow-hidden shadow-2xl rounded-xl group">
+                <iframe
+                    key={embedUrl}
+                    className="absolute top-0 left-0 w-full h-full"
+                    src={embedUrl}
+                    title={title}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                ></iframe>
+            </div>
+        );
+    }
+
+    // Direct MP4/Video file playback
+    if (isDirectVideo || url.includes('/assets/') || url.startsWith('blob:')) {
+        return (
+            <div className="relative w-full pb-[56.25%] bg-black overflow-hidden shadow-2xl rounded-xl group">
+                <video
+                    key={url}
+                    className="absolute top-0 left-0 w-full h-full"
+                    controls
+                    autoPlay
+                    playsInline
+                >
+                     <source src={url} type={url.endsWith('webm') ? 'video/webm' : 'video/mp4'} />
+                    Tu navegador no soporta el tag de video.
+                </video>
+            </div>
+        );
+    }
+
+    // For any other URL (Instagram, TikTok, Facebook, Twitch, general fallback), use SocialEmbed
+    const lowerUrl = url.toLowerCase();
+    let type: 'instagram' | 'tiktok' | 'youtube' | 'facebook' | 'twitter' | '' = '';
+    
+    if (lowerUrl.includes('instagram.com')) type = 'instagram';
+    else if (lowerUrl.includes('tiktok.com')) type = 'tiktok';
+    else if (lowerUrl.includes('facebook.com')) type = 'facebook';
+    else if (lowerUrl.includes('x.com') || lowerUrl.includes('twitter.com')) type = 'twitter';
+
+    return (
+        <div className="w-full bg-black/20 rounded-xl overflow-hidden flex justify-center">
+             <SocialEmbed url={url} type={type} />
         </div>
     );
 };
@@ -962,11 +990,13 @@ const PublicView: React.FC = () => {
                 </div>
                 
                 {/* Content Layout */}
-                {config.content.gallery.mode === 'widget' && config.content.gallery.widgetCode ? (
-                    <WidgetEmbed html={config.content.gallery.widgetCode} />
-                ) : (
-                    <SocialCarousel items={config.content.gallery.images} />
-                )}
+                <div className="flex flex-col gap-12 w-full">
+                    {config.content.gallery.mode === 'widget' && config.content.gallery.widgetCode ? (
+                        <WidgetEmbed html={config.content.gallery.widgetCode} />
+                    ) : (!config.content.gallery.mode || config.content.gallery.mode === 'manual') ? (
+                        <SocialCarousel items={config.content.gallery.images} />
+                    ) : null}
+                </div>
             </div>
         </section>
       )}
