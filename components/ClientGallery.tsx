@@ -84,43 +84,97 @@ export const ClientGallery: React.FC<ClientGalleryProps> = ({ clients, primaryCo
             onClick={() => setSelectedClient(null)} 
           />
           
-          <div className="relative bg-surface w-full max-w-3xl max-h-[90vh] rounded-[2.5rem] shadow-2xl flex flex-col border border-white/10 animate-scale-in overflow-hidden">
+          <div className="relative bg-surface w-full max-w-4xl max-h-[90vh] rounded-[2rem] shadow-2xl flex flex-col md:flex-row border border-white/10 animate-scale-in overflow-hidden">
             <button 
                 onClick={() => setSelectedClient(null)}
-                className="absolute top-6 right-6 z-20 bg-black/50 hover:bg-red-500 text-white p-3 rounded-full transition-all backdrop-blur-md border border-white/10"
+                className="absolute top-4 right-4 z-20 bg-black/50 hover:bg-red-500 text-white p-2 rounded-full transition-all backdrop-blur-md border border-white/10"
             >
-                <X size={24} />
+                <X size={20} />
             </button>
 
-            {/* Content Area */}
-            <div className="w-full h-full p-8 lg:p-12 space-y-10 overflow-y-auto flex flex-col items-center text-center">
+            {/* Left Side: Info & Actions */}
+            <div className="w-full md:w-1/2 p-8 md:p-10 flex flex-col justify-center text-left">
                 
-                <div className="space-y-4 w-full">
-                    <div className="inline-block px-4 py-1 rounded-full bg-secondary/20 text-secondary text-xs font-bold uppercase tracking-widest border border-secondary/30">
+                <div className="space-y-4 mb-8">
+                    <div className="inline-block px-3 py-1 rounded-full bg-secondary/10 text-secondary text-xs font-bold uppercase tracking-widest border border-secondary/20">
                         Aliado Comercial
                     </div>
-                    <h2 className="text-4xl lg:text-5xl font-heading font-bold text-heading leading-tight">{selectedClient.name}</h2>
-                    <p className="text-on-surface-muted flex items-center justify-center text-lg">
-                        <MapPin size={22} className="mr-2 mt-0.5 text-secondary flex-shrink-0" />
+                    <h2 className="text-3xl md:text-4xl font-heading font-bold text-heading leading-tight">{selectedClient.name}</h2>
+                    <p className="text-on-surface-muted flex items-start text-base">
+                        <MapPin size={18} className="mr-2 mt-0.5 text-secondary flex-shrink-0" />
                         {selectedClient.address || 'Dirección no especificada'}
                     </p>
                 </div>
 
-                {/* Product Slider - Enhanced */}
-                {selectedClient.productImages && selectedClient.productImages.length > 0 && (
-                    <div className="space-y-6 w-full max-w-2xl mx-auto">
-                        <div className="flex items-center justify-center gap-4">
-                            <span className="w-8 h-[1px] bg-secondary hidden sm:block"></span>
-                            <h4 className="text-sm font-bold uppercase tracking-widest text-secondary flex items-center">
-                                Galería de Productos
-                            </h4>
-                            <span className="text-xs text-on-surface-muted font-mono bg-white/10 px-2 py-0.5 rounded-full">
-                                {currentProductImage + 1} / {selectedClient.productImages.length}
-                            </span>
-                            <span className="w-8 h-[1px] bg-secondary hidden sm:block"></span>
-                        </div>
-                        
-                        <div className="relative aspect-[4/3] rounded-[2rem] overflow-hidden bg-black group/slider shadow-2xl border border-white/5">
+                {/* Social & Actions Horizontal */}
+                <div className="flex flex-wrap items-center gap-3">
+                    {selectedClient.mapUrl && (
+                        <a 
+                            href={selectedClient.mapUrl} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="bg-secondary text-primary px-4 py-2 rounded-xl text-sm font-bold hover:bg-white transition-colors flex items-center"
+                        >
+                            <MapPin size={16} className="mr-2" />
+                            Cómo llegar
+                        </a>
+                    )}
+                    
+                    {selectedClient.whatsapp && (
+                        <a 
+                            href={`https://wa.me/${selectedClient.whatsapp.replace(/\D/g, '')}`} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="w-10 h-10 rounded-full bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366] hover:text-white flex items-center justify-center transition-all"
+                            title="WhatsApp"
+                        >
+                            <MessageCircle size={18} />
+                        </a>
+                    )}
+
+                    {selectedClient.website && (
+                        <a 
+                            href={selectedClient.website} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="w-10 h-10 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-white flex items-center justify-center transition-all border border-primary/20 hover:border-primary"
+                            title="Sitio Web"
+                        >
+                            <Globe size={18} />
+                        </a>
+                    )}
+
+                    {selectedClient.instagram && (
+                        <a 
+                            href={selectedClient.instagram} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            className="w-10 h-10 rounded-full bg-white/5 text-on-surface-muted hover:text-white hover:bg-[#E1306C] flex items-center justify-center transition-all"
+                            title="Instagram"
+                        >
+                            <Instagram size={18} />
+                        </a>
+                    )}
+
+                    {selectedClient.tiktok && (
+                        <a 
+                            href={selectedClient.tiktok} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            className="w-10 h-10 rounded-full bg-white/5 text-on-surface-muted hover:text-black hover:bg-white flex items-center justify-center transition-all"
+                            title="TikTok"
+                        >
+                            <TikTok size={18} />
+                        </a>
+                    )}
+                </div>
+            </div>
+
+            {/* Right Side: Product Gallery */}
+            <div className="w-full md:w-1/2 bg-black/40 flex flex-col justify-center p-8 border-t md:border-t-0 md:border-l border-white/5">
+                {selectedClient.productImages && selectedClient.productImages.length > 0 ? (
+                    <div className="w-full max-w-sm mx-auto">
+                        <div className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-black group/slider shadow-xl border border-white/5">
                             <img 
                                 key={currentProductImage}
                                 src={selectedClient.productImages[currentProductImage]} 
@@ -130,27 +184,27 @@ export const ClientGallery: React.FC<ClientGalleryProps> = ({ clients, primaryCo
                             
                             {selectedClient.productImages.length > 1 && (
                                 <>
-                                    <div className="absolute inset-0 flex items-center justify-between px-4 opacity-0 group-hover/slider:opacity-100 transition-opacity duration-300">
+                                    <div className="absolute inset-0 flex items-center justify-between px-3 opacity-0 group-hover/slider:opacity-100 transition-opacity duration-300">
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); prevProduct(selectedClient.productImages); }}
-                                            className="bg-black/60 hover:bg-secondary hover:text-primary text-white p-4 rounded-full transition-all backdrop-blur-md"
+                                            className="bg-black/60 hover:bg-secondary hover:text-primary text-white p-2 rounded-full transition-all backdrop-blur-md"
                                         >
-                                            <ChevronLeft size={24} />
+                                            <ChevronLeft size={20} />
                                         </button>
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); nextProduct(selectedClient.productImages); }}
-                                            className="bg-black/60 hover:bg-secondary hover:text-primary text-white p-4 rounded-full transition-all backdrop-blur-md"
+                                            className="bg-black/60 hover:bg-secondary hover:text-primary text-white p-2 rounded-full transition-all backdrop-blur-md"
                                         >
-                                            <ChevronRight size={24} />
+                                            <ChevronRight size={20} />
                                         </button>
                                     </div>
                                     
-                                    <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2">
+                                    <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1.5">
                                         {selectedClient.productImages.map((_, idx) => (
                                             <button 
                                                 key={idx} 
                                                 onClick={() => setCurrentProductImage(idx)}
-                                                className={`h-1.5 rounded-full transition-all duration-500 ${idx === currentProductImage ? 'bg-secondary w-8' : 'bg-white/30 w-2 hover:bg-white/60'}`} 
+                                                className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentProductImage ? 'bg-secondary w-6' : 'bg-white/40 w-1.5 hover:bg-white'}`} 
                                             />
                                         ))}
                                     </div>
@@ -158,56 +212,12 @@ export const ClientGallery: React.FC<ClientGalleryProps> = ({ clients, primaryCo
                             )}
                         </div>
                     </div>
-                )}
-
-                {/* Contact & Social - Centered below slider */}
-                <div className="space-y-8 pt-8 w-full max-w-2xl mx-auto border-t border-white/5">
-                    
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                        {selectedClient.whatsapp && (
-                            <a 
-                                href={`https://wa.me/${selectedClient.whatsapp.replace(/\D/g, '')}`} 
-                                target="_blank" 
-                                rel="noreferrer"
-                                className="w-full sm:w-auto group relative overflow-hidden bg-[#25D366] text-white py-4 px-10 rounded-2xl font-bold flex items-center justify-center transition-all shadow-xl hover:shadow-green-500/30 hover:-translate-y-1"
-                            >
-                                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-                                <MessageCircle size={22} className="mr-3 relative z-10" /> 
-                                <span className="relative z-10">WhatsApp</span>
-                            </a>
-                        )}
-                        {selectedClient.website && (
-                            <a 
-                                href={selectedClient.website} 
-                                target="_blank" 
-                                rel="noreferrer"
-                                className="w-full sm:w-auto group relative overflow-hidden bg-primary text-white py-4 px-10 rounded-2xl font-bold flex items-center justify-center transition-all shadow-xl hover:shadow-primary/30 hover:-translate-y-1"
-                            >
-                                <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-                                <Globe size={22} className="mr-3 relative z-10" /> 
-                                <span className="relative z-10">Sitio Web</span>
-                            </a>
-                        )}
+                ) : (
+                    <div className="w-full max-w-sm mx-auto aspect-[4/3] rounded-2xl bg-white/5 flex flex-col items-center justify-center text-on-surface-muted border border-white/5">
+                        <Users size={32} className="opacity-20 mb-2" />
+                        <span className="text-sm">Sin imágenes</span>
                     </div>
-
-                    {(selectedClient.instagram || selectedClient.tiktok) && (
-                        <div className="flex flex-col items-center justify-center gap-4 pt-4">
-                            <span className="text-xs font-bold text-on-surface-muted uppercase tracking-[0.2em] mb-2">Síguenos</span>
-                            <div className="flex items-center justify-center gap-6">
-                                {selectedClient.instagram && (
-                                    <a href={selectedClient.instagram} target="_blank" rel="noreferrer" className="w-14 h-14 rounded-full bg-surface-alt border border-white/10 flex items-center justify-center text-on-surface-muted hover:text-secondary hover:border-secondary transition-all hover:scale-110 shadow-lg">
-                                        <Instagram size={24} />
-                                    </a>
-                                )}
-                                {selectedClient.tiktok && (
-                                    <a href={selectedClient.tiktok} target="_blank" rel="noreferrer" className="w-14 h-14 rounded-full bg-surface-alt border border-white/10 flex items-center justify-center text-on-surface-muted hover:text-secondary hover:border-secondary transition-all hover:scale-110 shadow-lg">
-                                        <TikTok size={24} />
-                                    </a>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
+                )}
             </div>
           </div>
         </div>
