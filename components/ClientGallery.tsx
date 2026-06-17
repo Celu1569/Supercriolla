@@ -78,13 +78,13 @@ export const ClientGallery: React.FC<ClientGalleryProps> = ({ clients, primaryCo
 
       {/* Detail Modal */}
       {selectedClient && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 lg:p-10">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
           <div 
             className="absolute inset-0 bg-black/95 backdrop-blur-md animate-fade-in" 
             onClick={() => setSelectedClient(null)} 
           />
           
-          <div className="relative bg-surface w-full max-w-6xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] shadow-2xl flex flex-col lg:flex-row border border-white/10 animate-scale-in overflow-hidden">
+          <div className="relative bg-surface w-full max-w-3xl max-h-[90vh] rounded-[2.5rem] shadow-2xl flex flex-col border border-white/10 animate-scale-in overflow-hidden">
             <button 
                 onClick={() => setSelectedClient(null)}
                 className="absolute top-6 right-6 z-20 bg-black/50 hover:bg-red-500 text-white p-3 rounded-full transition-all backdrop-blur-md border border-white/10"
@@ -92,30 +92,32 @@ export const ClientGallery: React.FC<ClientGalleryProps> = ({ clients, primaryCo
                 <X size={24} />
             </button>
 
-            {/* Left Side: Info & Products */}
-            <div className="w-full lg:w-1/2 p-10 lg:p-16 space-y-10 overflow-y-auto">
-                <div className="space-y-4">
+            {/* Content Area */}
+            <div className="w-full h-full p-8 lg:p-12 space-y-10 overflow-y-auto flex flex-col items-center text-center">
+                
+                <div className="space-y-4 w-full">
                     <div className="inline-block px-4 py-1 rounded-full bg-secondary/20 text-secondary text-xs font-bold uppercase tracking-widest border border-secondary/30">
                         Aliado Comercial
                     </div>
                     <h2 className="text-4xl lg:text-5xl font-heading font-bold text-heading leading-tight">{selectedClient.name}</h2>
-                    <p className="text-on-surface-muted flex items-start text-lg">
-                        <MapPin size={22} className="mr-3 mt-1 text-secondary flex-shrink-0" />
+                    <p className="text-on-surface-muted flex items-center justify-center text-lg">
+                        <MapPin size={22} className="mr-2 mt-0.5 text-secondary flex-shrink-0" />
                         {selectedClient.address || 'Dirección no especificada'}
                     </p>
                 </div>
 
                 {/* Product Slider - Enhanced */}
                 {selectedClient.productImages && selectedClient.productImages.length > 0 && (
-                    <div className="space-y-6">
-                        <div className="flex items-center justify-between">
+                    <div className="space-y-6 w-full max-w-2xl mx-auto">
+                        <div className="flex items-center justify-center gap-4">
+                            <span className="w-8 h-[1px] bg-secondary hidden sm:block"></span>
                             <h4 className="text-sm font-bold uppercase tracking-widest text-secondary flex items-center">
-                                <span className="w-8 h-[1px] bg-secondary mr-3"></span>
                                 Galería de Productos
                             </h4>
-                            <span className="text-xs text-on-surface-muted font-mono">
+                            <span className="text-xs text-on-surface-muted font-mono bg-white/10 px-2 py-0.5 rounded-full">
                                 {currentProductImage + 1} / {selectedClient.productImages.length}
                             </span>
+                            <span className="w-8 h-[1px] bg-secondary hidden sm:block"></span>
                         </div>
                         
                         <div className="relative aspect-[4/3] rounded-[2rem] overflow-hidden bg-black group/slider shadow-2xl border border-white/5">
@@ -158,15 +160,16 @@ export const ClientGallery: React.FC<ClientGalleryProps> = ({ clients, primaryCo
                     </div>
                 )}
 
-                {/* Contact & Social - Modern Pills */}
-                <div className="space-y-8 pt-6 border-t border-white/5">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Contact & Social - Centered below slider */}
+                <div className="space-y-8 pt-8 w-full max-w-2xl mx-auto border-t border-white/5">
+                    
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                         {selectedClient.whatsapp && (
                             <a 
                                 href={`https://wa.me/${selectedClient.whatsapp.replace(/\D/g, '')}`} 
                                 target="_blank" 
                                 rel="noreferrer"
-                                className="group relative overflow-hidden bg-[#25D366] text-white py-4 px-8 rounded-2xl font-bold flex items-center justify-center transition-all shadow-xl hover:shadow-green-500/30 hover:-translate-y-1"
+                                className="w-full sm:w-auto group relative overflow-hidden bg-[#25D366] text-white py-4 px-10 rounded-2xl font-bold flex items-center justify-center transition-all shadow-xl hover:shadow-green-500/30 hover:-translate-y-1"
                             >
                                 <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
                                 <MessageCircle size={22} className="mr-3 relative z-10" /> 
@@ -178,7 +181,7 @@ export const ClientGallery: React.FC<ClientGalleryProps> = ({ clients, primaryCo
                                 href={selectedClient.website} 
                                 target="_blank" 
                                 rel="noreferrer"
-                                className="group relative overflow-hidden bg-primary text-white py-4 px-8 rounded-2xl font-bold flex items-center justify-center transition-all shadow-xl hover:shadow-primary/30 hover:-translate-y-1"
+                                className="w-full sm:w-auto group relative overflow-hidden bg-primary text-white py-4 px-10 rounded-2xl font-bold flex items-center justify-center transition-all shadow-xl hover:shadow-primary/30 hover:-translate-y-1"
                             >
                                 <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
                                 <Globe size={22} className="mr-3 relative z-10" /> 
@@ -187,61 +190,24 @@ export const ClientGallery: React.FC<ClientGalleryProps> = ({ clients, primaryCo
                         )}
                     </div>
 
-                    <div className="flex items-center gap-8">
-                        <span className="text-xs font-bold text-on-surface-muted uppercase tracking-[0.2em]">Siguenos</span>
-                        <div className="flex gap-5">
-                            {selectedClient.instagram && (
-                                <a href={selectedClient.instagram} target="_blank" rel="noreferrer" className="w-12 h-12 rounded-full bg-surface-alt border border-white/10 flex items-center justify-center text-on-surface-muted hover:text-secondary hover:border-secondary transition-all hover:scale-110">
-                                    <Instagram size={20} />
-                                </a>
-                            )}
-                            {selectedClient.tiktok && (
-                                <a href={selectedClient.tiktok} target="_blank" rel="noreferrer" className="w-12 h-12 rounded-full bg-surface-alt border border-white/10 flex items-center justify-center text-on-surface-muted hover:text-secondary hover:border-secondary transition-all hover:scale-110">
-                                    <TikTok size={20} />
-                                </a>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Right Side: Map - Immersive */}
-            <div className="w-full lg:w-1/2 h-[400px] lg:h-auto bg-gray-900 relative group/map">
-                {selectedClient.mapUrl ? (
-                    <>
-                        <iframe 
-                            src={selectedClient.mapUrl} 
-                            className="w-full h-full border-0 grayscale invert opacity-70 group-hover/map:opacity-100 transition-all duration-1000" 
-                            allowFullScreen 
-                            loading="lazy" 
-                            referrerPolicy="no-referrer-when-downgrade"
-                        />
-                        <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-surface via-transparent to-transparent hidden lg:block" />
-                        <div className="absolute bottom-8 left-8 right-8 bg-black/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl flex items-center justify-between opacity-0 group-hover/map:opacity-100 transition-opacity duration-500">
-                            <div className="flex items-center">
-                                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-primary mr-3">
-                                    <MapPin size={20} />
-                                </div>
-                                <span className="text-white text-sm font-medium">¿Cómo llegar?</span>
+                    {(selectedClient.instagram || selectedClient.tiktok) && (
+                        <div className="flex flex-col items-center justify-center gap-4 pt-4">
+                            <span className="text-xs font-bold text-on-surface-muted uppercase tracking-[0.2em] mb-2">Síguenos</span>
+                            <div className="flex items-center justify-center gap-6">
+                                {selectedClient.instagram && (
+                                    <a href={selectedClient.instagram} target="_blank" rel="noreferrer" className="w-14 h-14 rounded-full bg-surface-alt border border-white/10 flex items-center justify-center text-on-surface-muted hover:text-secondary hover:border-secondary transition-all hover:scale-110 shadow-lg">
+                                        <Instagram size={24} />
+                                    </a>
+                                )}
+                                {selectedClient.tiktok && (
+                                    <a href={selectedClient.tiktok} target="_blank" rel="noreferrer" className="w-14 h-14 rounded-full bg-surface-alt border border-white/10 flex items-center justify-center text-on-surface-muted hover:text-secondary hover:border-secondary transition-all hover:scale-110 shadow-lg">
+                                        <TikTok size={24} />
+                                    </a>
+                                )}
                             </div>
-                            <a 
-                                href={selectedClient.mapUrl} 
-                                target="_blank" 
-                                rel="noreferrer"
-                                className="bg-white text-black px-4 py-2 rounded-lg text-xs font-bold hover:bg-secondary transition-colors pointer-events-auto"
-                            >
-                                Abrir en Maps
-                            </a>
                         </div>
-                    </>
-                ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-gray-600 bg-surface-alt">
-                        <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6">
-                            <MapPin size={48} className="opacity-20" />
-                        </div>
-                        <p className="text-lg font-heading font-medium opacity-40">Mapa no disponible</p>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
           </div>
         </div>

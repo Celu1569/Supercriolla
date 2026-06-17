@@ -1423,6 +1423,73 @@ export const AdminPanel: React.FC = () => {
     setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, weekendPrograms: (prev.content.program.weekendPrograms || []).map(p => p.id === id ? { ...p, [field]: value } : p)}}}));
   };
 
+  const addProgramEpisode = (programId: string, isWeekend: boolean) => {
+      const newEp = { id: `pep-${Date.now()}`, title: "Nuevo Episodio", date: new Date().toISOString().split('T')[0], audioUrl: "" };
+      setFormData(prev => {
+          const list = isWeekend ? (prev.content.program.weekendPrograms || []) : prev.content.program.programs;
+          const updated = list.map(p => {
+              if (p.id === programId) {
+                  return { ...p, episodes: [...(p.episodes || []), newEp] };
+              }
+              return p;
+          });
+          return {
+              ...prev,
+              content: {
+                  ...prev.content,
+                  program: {
+                      ...prev.content.program,
+                      [isWeekend ? 'weekendPrograms' : 'programs']: updated
+                  }
+              }
+          };
+      });
+  };
+
+  const removeProgramEpisode = (programId: string, episodeId: string, isWeekend: boolean) => {
+      setFormData(prev => {
+          const list = isWeekend ? (prev.content.program.weekendPrograms || []) : prev.content.program.programs;
+          const updated = list.map(p => {
+              if (p.id === programId) {
+                  return { ...p, episodes: (p.episodes || []).filter(e => e.id !== episodeId) };
+              }
+              return p;
+          });
+          return {
+              ...prev,
+              content: {
+                  ...prev.content,
+                  program: {
+                      ...prev.content.program,
+                      [isWeekend ? 'weekendPrograms' : 'programs']: updated
+                  }
+              }
+          };
+      });
+  };
+
+  const updateProgramEpisode = (programId: string, episodeId: string, field: string, value: string, isWeekend: boolean) => {
+      setFormData(prev => {
+          const list = isWeekend ? (prev.content.program.weekendPrograms || []) : prev.content.program.programs;
+          const updated = list.map(p => {
+              if (p.id === programId) {
+                  return { ...p, episodes: (p.episodes || []).map(e => e.id === episodeId ? { ...e, [field]: value } : e) };
+              }
+              return p;
+          });
+          return {
+              ...prev,
+              content: {
+                  ...prev.content,
+                  program: {
+                      ...prev.content.program,
+                      [isWeekend ? 'weekendPrograms' : 'programs']: updated
+                  }
+              }
+          };
+      });
+  };
+
   const addRibbon = () => {
     const newRibbon: any = {
       id: `ribbon-${Date.now()}`,
@@ -2639,6 +2706,63 @@ export const AdminPanel: React.FC = () => {
                                         onChange={(val) => adminProgramTab === 'week' ? updateProgram(prog.id, 'announcerImage', val) : updateWeekendProgram(prog.id, 'announcerImage', val)} 
                                         type="image" 
                                     />
+
+                                    {/* EPISODES MANAGEMENT */}
+                                    <div className="mt-6 pt-6 border-t border-gray-700">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h4 className="text-md font-bold text-white">Episodios (Audios)</h4>
+                                            <button 
+                                                onClick={() => addProgramEpisode(prog.id, adminProgramTab === 'weekend')} 
+                                                className="bg-indigo-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-indigo-700 flex items-center shadow-md transition-all"
+                                            >
+                                                <Plus size={14} className="mr-1"/> Agregar
+                                            </button>
+                                        </div>
+                                        <div className="space-y-4">
+                                            {(prog.episodes || []).map(ep => (
+                                                <div key={ep.id} className="bg-gray-800 p-4 rounded-lg border border-gray-700 relative">
+                                                    <button 
+                                                        onClick={() => removeProgramEpisode(prog.id, ep.id, adminProgramTab === 'weekend')} 
+                                                        className="absolute top-2 right-2 text-gray-500 hover:text-red-500 bg-gray-900 rounded p-1 shadow-sm border border-gray-700 z-10" 
+                                                        title="Eliminar Episodio"
+                                                    > 
+                                                        <Trash2 size={14} /> 
+                                                    </button>
+                                                    <div className="grid grid-cols-1 gap-3 pr-8">
+                                                        <InputGroup label="Título del Episodio">
+                                                            <input 
+                                                                type="text" 
+                                                                value={ep.title || ''} 
+                                                                onChange={e => updateProgramEpisode(prog.id, ep.id, 'title', e.target.value, adminProgramTab === 'weekend')} 
+                                                                className="w-full bg-gray-900 border border-gray-700 text-white p-2 rounded focus:border-primary outline-none text-sm" 
+                                                            />
+                                                        </InputGroup>
+                                                        <InputGroup label="Fecha">
+                                                            <input 
+                                                                type="date" 
+                                                                value={ep.date || ''} 
+                                                                onChange={e => updateProgramEpisode(prog.id, ep.id, 'date', e.target.value, adminProgramTab === 'weekend')} 
+                                                                className="w-full bg-gray-900 border border-gray-700 text-white p-2 rounded focus:border-primary outline-none text-sm" 
+                                                            />
+                                                        </InputGroup>
+                                                        <MediaUploader 
+                                                            label="Foto del Invitado (Miniatura)" 
+                                                            value={ep.guestImage || ''} 
+                                                            onChange={(val) => updateProgramEpisode(prog.id, ep.id, 'guestImage', val, adminProgramTab === 'weekend')} 
+                                                            type="image" 
+                                                        />
+                                                        <MediaUploader 
+                                                            label="Audio (Podcast)" 
+                                                            value={ep.audioUrl || ''} 
+                                                            onChange={(val) => updateProgramEpisode(prog.id, ep.id, 'audioUrl', val, adminProgramTab === 'weekend')} 
+                                                            type="audio" 
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    {/* END EPISODES MANAGEMENT */}
                                 </div>
                             </div>
                         ))}

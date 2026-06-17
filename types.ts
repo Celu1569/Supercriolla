@@ -13,6 +13,14 @@ export interface PodcastEpisode {
   videoUrl: string; // YouTube URL or MP4 URL
 }
 
+export interface ProgramEpisode {
+  id: string;
+  title: string;
+  date: string;
+  guestImage?: string;
+  audioUrl: string;
+}
+
 export interface ProgramItem {
   id: string;
   title: string;
@@ -20,6 +28,7 @@ export interface ProgramItem {
   schedule: string;
   icon?: string; // Optional icon name from lucide
   announcerImage?: string; // New: Image of the announcer
+  episodes?: ProgramEpisode[]; // New: Recorded audio episodes
 }
 
 export interface ProgramConfig {

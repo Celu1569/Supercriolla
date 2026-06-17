@@ -159,6 +159,7 @@ const PublicView: React.FC = () => {
   const [isLoadingRss, setIsLoadingRss] = useState(false);
 
   const [playingVideo, setPlayingVideo] = useState<{url: string; title: string} | null>(null);
+  const [selectedProgramEpisodes, setSelectedProgramEpisodes] = useState<ProgramItem | null>(null);
 
   useEffect(() => {
       const feeds = config.content.news?.rssFeeds || [];
@@ -964,7 +965,17 @@ const PublicView: React.FC = () => {
                     </div>
                     <h3 className="text-xl font-bold mb-1 text-on-surface">{prog.title}</h3>
                     <p className="text-secondary text-xs font-bold uppercase tracking-widest mb-3">{prog.schedule}</p>
-                    <p className="text-on-surface-muted text-sm line-clamp-3">{prog.description}</p>
+                    <p className="text-on-surface-muted text-sm line-clamp-3 mb-4">{prog.description}</p>
+                    
+                    {prog.episodes && prog.episodes.length > 0 && (
+                        <button 
+                            onClick={() => setSelectedProgramEpisodes(prog)}
+                            className="w-full mt-auto bg-primary/10 hover:bg-primary/20 text-primary font-bold py-2 px-4 rounded-lg flex items-center justify-center transition-colors shadow-sm"
+                        >
+                            <Play size={16} className="mr-2" />
+                            Escuchar Episodios
+                        </button>
+                    )}
                 </div>
                 ))}
             </div>
@@ -1232,6 +1243,69 @@ const PublicView: React.FC = () => {
                   </div>
                   <div className="w-full">
                       <VideoPlayer url={playingVideo.url} title={playingVideo.title} />
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Program Episodes Modal */}
+      {selectedProgramEpisodes && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-fade-in" onClick={() => setSelectedProgramEpisodes(null)}>
+              <div 
+                  className="bg-surface w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl relative border border-white/10 flex flex-col max-h-[90vh]"
+                  onClick={e => e.stopPropagation()}
+              >
+                  <div className="flex justify-between items-center p-6 bg-surface-alt border-b border-white/5">
+                      <div>
+                          <h3 className="font-bold text-2xl text-on-surface line-clamp-1">{selectedProgramEpisodes.title}</h3>
+                          <p className="text-secondary text-sm font-bold uppercase tracking-widest">{selectedProgramEpisodes.schedule}</p>
+                      </div>
+                      <button 
+                          onClick={() => setSelectedProgramEpisodes(null)}
+                          className="text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-2 ml-4 flex-shrink-0"
+                      >
+                          <X size={24} />
+                      </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-6 bg-surface">
+                      {selectedProgramEpisodes.episodes && selectedProgramEpisodes.episodes.length > 0 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              {selectedProgramEpisodes.episodes.map(ep => (
+                                  <div key={ep.id} className="bg-surface-alt p-4 rounded-xl border border-white/5 flex flex-col gap-4">
+                                      <div className="flex items-center gap-4">
+                                          {ep.guestImage ? (
+                                              <img src={ep.guestImage} alt={ep.title} className="w-20 h-20 rounded-lg object-cover shadow-md" referrerPolicy="no-referrer" />
+                                          ) : (
+                                              <div className="w-20 h-20 rounded-lg bg-primary/20 flex items-center justify-center text-primary">
+                                                  <Mic2 size={32} />
+                                              </div>
+                                          )}
+                                          <div>
+                                              <h4 className="font-bold text-lg text-on-surface line-clamp-2">{ep.title}</h4>
+                                              <p className="text-secondary text-sm font-semibold">{ep.date}</p>
+                                          </div>
+                                      </div>
+                                      {ep.audioUrl && (
+                                          <div className="mt-auto">
+                                              <audio 
+                                                  controls 
+                                                  controlsList="nodownload" 
+                                                  className="w-full h-10 custom-audio-player" 
+                                                  src={ep.audioUrl}
+                                              >
+                                                  Tu navegador no soporta el audio.
+                                              </audio>
+                                          </div>
+                                      )}
+                                  </div>
+                              ))}
+                          </div>
+                      ) : (
+                          <div className="text-center py-12 text-on-surface-muted">
+                              <Mic2 size={48} className="mx-auto mb-4 opacity-30" />
+                              <p className="text-lg">No hay episodios disponibles para este programa.</p>
+                          </div>
+                      )}
                   </div>
               </div>
           </div>
