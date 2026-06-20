@@ -56,7 +56,7 @@ export const SocialEmbed: React.FC<SocialEmbedProps> = ({ url, type, width = '10
           return (
             <div className="w-full h-full flex justify-center bg-black">
               <iframe
-                src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0`}
+                src={`https://www.youtube.com/embed/${videoId}?autoplay=0&mute=1`}
                 className="w-full h-full border-0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
@@ -68,7 +68,7 @@ export const SocialEmbed: React.FC<SocialEmbedProps> = ({ url, type, width = '10
       return (
         <div className="w-full h-full bg-black">
           <iframe
-            src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0`}
+            src={`https://www.youtube.com/embed/${videoId}?autoplay=0&mute=1`}
             className="w-full h-full border-0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen

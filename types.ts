@@ -313,5 +313,11 @@ export interface SiteConfig {
     news?: NewsConfig; // New: News section
     topVideos?: TopVideosConfig; // New: Los 5 latigazos
   };
+  layout?: {
+    sections: {
+      id: string; // 'hero', 'topvideos', 'ribbons', 'podcast', 'program', 'gallery', 'news', 'clients', 'chat', 'contact'
+      visible: boolean;
+    }[];
+  };
   social: SocialLinks;
 }

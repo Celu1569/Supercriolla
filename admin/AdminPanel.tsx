@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useConfig } from '../context/ConfigContext';
 import { SiteConfig, HeroSlide, PodcastEpisode, GalleryItem, NavItemConfig, FontFamily, Client, AutoDJTrack } from '../types';
-import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2 } from 'lucide-react';
+import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2, ListOrdered } from 'lucide-react';
 
 // --- CONSTANTS ---
 const FONT_OPTIONS: { value: FontFamily; label: string }[] = [
@@ -489,11 +489,16 @@ const AutoDJManager: React.FC<AutoDJManagerProps> = ({ tracks = [], mode = 'alph
 interface CompactHeroSlideProps {
     slide: HeroSlide;
     index: number;
+    total: number;
+    isCollapsed: boolean;
     onUpdate: (field: keyof HeroSlide, value: any) => void;
     onRemove: () => void;
+    onMoveUp: () => void;
+    onMoveDown: () => void;
+    onToggleCollapse: (e: React.MouseEvent) => void;
 }
 
-const CompactHeroSlide: React.FC<CompactHeroSlideProps> = ({ slide, index, onUpdate, onRemove }) => {
+const CompactHeroSlide: React.FC<CompactHeroSlideProps> = ({ slide, index, total, isCollapsed, onUpdate, onRemove, onMoveUp, onMoveDown, onToggleCollapse }) => {
     const [isUploading, setIsUploading] = useState(false);
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -516,17 +521,28 @@ const CompactHeroSlide: React.FC<CompactHeroSlideProps> = ({ slide, index, onUpd
     };
 
     return (
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow relative">
-             <div className="absolute top-2 right-2 z-20">
-                 <button onClick={onRemove} className="text-gray-500 hover:text-red-500 transition-colors p-1 bg-gray-900/50 rounded flex items-center justify-center" title="Eliminar"><Trash2 size={16}/></button>
+        <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-sm hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between">
+             <div className="bg-gray-700 px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-600/50 transition-colors" onClick={onToggleCollapse}>
+                 <div className="flex items-center gap-3">
+                     <div className="flex flex-col">
+                         <button onClick={(e) => { e.stopPropagation(); onMoveUp(); }} disabled={index === 0} className={`p-0.5 ${index === 0 ? 'text-gray-600 pointer-events-none' : 'text-gray-400 hover:text-white'}`}><ChevronUp size={16}/></button>
+                         <button onClick={(e) => { e.stopPropagation(); onMoveDown(); }} disabled={index === total - 1} className={`p-0.5 ${index === total - 1 ? 'text-gray-600 pointer-events-none' : 'text-gray-400 hover:text-white'}`}><ChevronDown size={16}/></button>
+                     </div>
+                     <span className="bg-gray-900 text-gray-500 font-bold px-2 py-1 rounded-lg text-sm border border-gray-700">{index + 1}</span>
+                     <h4 className="text-sm font-bold text-white flex items-center truncate max-w-[200px] md:max-w-[400px]">
+                         {slide.title || 'Slide sin título'}
+                     </h4>
+                 </div>
+                 <div className="flex items-center gap-4">
+                     <span className="text-gray-400">
+                         {isCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+                     </span>
+                     <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="text-red-400 hover:text-red-300 transition-colors p-1.5 bg-red-900/20 rounded-lg border border-red-900/50 flex items-center justify-center" title="Eliminar"><Trash2 size={16}/></button>
+                 </div>
              </div>
              
-             <div className="flex items-start gap-2 mb-2">
-                 <span className="bg-gray-700 text-gray-300 text-xs font-bold px-2 py-0.5 rounded">{index + 1}</span>
-                 <h4 className="text-xs font-bold text-gray-400 uppercase pt-0.5">Control de Banner Individual</h4>
-             </div>
-
-             <div className="flex flex-col gap-4">
+             {!isCollapsed && (
+             <div className="p-4 flex flex-col gap-4 border-t border-gray-700/50">
                  {/* Top: Large Image Preview */}
                  <div className="w-full">
                      <div className="relative aspect-[16/5] md:aspect-[21/6] bg-gray-900 rounded-lg overflow-hidden border border-gray-600 group shadow-inner">
@@ -965,6 +981,7 @@ const CompactHeroSlide: React.FC<CompactHeroSlideProps> = ({ slide, index, onUpd
                      </div>
                  </div>
              </div>
+             )}
         </div>
     );
 };
@@ -1145,6 +1162,22 @@ export const AdminPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('appearance');
   const [adminProgramTab, setAdminProgramTab] = useState<'week' | 'weekend'>('week');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [collapsedItems, setCollapsedItems] = useState<Record<string, boolean>>({});
+
+  const toggleCollapse = (id: string, e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      setCollapsedItems(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const moveArrayItem = <T extends any>(arr: T[], index: number, dir: 'up' | 'down') => {
+      const newArr = [...arr];
+      if (dir === 'up' && index > 0) {
+          [newArr[index], newArr[index - 1]] = [newArr[index - 1], newArr[index]];
+      } else if (dir === 'down' && index < newArr.length - 1) {
+          [newArr[index], newArr[index + 1]] = [newArr[index + 1], newArr[index]];
+      }
+      return newArr;
+  };
 
   // Sync state if config changes externally (e.g. reset)
   useEffect(() => {
@@ -1986,7 +2019,8 @@ export const AdminPanel: React.FC = () => {
           <TabButton id="appearance" activeTab={activeTab} onClick={setActiveTab} icon={Layout} label="Apariencia" />
           <TabButton id="player" activeTab={activeTab} onClick={setActiveTab} icon={Volume2} label="Reproductor" />
           <TabButton id="header" activeTab={activeTab} onClick={setActiveTab} icon={Compass} label="Menú" />
-          <TabButton id="sections" activeTab={activeTab} onClick={setActiveTab} icon={Grid} label="Secciones" />
+          <TabButton id="layout" activeTab={activeTab} onClick={setActiveTab} icon={ListOrdered} label="Orden de Secciones" />
+          <TabButton id="sections" activeTab={activeTab} onClick={setActiveTab} icon={Grid} label="Estructura Menú" />
           <TabButton id="hero" activeTab={activeTab} onClick={setActiveTab} icon={Home} label="Banner" />
           <TabButton id="ribbon" activeTab={activeTab} onClick={setActiveTab} icon={Type} label="Cintillos" />
           <TabButton id="topvideos" activeTab={activeTab} onClick={setActiveTab} icon={PlayCircle} label="Top Videos" />
@@ -2204,21 +2238,36 @@ export const AdminPanel: React.FC = () => {
                     
                     <div className="space-y-8">
                         {(formData.content.ribbons || []).map((ribbon, idx) => (
-                            <div key={ribbon.id} className="bg-gray-800 p-6 rounded-xl border border-gray-700 relative group">
-                                <button 
-                                    onClick={() => removeRibbon(ribbon.id)} 
-                                    className="absolute top-4 right-4 text-gray-500 hover:text-red-500 transition-colors p-1"
-                                    title="Eliminar Cintillo"
-                                >
-                                    <Trash2 size={20} />
-                                </button>
-
-                                <div className="flex items-center gap-2 mb-6">
-                                    <span className="bg-primary text-white text-xs font-bold px-2 py-1 rounded">Cintillo #{idx + 1}</span>
+                            <div key={ribbon.id} className="bg-gray-800 rounded-xl border border-gray-700 relative group overflow-hidden">
+                                <div className="bg-gray-700 px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-600/50 transition-colors" onClick={(e) => toggleCollapse(ribbon.id, e)}>
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex flex-col">
+                                            <button onClick={(e) => { e.stopPropagation(); setFormData(prev => ({...prev, content: {...prev.content, ribbons: moveArrayItem(prev.content.ribbons || [], idx, 'up')}})); }} disabled={idx === 0} className={`p-0.5 ${idx === 0 ? 'text-gray-600 pointer-events-none' : 'text-gray-400 hover:text-white'}`}><ChevronUp size={16}/></button>
+                                            <button onClick={(e) => { e.stopPropagation(); setFormData(prev => ({...prev, content: {...prev.content, ribbons: moveArrayItem(prev.content.ribbons || [], idx, 'down')}})); }} disabled={idx === (formData.content.ribbons || []).length - 1} className={`p-0.5 ${idx === (formData.content.ribbons || []).length - 1 ? 'text-gray-600 pointer-events-none' : 'text-gray-400 hover:text-white'}`}><ChevronDown size={16}/></button>
+                                        </div>
+                                        <span className="bg-primary text-white text-xs font-bold px-2 py-1 rounded">#{idx + 1}</span>
+                                        <h3 className="font-bold text-white flex items-center text-sm truncate max-w-[200px] md:max-w-[400px]">
+                                            {ribbon.text || "Cintillo sin texto"}
+                                        </h3>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <span className="text-gray-400">
+                                            {collapsedItems[ribbon.id] ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+                                        </span>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); removeRibbon(ribbon.id); }} 
+                                            className="text-red-400 hover:text-red-300 transition-colors p-1.5 bg-red-900/20 rounded-lg border border-red-900/50 flex items-center justify-center"
+                                            title="Eliminar Cintillo"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                    <div className="space-y-6">
+                                {!collapsedItems[ribbon.id] && (
+                                <div className="p-6 border-t border-gray-700/50">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                        <div className="space-y-6">
                                         <div className="flex items-center justify-between">
                                             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">Configuración</h3>
                                             <label className="relative inline-flex items-center cursor-pointer">
@@ -2327,9 +2376,21 @@ export const AdminPanel: React.FC = () => {
                                                     className="w-full py-4 px-8 text-center shadow-lg rounded-lg overflow-hidden relative"
                                                 >
                                                     {ribbon.speed > 0 ? (
-                                                        <div className="whitespace-nowrap inline-block animate-marquee">
-                                                            {ribbon.text}
-                                                            <span className="mx-10">{ribbon.text}</span>
+                                                        <div style={{'--marquee-duration': `${Math.max(10, 120 - ribbon.speed)}s`} as React.CSSProperties} className="flex overflow-hidden">
+                                                            <div className="whitespace-nowrap flex w-max animate-marquee">
+                                                                <div className="flex pr-10">
+                                                                    <span className="mr-10">{ribbon.text}</span>
+                                                                    <span className="mr-10">{ribbon.text}</span>
+                                                                    <span className="mr-10">{ribbon.text}</span>
+                                                                    <span className="mr-10">{ribbon.text}</span>
+                                                                </div>
+                                                                <div className="flex pr-10">
+                                                                    <span className="mr-10">{ribbon.text}</span>
+                                                                    <span className="mr-10">{ribbon.text}</span>
+                                                                    <span className="mr-10">{ribbon.text}</span>
+                                                                    <span className="mr-10">{ribbon.text}</span>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     ) : (
                                                         ribbon.text
@@ -2345,7 +2406,9 @@ export const AdminPanel: React.FC = () => {
                                     </div>
                                 </div>
                             </div>
-                        ))}
+                            )}
+                        </div>
+                    ))}
 
                         {(!formData.content.ribbons || formData.content.ribbons.length === 0) && (
                             <div className="text-center py-20 bg-gray-800/50 rounded-2xl border-2 border-dashed border-gray-700">
@@ -2540,6 +2603,94 @@ export const AdminPanel: React.FC = () => {
               </div>
             )}
 
+            {activeTab === 'layout' && (
+              <div className="space-y-6 animate-fade-in">
+                 <SectionHeader 
+                    title="Orden y Apariencia de Secciones" 
+                    subtitle="Elige qué secciones se muestran en la página web y en qué orden aparecen." 
+                 />
+                 
+                 <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 max-w-3xl">
+                    <div className="space-y-3">
+                        {(() => {
+                            const defaultOrder = ['hero', 'topvideos', 'ribbons', 'podcast', 'program', 'gallery', 'news', 'clients', 'chat', 'contact'];
+                            const layoutSections = formData.layout?.sections || defaultOrder.map(id => ({ id, visible: true }));
+                            
+                            const moveSection = (index: number, dir: 'up' | 'down') => {
+                                const newSections = [...layoutSections];
+                                if (dir === 'up' && index > 0) {
+                                    [newSections[index], newSections[index - 1]] = [newSections[index - 1], newSections[index]];
+                                } else if (dir === 'down' && index < newSections.length - 1) {
+                                    [newSections[index], newSections[index + 1]] = [newSections[index + 1], newSections[index]];
+                                }
+                                setFormData(prev => ({...prev, layout: { sections: newSections }}));
+                            };
+
+                            const toggleSection = (index: number) => {
+                                const newSections = [...layoutSections];
+                                newSections[index].visible = !newSections[index].visible;
+                                setFormData(prev => ({...prev, layout: { sections: newSections }}));
+                            };
+
+                            const getSectionName = (id: string) => {
+                                const names: Record<string, string> = {
+                                    hero: "Banner / Carrusel",
+                                    topvideos: "Top Videos (Latigazos)",
+                                    ribbons: "Cintillos Animados",
+                                    podcast: "Podcast / En Vivo",
+                                    program: "Programación",
+                                    gallery: "Galería de Medios",
+                                    news: "Noticias",
+                                    clients: "Clientes / Aliados",
+                                    chat: "Chat en Vivo",
+                                    contact: "Footer central / Contacto"
+                                };
+                                return names[id] || id;
+                            };
+
+                            return layoutSections.map((section, index) => (
+                                <div key={section.id} className={`border rounded-xl px-4 py-3 flex items-center justify-between shadow-sm transition-colors ${section.visible ? 'bg-gray-900 border-gray-700' : 'bg-gray-950 border-gray-800 opacity-60'}`}>
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex flex-col">
+                                            <button onClick={() => moveSection(index, 'up')} disabled={index === 0} className={`p-0.5 ${index === 0 ? 'text-gray-800 pointer-events-none' : 'text-gray-500 hover:text-white'}`}><ChevronUp size={16}/></button>
+                                            <button onClick={() => moveSection(index, 'down')} disabled={index === layoutSections.length - 1} className={`p-0.5 ${index === layoutSections.length - 1 ? 'text-gray-800 pointer-events-none' : 'text-gray-500 hover:text-white'}`}><ChevronDown size={16}/></button>
+                                        </div>
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${section.visible ? 'bg-primary/20 text-primary' : 'bg-gray-800 text-gray-500'}`}>
+                                            <ListOrdered size={16} />
+                                        </div>
+                                        <span className={`font-bold text-lg md:text-xl lg:text-base ${section.visible ? 'text-white' : 'text-gray-500'}`}>{getSectionName(section.id)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-sm font-bold uppercase tracking-wider text-gray-500">{section.visible ? 'Visible' : 'Oculto'}</span>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={section.visible} 
+                                                onChange={() => toggleSection(index)}
+                                                className="sr-only peer"
+                                            />
+                                            <div className="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                                        </label>
+                                    </div>
+                                </div>
+                            ));
+                        })()}
+                    </div>
+                 </div>
+                 
+                 <div className="bg-blue-900/20 border border-blue-900/50 p-5 rounded-xl flex items-start shadow-inner max-w-3xl">
+                    <AlertTriangle className="text-blue-400 mr-4 mt-0.5 flex-shrink-0" size={20} />
+                    <div className="space-y-2">
+                        <p className="text-sm text-blue-100 font-bold">Nota sobre el orden visual</p>
+                        <p className="text-xs text-blue-200/80">
+                            Cambiar el orden aquí afecta cómo se dibuja el contenido en la página principal, de arriba abajo. Ocultar una sección la elimina completamente del sitio web (aunque siga existiendo en tu menú).
+                        </p>
+                    </div>
+                 </div>
+                 <SaveAction />
+              </div>
+            )}
+
             {activeTab === 'hero' && (
               <div className="space-y-6 animate-fade-in">
                 <SectionHeader title="Banner de Inicio" subtitle="Gestiona las imágenes deslizantes." action={ <button onClick={addSlide} className="bg-primary text-white px-3 py-2 rounded-lg hover:bg-opacity-90 flex items-center shadow-md text-sm"> <Plus size={16} className="mr-1"/> Agregar Slide </button> } />
@@ -2558,8 +2709,13 @@ export const AdminPanel: React.FC = () => {
                             key={slide.id} 
                             slide={slide} 
                             index={index} 
+                            total={formData.content.hero.length}
+                            isCollapsed={!!collapsedItems[slide.id]}
                             onUpdate={(field, val) => updateSlide(slide.id, field, val)} 
                             onRemove={() => removeSlide(slide.id)} 
+                            onMoveUp={() => setFormData(prev => ({...prev, content: {...prev.content, hero: moveArrayItem(prev.content.hero, index, 'up')}}))}
+                            onMoveDown={() => setFormData(prev => ({...prev, content: {...prev.content, hero: moveArrayItem(prev.content.hero, index, 'down')}}))}
+                            onToggleCollapse={(e) => toggleCollapse(slide.id, e)}
                         />
                     ))}
                 </div>
@@ -2786,21 +2942,33 @@ export const AdminPanel: React.FC = () => {
                 </div>
 
                 <div className="space-y-8">
-                    {(formData.content.clients || []).map((client) => (
+                    {(formData.content.clients || []).map((client, index) => (
                         <div key={client.id} className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-xl">
-                            <div className="bg-gray-700 px-6 py-3 flex items-center justify-between">
-                                <h3 className="font-bold text-white flex items-center">
-                                    <Users size={18} className="mr-2 text-secondary" /> {client.name || "Sin Nombre"}
-                                </h3>
-                                <button 
-                                    onClick={() => removeClient(client.id)}
-                                    className="text-red-400 hover:text-red-300 p-1 transition-colors"
-                                    title="Eliminar Cliente"
-                                >
-                                    <Trash2 size={18} />
-                                </button>
+                            <div className="bg-gray-700 px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-600/50 transition-colors" onClick={(e) => toggleCollapse(client.id, e)}>
+                                <div className="flex items-center gap-3">
+                                    <div className="flex flex-col">
+                                        <button onClick={(e) => { e.stopPropagation(); setFormData(prev => ({...prev, content: {...prev.content, clients: moveArrayItem(prev.content.clients || [], index, 'up')}})); }} disabled={index === 0} className={`p-0.5 ${index === 0 ? 'text-gray-600 pointer-events-none' : 'text-gray-400 hover:text-white'}`}><ChevronUp size={16}/></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setFormData(prev => ({...prev, content: {...prev.content, clients: moveArrayItem(prev.content.clients || [], index, 'down')}})); }} disabled={index === (formData.content.clients || []).length - 1} className={`p-0.5 ${index === (formData.content.clients || []).length - 1 ? 'text-gray-600 pointer-events-none' : 'text-gray-400 hover:text-white'}`}><ChevronDown size={16}/></button>
+                                    </div>
+                                    <h3 className="font-bold text-white flex items-center">
+                                        <Users size={18} className="mr-2 text-secondary" /> {client.name || "Sin Nombre"}
+                                    </h3>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <span className="text-gray-400">
+                                        {collapsedItems[client.id] ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+                                    </span>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); removeClient(client.id); }}
+                                        className="text-red-400 hover:text-red-300 p-1.5 transition-colors bg-red-900/20 rounded-lg border border-red-900/50"
+                                        title="Eliminar Cliente"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
                             </div>
                             
+                            {!collapsedItems[client.id] && (
                             <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
                                 <div className="space-y-4">
                                     <InputGroup label="Nombre del Cliente">
@@ -2903,6 +3071,7 @@ export const AdminPanel: React.FC = () => {
                                     </div>
                                 </div>
                             </div>
+                            )}
                         </div>
                     ))}
                     
@@ -3106,14 +3275,18 @@ export const AdminPanel: React.FC = () => {
 
                 <div className="space-y-6">
                     {(formData.content.news?.articles || []).map((article, idx) => (
-                        <div key={article.id} className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-lg animate-fade-in">
-                            <div className="bg-gray-700 px-6 py-3 flex items-center justify-between">
-                                <div className="flex items-center">
-                                    <span className="bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded mr-3">Noticia #{formData.content.news!.articles.length - idx}</span>
-                                    <h3 className="font-bold text-white truncate max-w-xs">{article.title || "Sin título"}</h3>
+                        <div key={article.id} className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-lg animate-fade-in relative group">
+                            <div className="bg-gray-700 px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-600/50 transition-colors" onClick={(e) => toggleCollapse(article.id, e)}>
+                                <div className="flex items-center gap-3">
+                                    <div className="flex flex-col">
+                                        <button onClick={(e) => { e.stopPropagation(); setFormData(prev => ({...prev, content: {...prev.content, news: {...prev.content.news!, articles: moveArrayItem(prev.content.news?.articles || [], idx, 'up')}}})); }} disabled={idx === 0} className={`p-0.5 ${idx === 0 ? 'text-gray-600 pointer-events-none' : 'text-gray-400 hover:text-white'}`}><ChevronUp size={16}/></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setFormData(prev => ({...prev, content: {...prev.content, news: {...prev.content.news!, articles: moveArrayItem(prev.content.news?.articles || [], idx, 'down')}}})); }} disabled={idx === (formData.content.news?.articles || []).length - 1} className={`p-0.5 ${idx === (formData.content.news?.articles || []).length - 1 ? 'text-gray-600 pointer-events-none' : 'text-gray-400 hover:text-white'}`}><ChevronDown size={16}/></button>
+                                    </div>
+                                    <span className="bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded">Noticia #{formData.content.news!.articles.length - idx}</span>
+                                    <h3 className="font-bold text-white truncate max-w-[200px] md:max-w-[400px]">{(article.title && article.title.length > 0) ? article.title : "Sin título"}</h3>
                                 </div>
-                                <div className="flex items-center space-x-2">
-                                    <label className="relative inline-flex items-center cursor-pointer mr-2" title={article.isPublished ? 'Publicado' : 'Borrador'}>
+                                <div className="flex items-center space-x-4">
+                                    <label className="relative inline-flex items-center cursor-pointer" title={article.isPublished ? 'Publicado' : 'Borrador'} onClick={(e) => e.stopPropagation()}>
                                         <input 
                                             type="checkbox" 
                                             checked={!!article.isPublished} 
@@ -3122,17 +3295,21 @@ export const AdminPanel: React.FC = () => {
                                         />
                                         <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
                                     </label>
+                                    <span className="text-gray-400">
+                                        {collapsedItems[article.id] ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+                                    </span>
                                     <button 
-                                        onClick={() => removeNewsArticle(article.id)}
-                                        className="text-gray-400 hover:text-red-500 p-1.5 transition-colors bg-gray-800 rounded-lg"
+                                        onClick={(e) => { e.stopPropagation(); removeNewsArticle(article.id); }}
+                                        className="text-red-400 hover:text-red-300 p-1.5 transition-colors bg-red-900/20 rounded-lg border border-red-900/50"
                                         title="Eliminar Noticia"
                                     >
-                                        <Trash2 size={18} />
+                                        <Trash2 size={16} />
                                     </button>
                                 </div>
                             </div>
 
-                            <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            {!collapsedItems[article.id] && (
+                            <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8 border-t border-gray-700/50">
                                 <div className="space-y-4">
                                     <InputGroup label="Título de la Noticia">
                                         <input 
@@ -3199,6 +3376,7 @@ export const AdminPanel: React.FC = () => {
                                     </InputGroup>
                                 </div>
                             </div>
+                            )}
                         </div>
                     ))}
 
@@ -3316,11 +3494,31 @@ export const AdminPanel: React.FC = () => {
 
                       <div className="space-y-4">
                           {(formData.content.topVideos?.videos || []).map((video, idx) => (
-                              <div key={video.id} className="bg-gray-800 p-4 rounded-xl border border-gray-700 flex flex-col md:flex-row items-center gap-4">
-                                  <div className="w-12 h-12 flex-shrink-0 bg-gray-900 rounded-lg flex items-center justify-center font-bold text-gray-500 text-xl border border-gray-700">
-                                      {idx + 1}
+                              <div key={video.id} className="bg-gray-800 rounded-xl border border-gray-700 flex flex-col justify-between overflow-hidden">
+                                  <div className="bg-gray-700 px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-600/50 transition-colors" onClick={(e) => toggleCollapse(video.id, e)}>
+                                      <div className="flex items-center gap-3">
+                                          <div className="flex flex-col">
+                                              <button onClick={(e) => { e.stopPropagation(); setFormData(prev => ({...prev, content: {...prev.content, topVideos: {...prev.content.topVideos!, videos: moveArrayItem(prev.content.topVideos?.videos || [], idx, 'up')}}})); }} disabled={idx === 0} className={`p-0.5 ${idx === 0 ? 'text-gray-600 pointer-events-none' : 'text-gray-400 hover:text-white'}`}><ChevronUp size={16}/></button>
+                                              <button onClick={(e) => { e.stopPropagation(); setFormData(prev => ({...prev, content: {...prev.content, topVideos: {...prev.content.topVideos!, videos: moveArrayItem(prev.content.topVideos?.videos || [], idx, 'down')}}})); }} disabled={idx === (formData.content.topVideos?.videos || []).length - 1} className={`p-0.5 ${idx === (formData.content.topVideos?.videos || []).length - 1 ? 'text-gray-600 pointer-events-none' : 'text-gray-400 hover:text-white'}`}><ChevronDown size={16}/></button>
+                                          </div>
+                                          <div className="w-8 h-8 flex-shrink-0 bg-gray-900 rounded-lg flex items-center justify-center font-bold text-gray-500 text-sm border border-gray-700">
+                                              {idx + 1}
+                                          </div>
+                                          <h3 className="font-bold text-white flex items-center text-sm">
+                                              {video.title || "Video sin título"}
+                                          </h3>
+                                      </div>
+                                      <div className="flex items-center gap-4">
+                                          <span className="text-gray-400">
+                                              {collapsedItems[video.id] ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+                                          </span>
+                                          <button onClick={(e) => { e.stopPropagation(); removeTopVideo(video.id); }} className="text-red-400 hover:text-red-300 p-1.5 transition-colors bg-red-900/20 rounded-lg border border-red-900/50" title="Eliminar Video">
+                                              <Trash2 size={16} />
+                                          </button>
+                                      </div>
                                   </div>
-                                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                                  {!collapsedItems[video.id] && (
+                                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 w-full border-t border-gray-700/50">
                                       <InputGroup label="Artista / Título">
                                           <input 
                                               type="text" 
@@ -3345,9 +3543,7 @@ export const AdminPanel: React.FC = () => {
                                           </div>
                                       </InputGroup>
                                   </div>
-                                  <button onClick={() => removeTopVideo(video.id)} className="p-3 bg-gray-900 text-gray-400 hover:text-red-500 hover:bg-red-900/20 rounded-xl transition-colors">
-                                      <Trash2 size={20} />
-                                  </button>
+                                  )}
                               </div>
                           ))}
                           

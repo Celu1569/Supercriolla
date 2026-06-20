@@ -70,7 +70,7 @@ const getYoutubeEmbedUrl = (url: string) => {
     const match = cleanUrl.match(regExp);
 
     if (match && match[1] && match[1].length === 11) {
-        return `https://www.youtube.com/embed/${match[1]}?autoplay=1&rel=0`;
+        return `https://www.youtube.com/embed/${match[1]}?autoplay=0&rel=0&mute=1`;
     }
     
     return cleanUrl;
@@ -479,13 +479,23 @@ const PublicView: React.FC = () => {
         <RadioPlayer />
       </div>
 
-      {/* Hero Section */}
-      {activeSections.hero && isSectionEnabled('hero') && (
-        <section 
-            id="hero" 
-            className="relative w-full overflow-hidden bg-gray-900 group animate-fade-in"
-            style={{ height: '400px' }}
-        >
+      {(() => {
+        // Build the layout array. Fallback to hardcoded order if missing.
+        const defaultOrder = ['hero', 'topvideos', 'ribbons', 'podcast', 'program', 'gallery', 'news', 'clients', 'chat', 'contact'];
+        let sectionsToRender = config.layout?.sections || defaultOrder.map(id => ({ id, visible: true }));
+        
+        return sectionsToRender.map((sectionConfig) => {
+            if (!sectionConfig.visible) return null;
+            
+            switch (sectionConfig.id) {
+                case 'hero':
+                    return activeSections.hero ? (
+                        <section 
+                            id="hero" 
+                            key="hero"
+                            className="relative w-full overflow-hidden bg-gray-900 group animate-fade-in"
+                            style={{ height: '400px' }}
+                        >
             {config.content.hero.map((slide, index) => {
               // Determine alignment classes
               const hAlignClass = slide.alignment === 'left' 
@@ -624,58 +634,62 @@ const PublicView: React.FC = () => {
                 ))}
             </div>
         </section>
-      )}
+      ) : null;
 
-      {/* Text Ribbons (Cintillos) */}
-      {(() => {
-        const visibleRibbons = (config.content.ribbons || []).filter(r => r.visible);
-        if (visibleRibbons.length === 0) return null;
+                case 'ribbons': {
+                    const visibleRibbons = (config.content.ribbons || []).filter(r => r.visible);
+                    if (visibleRibbons.length === 0) return null;
 
-        // Use the speed and font settings from the first ribbon as base, or defaults
-        const baseRibbon = visibleRibbons[0];
-        const hasSpeed = visibleRibbons.some(r => r.speed > 0);
-        const maxSpeed = Math.max(...visibleRibbons.map(r => r.speed));
-        const duration = hasSpeed ? `${101 - maxSpeed}s` : '0s';
+                    // Use the speed and font settings from the first ribbon as base, or defaults
+                    const baseRibbon = visibleRibbons[0];
+                    const hasSpeed = visibleRibbons.some(r => r.speed > 0);
+                    const maxSpeed = Math.max(...visibleRibbons.map(r => r.speed));
+                    
+                    // Map speed 1-100 to duration 120s-10s
+                    const duration = hasSpeed ? `${Math.max(10, 120 - maxSpeed)}s` : '0s';
 
-        const RibbonContent = () => (
-            <div className="flex items-center">
-                {visibleRibbons.map((ribbon) => (
-                    <div 
-                        key={ribbon.id}
-                        className="whitespace-nowrap py-3 px-8 flex-shrink-0"
-                        style={{ 
-                            backgroundColor: ribbon.backgroundColor,
-                            color: ribbon.textColor,
-                            fontFamily: ribbon.fontFamily,
-                            fontSize: `${ribbon.fontSize}px`,
-                        }}
-                    >
-                        {ribbon.text}
-                    </div>
-                ))}
-            </div>
-        );
+                    const RibbonContentRepeater = () => (
+                        <div className="flex items-center">
+                            {[1, 2, 3, 4, 5, 6].map((i) => (
+                                <React.Fragment key={i}>
+                                    {visibleRibbons.map((ribbon) => (
+                                        <div 
+                                            key={ribbon.id + '-' + i}
+                                            className="whitespace-nowrap py-3 px-8 flex-shrink-0"
+                                            style={{ 
+                                                backgroundColor: ribbon.backgroundColor,
+                                                color: ribbon.textColor,
+                                                fontFamily: ribbon.fontFamily,
+                                                fontSize: `${ribbon.fontSize}px`,
+                                            }}
+                                        >
+                                            {ribbon.text}
+                                        </div>
+                                    ))}
+                                </React.Fragment>
+                            ))}
+                        </div>
+                    );
 
-        return (
-            <div 
-                className="w-full overflow-hidden shadow-md z-30 relative border-y border-white/10 bg-surface-alt"
-                style={{ '--marquee-duration': duration } as React.CSSProperties}
-            >
-                <div className="flex w-max">
-                    <div className={hasSpeed ? 'animate-marquee flex' : 'flex w-full justify-center'}>
-                        <RibbonContent />
-                        {hasSpeed && <RibbonContent />}
-                        {hasSpeed && <RibbonContent />}
-                        {hasSpeed && <RibbonContent />}
-                    </div>
-                </div>
-            </div>
-        );
-      })()}
+                    return (
+                        <div 
+                            key="ribbons"
+                            className="w-full overflow-hidden shadow-md z-30 relative border-y border-white/10 bg-surface-alt"
+                            style={{ '--marquee-duration': duration } as React.CSSProperties}
+                        >
+                            <div className="flex w-max">
+                                <div className={hasSpeed ? 'animate-marquee flex' : 'flex w-full justify-center'}>
+                                    <RibbonContentRepeater />
+                                    {hasSpeed && <RibbonContentRepeater />}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                }
 
-      {/* Top Videos (Latigazos) */}
-      {(activeSections as any)['topvideos'] !== false && isSectionEnabled('topvideos') && config.content.topVideos?.enabled && (
-        <section id="topvideos" className="py-20 bg-surface-alt animate-fade-in transition-colors duration-300">
+                case 'topvideos':
+                    return (activeSections as any)['topvideos'] !== false && config.content.topVideos?.enabled ? (
+                        <section id="topvideos" key="topvideos" className="py-20 bg-surface-alt animate-fade-in transition-colors duration-300">
             <div className="container mx-auto px-4">
                 <div className="text-center mb-12">
                      <h2 className="text-4xl md:text-5xl font-heading font-bold text-heading relative inline-block mb-4">
@@ -785,11 +799,11 @@ const PublicView: React.FC = () => {
                 )}
             </div>
         </section>
-      )}
+      ) : null;
 
-      {/* Podcast / Live Streaming Section */}
-      {activeSections.podcast && isSectionEnabled('podcast') && (
-        <section id="podcast" className="py-20 bg-surface animate-fade-in transition-colors duration-300">
+                case 'podcast':
+                    return activeSections.podcast ? (
+        <section id="podcast" key="podcast" className="py-20 bg-surface animate-fade-in transition-colors duration-300">
             <div className="container mx-auto px-4">
             
             {/* Header */}
@@ -903,11 +917,11 @@ const PublicView: React.FC = () => {
             </div>
             </div>
         </section>
-      )}
+      ) : null;
 
-      {/* Program & Features */}
-      {activeSections.program && isSectionEnabled('program') && (
-        <section id="program" className="py-20 bg-surface-alt animate-fade-in">
+                case 'program':
+                    return activeSections.program ? (
+        <section id="program" key="program" className="py-20 bg-surface-alt animate-fade-in">
             <div className="container mx-auto px-4 text-center">
             {/* Updated to use text-heading */}
             <h2 className="text-4xl font-heading font-bold text-heading mb-6">
@@ -979,11 +993,11 @@ const PublicView: React.FC = () => {
             </div>
             </div>
         </section>
-      )}
+      ) : null;
 
-      {/* Gallery */}
-      {activeSections.gallery && isSectionEnabled('gallery') && (
-        <section id="gallery" className="py-20 bg-surface animate-fade-in">
+                case 'gallery':
+                    return activeSections.gallery ? (
+        <section id="gallery" key="gallery" className="py-20 bg-surface animate-fade-in">
             <div className="container mx-auto px-4">
                 <div className="text-center mb-12">
                      {/* Updated to use text-heading */}
@@ -1005,11 +1019,11 @@ const PublicView: React.FC = () => {
                 </div>
             </div>
         </section>
-      )}
+      ) : null;
 
-      {/* News Section */}
-      {activeSections.news && isSectionEnabled('news') && config.content.news && (
-        <section id="news" className="py-20 bg-surface animate-fade-in transition-colors duration-300">
+                case 'news':
+                    return activeSections.news && config.content.news ? (
+        <section id="news" key="news" className="py-20 bg-surface animate-fade-in transition-colors duration-300">
             <div className="container mx-auto px-4">
                 <div className="flex flex-col md:flex-row items-center justify-between mb-12 gap-4">
                     <div className="text-center md:text-left">
@@ -1088,7 +1102,91 @@ const PublicView: React.FC = () => {
                 </div>
             </div>
         </section>
-      )}
+      ) : null;
+
+                case 'clients':
+                    return activeSections.clients && config.content.clients && config.content.clients.length > 0 ? (
+        <section id="clients" key="clients" className="py-20 bg-surface-alt animate-fade-in">
+            <div className="container mx-auto px-4">
+                <div className="text-center mb-12">
+                    <h2 className="text-4xl font-heading font-bold text-heading mb-4">
+                        Nuestros Aliados
+                    </h2>
+                    <p className="text-lg text-on-surface-muted max-w-2xl mx-auto">
+                        Conoce a las empresas y marcas que confían en nosotros y apoyan nuestra programación.
+                    </p>
+                </div>
+                
+                <ClientGallery 
+                    clients={config.content.clients} 
+                    primaryColor={config.appearance.primaryColor} 
+                    secondaryColor={config.appearance.secondaryColor} 
+                />
+            </div>
+        </section>
+      ) : null;
+
+                case 'chat':
+                    return activeSections.donations && config.content.chat.enabled ? (
+        <section id="donations" key="chat" className="py-20 bg-surface-alt animate-fade-in relative overflow-hidden">
+            <div className="absolute top-0 right-0 -mt-20 -mr-20 w-96 h-96 bg-secondary/10 rounded-full blur-3xl"></div>
+            <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-primary/10 rounded-full blur-3xl"></div>
+            
+            <div className="container mx-auto px-4 relative z-10">
+                <Chat config={config.content.chat} />
+            </div>
+        </section>
+      ) : null;
+
+                case 'contact':
+                    return activeSections.contact ? (
+        <footer id="contact" key="contact" className="bg-gray-900 text-white pt-20 pb-10 animate-fade-in">
+            <div className="container mx-auto px-4">
+            <div className="grid md:grid-cols-3 gap-12 mb-12">
+                <div>
+                <h3 className="text-2xl font-heading font-bold mb-6 text-secondary">{config.general.stationName}</h3>
+                <div className="flex space-x-4">
+                    {config.social.instagram && <a href={config.social.instagram} target="_blank" rel="noreferrer" className="hover:text-secondary"><Instagram /></a>}
+                    {config.social.tiktok && <a href={config.social.tiktok} target="_blank" rel="noreferrer" className="hover:text-secondary"><TikTok /></a>}
+                    {config.social.youtube && <a href={config.social.youtube} target="_blank" rel="noreferrer" className="hover:text-secondary"><Youtube /></a>}
+                    {config.social.whatsapp && <a href={config.social.whatsapp} target="_blank" rel="noreferrer" className="hover:text-secondary"><Phone /></a>}
+                </div>
+                </div>
+                
+                <div>
+                <h4 className="text-xl font-bold mb-6">Contacto</h4>
+                <ul className="space-y-4 opacity-80">
+                    <li className="flex items-center"><Phone size={18} className="mr-3 text-secondary"/> {config.general.contactPhone}</li>
+                    <li className="flex items-center"><Mail size={18} className="mr-3 text-secondary"/> {config.general.contactEmail}</li>
+                    <li className="flex items-center"><MapPin size={18} className="mr-3 text-secondary"/> {config.general.city || 'Ciudad'}, {config.general.country || 'País'}</li>
+                </ul>
+                </div>
+
+                <div>
+                <h4 className="text-xl font-bold mb-6">Boletín</h4>
+                <p className="opacity-70 mb-4">Suscríbete para recibir noticias.</p>
+                <div className="flex">
+                    <input type="email" placeholder="Tu email" className="bg-gray-800 border-none px-4 py-2 rounded-l w-full focus:ring-1 focus:ring-secondary" />
+                    <button className="bg-secondary text-primary px-4 py-2 rounded-r font-bold hover:bg-yellow-400">OK</button>
+                </div>
+                </div>
+            </div>
+            
+            <div 
+                className="border-t border-gray-800 pt-8 text-center opacity-50 text-sm select-none cursor-text transition-opacity hover:opacity-80"
+                onClick={handleSecretAccess}
+                title="© Rights Reserved"
+            >
+                &copy; {new Date().getFullYear()} {config.general.stationName}. Todos los derechos reservados.
+            </div>
+            </div>
+        </footer>
+      ) : null;
+                default:
+                    return null;
+            }
+        });
+      })()}
 
       {/* News Detail Modal */}
       {selectedArticle && (
@@ -1139,85 +1237,6 @@ const PublicView: React.FC = () => {
                   </div>
               </div>
           </div>
-      )}
-
-      {/* Clients Gallery Section */}
-      {activeSections.clients && isSectionEnabled('clients') && config.content.clients && config.content.clients.length > 0 && (
-        <section id="clients" className="py-20 bg-surface-alt animate-fade-in">
-            <div className="container mx-auto px-4">
-                <div className="text-center mb-12">
-                    <h2 className="text-4xl font-heading font-bold text-heading mb-4">
-                        Nuestros Aliados
-                    </h2>
-                    <p className="text-lg text-on-surface-muted max-w-2xl mx-auto">
-                        Conoce a las empresas y marcas que confían en nosotros y apoyan nuestra programación.
-                    </p>
-                </div>
-                
-                <ClientGallery 
-                    clients={config.content.clients} 
-                    primaryColor={config.appearance.primaryColor} 
-                    secondaryColor={config.appearance.secondaryColor} 
-                />
-            </div>
-        </section>
-      )}
-
-      {/* Chat Section (Replaces Donations) */}
-      {activeSections.donations && isSectionEnabled('donations') && config.content.chat.enabled && (
-        <section id="donations" className="py-20 bg-surface-alt animate-fade-in relative overflow-hidden">
-            <div className="absolute top-0 right-0 -mt-20 -mr-20 w-96 h-96 bg-secondary/10 rounded-full blur-3xl"></div>
-            <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-primary/10 rounded-full blur-3xl"></div>
-            
-            <div className="container mx-auto px-4 relative z-10">
-                <Chat config={config.content.chat} />
-            </div>
-        </section>
-      )}
-
-      {/* Contact & Footer */}
-      {activeSections.contact && isSectionEnabled('contact') && (
-        <footer id="contact" className="bg-gray-900 text-white pt-20 pb-10 animate-fade-in">
-            <div className="container mx-auto px-4">
-            <div className="grid md:grid-cols-3 gap-12 mb-12">
-                <div>
-                <h3 className="text-2xl font-heading font-bold mb-6 text-secondary">{config.general.stationName}</h3>
-                <div className="flex space-x-4">
-                    {config.social.instagram && <a href={config.social.instagram} target="_blank" rel="noreferrer" className="hover:text-secondary"><Instagram /></a>}
-                    {config.social.tiktok && <a href={config.social.tiktok} target="_blank" rel="noreferrer" className="hover:text-secondary"><TikTok /></a>}
-                    {config.social.youtube && <a href={config.social.youtube} target="_blank" rel="noreferrer" className="hover:text-secondary"><Youtube /></a>}
-                    {config.social.whatsapp && <a href={config.social.whatsapp} target="_blank" rel="noreferrer" className="hover:text-secondary"><Phone /></a>}
-                </div>
-                </div>
-                
-                <div>
-                <h4 className="text-xl font-bold mb-6">Contacto</h4>
-                <ul className="space-y-4 opacity-80">
-                    <li className="flex items-center"><Phone size={18} className="mr-3 text-secondary"/> {config.general.contactPhone}</li>
-                    <li className="flex items-center"><Mail size={18} className="mr-3 text-secondary"/> {config.general.contactEmail}</li>
-                    <li className="flex items-center"><MapPin size={18} className="mr-3 text-secondary"/> {config.general.city || 'Ciudad'}, {config.general.country || 'País'}</li>
-                </ul>
-                </div>
-
-                <div>
-                <h4 className="text-xl font-bold mb-6">Boletín</h4>
-                <p className="opacity-70 mb-4">Suscríbete para recibir noticias.</p>
-                <div className="flex">
-                    <input type="email" placeholder="Tu email" className="bg-gray-800 border-none px-4 py-2 rounded-l w-full focus:ring-1 focus:ring-secondary" />
-                    <button className="bg-secondary text-primary px-4 py-2 rounded-r font-bold hover:bg-yellow-400">OK</button>
-                </div>
-                </div>
-            </div>
-            
-            <div 
-                className="border-t border-gray-800 pt-8 text-center opacity-50 text-sm select-none cursor-text transition-opacity hover:opacity-80"
-                onClick={handleSecretAccess}
-                title="© Rights Reserved"
-            >
-                &copy; {new Date().getFullYear()} {config.general.stationName}. Todos los derechos reservados.
-            </div>
-            </div>
-        </footer>
       )}
 
       {/* Video Modal */}

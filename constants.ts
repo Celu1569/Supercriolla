@@ -392,6 +392,20 @@ export const DEFAULT_CONFIG: SiteConfig = {
         ]
     }
   },
+  layout: {
+    sections: [
+      { id: 'hero', visible: true },
+      { id: 'topvideos', visible: true },
+      { id: 'ribbons', visible: true },
+      { id: 'podcast', visible: true },
+      { id: 'program', visible: true },
+      { id: 'gallery', visible: true },
+      { id: 'news', visible: true },
+      { id: 'clients', visible: true },
+      { id: 'chat', visible: true },
+      { id: 'contact', visible: true }
+    ]
+  },
   social: {
     instagram: "https://instagram.com",
     tiktok: "https://tiktok.com",
