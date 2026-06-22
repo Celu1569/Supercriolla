@@ -149,20 +149,19 @@ async function startServer() {
       }
       
       let metadataFound = false;
-      const fetchPromises = fetchUrls.map(fetchUrl => 
-        axios.get(fetchUrl, {
-          timeout: 4000,
-          httpsAgent: httpsAgent,
-          responseType: 'text',
-          headers: { 'User-Agent': 'Mozilla/5.0' }
-        }).catch(e => null)
-      );
-      const responses = await Promise.allSettled(fetchPromises);
 
-      // Process settled responses
-      for (const result of responses) {
-        if (result.status === 'fulfilled' && result.value && result.value.data) {
-          const response = result.value;
+      for (const fetchUrl of fetchUrls) {
+        if (metadataFound) break;
+
+        try {
+          const response = await axios.get(fetchUrl, {
+            timeout: 3000,
+            httpsAgent: httpsAgent,
+            responseType: 'text',
+            headers: { 'User-Agent': 'Mozilla/5.0' }
+          });
+
+          if (!response || !response.data) continue;
           const responseText = response.data.trim();
           if (!responseText) continue;
 
@@ -185,7 +184,9 @@ async function startServer() {
           }
 
           let data: any;
-          try { data = JSON.parse(responseText.replace(/,\s*([\]}])/g, '$1')); } catch (e) {
+          try { 
+              data = JSON.parse(responseText.replace(/,\s*([\]}])/g, '$1')); 
+          } catch (e) {
               const tm = responseText.match(/"title"\s*:\s*"([^"]+)"/);
               const am = responseText.match(/"yp_currently_playing"\s*:\s*"([^"]+)"/);
               const sm = responseText.match(/"songtitle"\s*:\s*"([^"]+)"/);
@@ -222,6 +223,8 @@ async function startServer() {
                metadataFound = true;
                break;
           }
+        } catch (err) {
+          // Ignore and check next
         }
       }
 

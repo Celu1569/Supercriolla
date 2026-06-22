@@ -36,22 +36,24 @@ export const handler: Handler = async (event, context) => {
     }
     
     let metadataFound = false;
-    const fetchPromises = fetchUrls.map(fetchUrl => 
-      axios.get(fetchUrl, {
-        timeout: 4000,
-        httpsAgent,
-        responseType: 'text',
-        headers: { 'User-Agent': 'Mozilla/5.0' }
-      }).catch(e => null)
-    );
-    const responses = await Promise.allSettled(fetchPromises);
 
-    for (const result of responses) {
-      if (result.status === 'fulfilled' && result.value && result.value.data) {
-        const response = result.value;
+    // Process URLs sequentially to return fast
+    for (const fetchUrl of fetchUrls) {
+      if (metadataFound) break;
+      
+      try {
+        const response = await axios.get(fetchUrl, {
+          timeout: 3000, // Slightly shorter timeout per source
+          httpsAgent,
+          responseType: 'text',
+          headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
+
+        if (!response || !response.data) continue;
         const responseText = response.data.trim();
         if (!responseText) continue;
 
+        // Shoutcast 1
         if (responseText.match(/^\d+,\d+,\d+,\d+,\d+,\d+,/)) {
             const parts = responseText.split(',');
             if (parts.length >= 7) {
@@ -69,7 +71,9 @@ export const handler: Handler = async (event, context) => {
         }
 
         let data: any;
-        try { data = JSON.parse(responseText.replace(/,\s*([\]}])/g, '$1')); } catch (e) {
+        try { 
+            data = JSON.parse(responseText.replace(/,\s*([\]}])/g, '$1')); 
+        } catch (e) {
             const tm = responseText.match(/"title"\s*:\s*"([^"]+)"/);
             const am = responseText.match(/"yp_currently_playing"\s*:\s*"([^"]+)"/);
             const sm = responseText.match(/"songtitle"\s*:\s*"([^"]+)"/);
@@ -106,6 +110,8 @@ export const handler: Handler = async (event, context) => {
              metadataFound = true;
              break;
         }
+      } catch (err) {
+        // Continue to next URL on error
       }
     }
 
