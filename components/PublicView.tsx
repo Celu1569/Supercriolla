@@ -645,8 +645,8 @@ const PublicView: React.FC = () => {
                     const hasSpeed = visibleRibbons.some(r => r.speed > 0);
                     const maxSpeed = Math.max(...visibleRibbons.map(r => r.speed));
                     
-                    // Map speed 1-100 to duration 120s-10s
-                    const duration = hasSpeed ? `${Math.max(10, 120 - maxSpeed)}s` : '0s';
+                    // Map speed 1-100 to duration 400s-40s (much slower)
+                    const duration = hasSpeed ? `${Math.max(40, (100 - maxSpeed) * 3.6 + 40)}s` : '0s';
 
                     const RibbonContentRepeater = () => (
                         <div className="flex items-center">

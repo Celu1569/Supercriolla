@@ -2376,7 +2376,7 @@ export const AdminPanel: React.FC = () => {
                                                     className="w-full py-4 px-8 text-center shadow-lg rounded-lg overflow-hidden relative"
                                                 >
                                                     {ribbon.speed > 0 ? (
-                                                        <div style={{'--marquee-duration': `${Math.max(10, 120 - ribbon.speed)}s`} as React.CSSProperties} className="flex overflow-hidden">
+                                                        <div style={{'--marquee-duration': `${Math.max(40, (100 - ribbon.speed) * 3.6 + 40)}s`} as React.CSSProperties} className="flex overflow-hidden">
                                                             <div className="whitespace-nowrap flex w-max animate-marquee">
                                                                 <div className="flex pr-10">
                                                                     <span className="mr-10">{ribbon.text}</span>
