@@ -450,23 +450,6 @@ export const RadioPlayer: React.FC = () => {
 
           {/* Deep Atmosphere Backgrounds */}
           <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-black">
-              {/* Dynamic Backgrounds */}
-              {config.appearance.radioPlayer?.backgroundImages && config.appearance.radioPlayer.backgroundImages.map((img, idx) => (
-                  <div 
-                      key={idx}
-                      className="absolute inset-0 z-0 transition-all duration-300 pointer-events-none"
-                      style={{
-                          backgroundImage: `url("${img}")`,
-                          backgroundSize: 'cover',
-                          backgroundPosition: 'center',
-                          animation: `flagWind ${config.appearance.radioPlayer?.animationSpeed ?? 12}s ease-in-out infinite alternate`,
-                          filter: `blur(${config.appearance.radioPlayer?.blurIntensity ?? 0}px) brightness(${config.appearance.radioPlayer?.brightness ?? 1})`,
-                          mixBlendMode: (config.appearance.radioPlayer?.mixBlendMode && config.appearance.radioPlayer.mixBlendMode !== 'normal') ? config.appearance.radioPlayer.mixBlendMode as any : undefined,
-                          opacity: config.appearance.radioPlayer?.opacity ?? 0.5
-                      }}
-                  />
-              ))}
-
               <AnimatePresence>
                   {metadata.cover && (
                       <motion.div 
@@ -490,24 +473,6 @@ export const RadioPlayer: React.FC = () => {
                       className={`absolute bottom-0 left-0 right-0 w-full h-20 z-20 pointer-events-none opacity-80 transition-opacity duration-500 ${isPlaying ? 'opacity-80' : 'opacity-0'}`} 
                   />
               )}
-
-              <style>{`
-                  @keyframes flagWind {
-                      0% { transform: scale(1.1) rotate(-1deg) translateY(0%) translateX(-1%); }
-                      50% { transform: scale(1.15) rotate(1deg) translateY(2%) translateX(1%); }
-                      100% { transform: scale(1.1) rotate(0deg) translateY(-1%) translateX(2%); }
-                  }
-                  @keyframes analyzerBar {
-                      0% { transform: scaleY(0.1); }
-                      50% { transform: scaleY(1); }
-                      100% { transform: scaleY(0.1); }
-                  }
-                  @keyframes analyzerBigBar {
-                      0% { transform: scaleY(0.2); opacity: 0.5; }
-                      50% { transform: scaleY(0.6); opacity: 0.8; }
-                      100% { transform: scaleY(1); opacity: 1; }
-                  }
-              `}</style>
           </div>
 
           {/* Top Controls Area - Absolute ONLY for Modern */}

@@ -2087,108 +2087,24 @@ export const AdminPanel: React.FC = () => {
 
             {activeTab === 'player' && (
               <div className="space-y-6 animate-fade-in">
-                 <SectionHeader title="Ajustes del Reproductor" subtitle="Personaliza el fondo dinámico, efectos visuales y el analizador de música." />
+                 <SectionHeader title="Ajustes del Reproductor" subtitle="Configura el analizador de música del reproductor." />
                  
                  <div className="bg-gray-800 border border-gray-700 p-6 rounded-xl space-y-6">
-                    <InputGroup label="URL de la Imagen de Fondo (Bandera, etc.)">
-                        <input
-                            type="text"
-                            placeholder="https://..."
-                            value={formData.appearance.radioPlayer?.backgroundImages?.[0] || ''}
-                            onChange={(e) => {
-                                const val = e.target.value;
-                                setFormData(prev => ({
-                                    ...prev,
-                                    appearance: {
-                                        ...prev.appearance,
-                                        radioPlayer: {
-                                            ...(prev.appearance.radioPlayer || { blurIntensity: 0, brightness: 1, mixBlendMode: 'overlay', showAnalyzer: true, backgroundImages: [] }),
-                                            backgroundImages: [val]
-                                        }
-                                    }
-                                }));
-                            }}
-                            className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg"
-                        />
-                    </InputGroup>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <InputGroup label={`Desenfoque (Blur): ${formData.appearance.radioPlayer?.blurIntensity || 0}px`}>
-                             <input type="range" min="0" max="20" step="1" value={formData.appearance.radioPlayer?.blurIntensity || 0} onChange={(e) => {
-                                setFormData(prev => ({
-                                    ...prev,
-                                    appearance: { ...prev.appearance, radioPlayer: { ...(prev.appearance.radioPlayer || { backgroundImages: [], brightness: 1, mixBlendMode: 'overlay', showAnalyzer: true, blurIntensity: 0 }), blurIntensity: parseInt(e.target.value) } }
-                                }));
-                             }} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary" />
-                        </InputGroup>
-                        
-                        <InputGroup label={`Brillo: ${(formData.appearance.radioPlayer?.brightness !== undefined ? formData.appearance.radioPlayer.brightness : 1) * 100}%`}>
-                             <input type="range" min="0" max="3" step="0.1" value={formData.appearance.radioPlayer?.brightness !== undefined ? formData.appearance.radioPlayer.brightness : 1} onChange={(e) => {
-                                setFormData(prev => ({
-                                    ...prev,
-                                    appearance: { ...prev.appearance, radioPlayer: { ...(prev.appearance.radioPlayer || { backgroundImages: [], blurIntensity: 0, mixBlendMode: 'overlay', showAnalyzer: true, brightness: 1 }), brightness: parseFloat(e.target.value) } }
-                                }));
-                             }} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary" />
-                        </InputGroup>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <InputGroup label={`Opacidad del Fondo: ${Math.round((formData.appearance.radioPlayer?.opacity ?? 0.5) * 100)}%`}>
-                             <input type="range" min="0" max="1" step="0.05" value={formData.appearance.radioPlayer?.opacity ?? 0.5} onChange={(e) => {
-                                setFormData(prev => ({
-                                    ...prev,
-                                    appearance: { ...prev.appearance, radioPlayer: { ...(prev.appearance.radioPlayer || { backgroundImages: [], blurIntensity: 0, brightness: 1, mixBlendMode: 'normal', showAnalyzer: true, opacity: 0.5, animationSpeed: 12 }), opacity: parseFloat(e.target.value) } }
-                                }));
-                             }} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary" />
-                        </InputGroup>
-
-                        <InputGroup label={`Velocidad de Animación: ${formData.appearance.radioPlayer?.animationSpeed ?? 12}s`}>
-                             <input type="range" min="0" max="60" step="1" value={formData.appearance.radioPlayer?.animationSpeed ?? 12} onChange={(e) => {
-                                setFormData(prev => ({
-                                    ...prev,
-                                    appearance: { ...prev.appearance, radioPlayer: { ...(prev.appearance.radioPlayer || { backgroundImages: [], blurIntensity: 0, mixBlendMode: 'normal', showAnalyzer: true, brightness: 1, opacity: 0.5, animationSpeed: 12 }), animationSpeed: parseFloat(e.target.value) } }
-                                }));
-                             }} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary" />
-                        </InputGroup>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <InputGroup label="Modo de Mezcla (Efecto de color)">
-                            <select 
-                                value={formData.appearance.radioPlayer?.mixBlendMode || 'normal'} 
+                    <div className="flex items-center">
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={formData.appearance.radioPlayer?.showAnalyzer !== false}
                                 onChange={(e) => {
                                     setFormData(prev => ({
                                         ...prev,
-                                        appearance: { ...prev.appearance, radioPlayer: { ...(prev.appearance.radioPlayer || { backgroundImages: [], blurIntensity: 0, brightness: 1, showAnalyzer: true, mixBlendMode: 'normal', opacity: 0.5, animationSpeed: 12 }), mixBlendMode: e.target.value as any } }
+                                        appearance: { ...prev.appearance, radioPlayer: { ...(prev.appearance.radioPlayer || { backgroundImages: [], blurIntensity: 0, brightness: 1, mixBlendMode: 'normal', showAnalyzer: true, opacity: 0.5, animationSpeed: 12 }), showAnalyzer: e.target.checked } }
                                     }));
                                 }}
-                                className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg"
-                            >
-                                <option value="normal">Normal</option>
-                                <option value="overlay">Overlay (Superposición)</option>
-                                <option value="screen">Screen (Trama)</option>
-                                <option value="multiply">Multiply (Multiplicar)</option>
-                                <option value="color-dodge">Color Dodge (Sobreexponer)</option>
-                                <option value="difference">Difference (Diferencia)</option>
-                            </select>
-                        </InputGroup>
-
-                        <div className="flex items-center mt-8">
-                            <label className="flex items-center space-x-3 cursor-pointer">
-                                <input 
-                                    type="checkbox" 
-                                    checked={formData.appearance.radioPlayer?.showAnalyzer !== false}
-                                    onChange={(e) => {
-                                        setFormData(prev => ({
-                                            ...prev,
-                                            appearance: { ...prev.appearance, radioPlayer: { ...(prev.appearance.radioPlayer || { backgroundImages: [], blurIntensity: 0, brightness: 1, mixBlendMode: 'normal', showAnalyzer: true, opacity: 0.5, animationSpeed: 12 }), showAnalyzer: e.target.checked } }
-                                        }));
-                                    }}
-                                    className="form-checkbox h-5 w-5 text-primary rounded border-gray-600 bg-gray-700" 
-                                />
-                                <span className="text-white font-medium">Mostrar Analizador Músical (Picos)</span>
-                            </label>
-                        </div>
+                                className="form-checkbox h-5 w-5 text-primary rounded border-gray-600 bg-gray-700" 
+                            />
+                            <span className="text-white font-medium">Mostrar Analizador Músical (Picos)</span>
+                        </label>
                     </div>
                  </div>
 
