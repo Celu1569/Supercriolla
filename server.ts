@@ -157,69 +157,71 @@ async function startServer() {
           headers: { 'User-Agent': 'Mozilla/5.0' }
         }).catch(e => null)
       );
+      const responses = await Promise.allSettled(fetchPromises);
 
-      // Process responses as they come in to return faster
-      for await (const response of fetchPromises) {
-        if (metadataFound) break;
-        if (!response || !response.data) continue;
-        const responseText = response.data.trim();
-        if (!responseText) continue;
+      // Process settled responses
+      for (const result of responses) {
+        if (result.status === 'fulfilled' && result.value && result.value.data) {
+          const response = result.value;
+          const responseText = response.data.trim();
+          if (!responseText) continue;
 
-        // Shoutcast 1
-        if (responseText.match(/^\d+,\d+,\d+,\d+,\d+,\d+,/)) {
-            const parts = responseText.split(',');
-            if (parts.length >= 7) {
-                const fullTitle = parts.slice(6).join(',');
-                if (fullTitle && !fullTitle.toLowerCase().includes("transmision")) {
-                    if (fullTitle.includes(' - ')) {
-                        // Radio format is Title - Artist
-                        [title, artist] = fullTitle.split(' - ').map((s: string) => s.trim());
-                    } else {
-                        title = fullTitle;
-                    }
-                    metadataFound = true;
-                    break;
-                }
-            }
-        }
+          // Shoutcast 1
+          if (responseText.match(/^\d+,\d+,\d+,\d+,\d+,\d+,/)) {
+              const parts = responseText.split(',');
+              if (parts.length >= 7) {
+                  const fullTitle = parts.slice(6).join(',');
+                  if (fullTitle && !fullTitle.toLowerCase().includes("transmision")) {
+                      if (fullTitle.includes(' - ')) {
+                          // Radio format is Title - Artist
+                          [title, artist] = fullTitle.split(' - ').map((s: string) => s.trim());
+                      } else {
+                          title = fullTitle;
+                      }
+                      metadataFound = true;
+                      break;
+                  }
+              }
+          }
 
-        let data: any;
-        try { data = JSON.parse(responseText.replace(/,\s*([\]}])/g, '$1')); } catch (e) {
-            const tm = responseText.match(/"title"\s*:\s*"([^"]+)"/);
-            const am = responseText.match(/"yp_currently_playing"\s*:\s*"([^"]+)"/);
-            const sm = responseText.match(/"songtitle"\s*:\s*"([^"]+)"/);
-            if (tm || am || sm) {
-                const ft = sm ? sm[1] : (am ? am[1] : (tm ? tm[1] : ""));
-                if (ft) {
-                    if (ft.includes(' - ')) [title, artist] = ft.split(' - ').map((s: string) => s.trim());
-                    else title = ft;
-                    metadataFound = true;
-                    break;
-                }
-            }
-            continue;
-        }
+          let data: any;
+          try { data = JSON.parse(responseText.replace(/,\s*([\]}])/g, '$1')); } catch (e) {
+              const tm = responseText.match(/"title"\s*:\s*"([^"]+)"/);
+              const am = responseText.match(/"yp_currently_playing"\s*:\s*"([^"]+)"/);
+              const sm = responseText.match(/"songtitle"\s*:\s*"([^"]+)"/);
+              if (tm || am || sm) {
+                  const ft = sm ? sm[1] : (am ? am[1] : (tm ? tm[1] : ""));
+                  if (ft) {
+                      if (ft.includes(' - ')) [title, artist] = ft.split(' - ').map((s: string) => s.trim());
+                      else title = ft;
+                      metadataFound = true;
+                      break;
+                  }
+              }
+              continue;
+          }
 
-        if (data && data.icestats && data.icestats.source) {
-            metadataFound = true;
-            const sources = Array.isArray(data.icestats.source) ? data.icestats.source : [data.icestats.source];
-            const source = sources[0];
-            const et = source?.yp_currently_playing || source?.title || "";
-            if (et) {
-              if (et.includes(' - ')) [title, artist] = et.split(' - ').map((s: string) => s.trim());
-              else title = et;
-            }
-            break;
-        } else if (data && data.songtitle) {
-            metadataFound = true;
-            if (data.songtitle.includes(' - ')) [title, artist] = data.songtitle.split(' - ').map((s: string) => s.trim());
-            else title = data.songtitle;
-            break;
-        } else if (data && data.now_playing) {
-             metadataFound = true;
-             artist = data.now_playing.artist || "";
-             title = data.now_playing.title || "";
-             break;
+          if (data && data.icestats && data.icestats.source) {
+              const sources = Array.isArray(data.icestats.source) ? data.icestats.source : [data.icestats.source];
+              const source = sources[0];
+              const et = source?.yp_currently_playing || source?.title || "";
+              if (et) {
+                if (et.includes(' - ')) [title, artist] = et.split(' - ').map((s: string) => s.trim());
+                else title = et;
+                metadataFound = true;
+                break;
+              }
+          } else if (data && data.songtitle) {
+              if (data.songtitle.includes(' - ')) [title, artist] = data.songtitle.split(' - ').map((s: string) => s.trim());
+              else title = data.songtitle;
+              metadataFound = true;
+              break;
+          } else if (data && data.now_playing) {
+               artist = data.now_playing.artist || "";
+               title = data.now_playing.title || "";
+               metadataFound = true;
+               break;
+          }
         }
       }
 

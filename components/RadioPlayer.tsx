@@ -27,15 +27,66 @@ export const RadioPlayer: React.FC = () => {
   const [volume, setVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
   const [prevVolume, setPrevVolume] = useState(0.8);
-  const [isVisible, setIsVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(() => {
+      if (typeof window !== 'undefined') {
+          return localStorage.getItem('radio_player_visible') === 'true';
+      }
+      return false;
+  });
+  
+  useEffect(() => {
+      localStorage.setItem('radio_player_visible', isVisible.toString());
+  }, [isVisible]);
+
   const [hasError, setHasError] = useState(false);
 
-  const [metadata, setMetadata] = useState({
-    title: 'Cargando transmisión...',
-    artist: 'Conectando con el servidor',
-    cover: ''
+  const [metadata, setMetadata] = useState(() => {
+      if (typeof window !== 'undefined') {
+          const cached = localStorage.getItem('last_radio_metadata');
+          if (cached) {
+              try {
+                  const parsed = JSON.parse(cached);
+                  // Ensure we don't restore "Loading" state from cache
+                  if (parsed.title && parsed.title !== 'Cargando transmisión...') {
+                      return parsed;
+                  }
+              } catch (e) {
+                  console.warn("Error parsing cached metadata", e);
+              }
+          }
+      }
+      return {
+        title: 'Cargando transmisión...',
+        artist: 'Conectando con el servidor',
+        cover: ''
+      };
   });
-  const [history, setHistory] = useState<TrackHistory[]>([]);
+  
+  useEffect(() => {
+      if (metadata.title !== 'Cargando transmisión...') {
+          localStorage.setItem('last_radio_metadata', JSON.stringify(metadata));
+      }
+  }, [metadata]);
+
+  const [history, setHistory] = useState<TrackHistory[]>(() => {
+      if (typeof window !== 'undefined') {
+          const cached = localStorage.getItem('radio_history');
+          if (cached) {
+              try {
+                  return JSON.parse(cached);
+              } catch (e) {
+                  console.warn("Error parsing cached history", e);
+              }
+          }
+      }
+      return [];
+  });
+
+  useEffect(() => {
+      if (history.length > 0) {
+          localStorage.setItem('radio_history', JSON.stringify(history));
+      }
+  }, [history]);
 
   const [playerStyle, setPlayerStyle] = useState<'minimal' | 'modern'>(() => {
       if (typeof window !== 'undefined') {
@@ -182,18 +233,40 @@ export const RadioPlayer: React.FC = () => {
 
         // Try getting artwork and metadata from our own proxy API to avoid CORS/SSL issues
         if (streamUrl) {
+            // Use local cache to avoid flicker
+            const cacheKey = `${streamUrl}-${stationName}`;
+            if (COVER_CACHE[cacheKey]) {
+                try {
+                    const cachedData = JSON.parse(COVER_CACHE[cacheKey]);
+                    if (cachedData.title) finalTitle = cachedData.title;
+                    if (cachedData.artist) finalArtist = cachedData.artist;
+                    if (cachedData.cover) finalCover = cachedData.cover;
+                } catch (e) {}
+            }
+
             try {
                 const query = new URLSearchParams({
                     stream: streamUrl,
                     station: stationName,
                     logo: defaultCover
                 });
+                
+                // Use absolute path for Netlify compatibility if needed, though relative usually works
                 const res = await fetch(`/api/metadata?${query.toString()}`);
                 if (res.ok) {
                     const data = await res.json();
-                    if (data.title && data.title !== "") finalTitle = data.title;
-                    if (data.artist && data.artist !== "") finalArtist = data.artist;
-                    if (data.cover && data.cover !== "") finalCover = data.cover;
+                    
+                    // Only update if we got real data
+                    if (data.title && data.title.length > 1) finalTitle = data.title;
+                    if (data.artist && data.artist.length > 1) finalArtist = data.artist;
+                    if (data.cover && data.cover.startsWith('http')) finalCover = data.cover;
+                    
+                    // Update cache
+                    COVER_CACHE[cacheKey] = JSON.stringify({
+                        title: finalTitle,
+                        artist: finalArtist,
+                        cover: finalCover
+                    });
                 }
             } catch (e) {
                 console.warn("API proxy fetch error:", e);
