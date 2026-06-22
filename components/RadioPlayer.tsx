@@ -156,35 +156,123 @@ export const RadioPlayer: React.FC = () => {
               // Usually the last 1/3 of the frequencies in a compressed radio stream have 0 energy.
               const activeBars = Math.floor(bufferLength * 0.75); // ~48 bars
               
-              // Calculate width to center the visualizer
-              const spacing = 4;
-              const barWidth = Math.min((width - (activeBars * spacing)) / activeBars, 16);
-              const totalWidth = activeBars * (barWidth + spacing) - spacing;
-              let x = (width - totalWidth) / 2;
+              const style = config.appearance.radioPlayer?.analyzerStyle || 'classic';
+              
+              if (style === 'classic' || style === 'bars' || style === 'digital' || style === 'pixels' || style === 'blocks') {
+                  const spacing = style === 'digital' ? 2 : (style === 'pixels' ? 6 : 4);
+                  const barWidth = Math.min((width - (activeBars * spacing)) / activeBars, style === 'bars' ? 12 : 8);
+                  const totalWidth = activeBars * (barWidth + spacing) - spacing;
+                  let x = (width - totalWidth) / 2;
 
-              for (let i = 0; i < activeBars; i++) {
-                  const barHeightScale = dataArray[i] / 255;
-                  const barHeight = Math.max(Math.pow(barHeightScale, 1.2) * height * 0.9, 3); // Make peaks slightly more dynamic
+                  for (let i = 0; i < activeBars; i++) {
+                      const barHeightScale = dataArray[i] / 255;
+                      const barHeight = Math.max(Math.pow(barHeightScale, 1.2) * height * 0.9, 3);
+                      
+                      const gradient = ctx.createLinearGradient(0, height, 0, 0);
+                      const primaryColor = config.appearance.secondaryColor || '#fbbf24';
+                      
+                      if (style === 'classic') {
+                          gradient.addColorStop(0, '#22c55e');
+                          gradient.addColorStop(0.5, '#eab308');
+                          gradient.addColorStop(0.9, '#ef4444');
+                      } else {
+                          gradient.addColorStop(0, primaryColor);
+                          gradient.addColorStop(1, primaryColor + '99');
+                      }
 
-                  // Limit colors: Green (low), Yellow (mid), Red (peak)
-                  const gradient = ctx.createLinearGradient(0, height, 0, 0);
-                  gradient.addColorStop(0, '#22c55e'); // Green base
-                  gradient.addColorStop(0.5, '#eab308'); // Yellow middle
-                  gradient.addColorStop(0.9, '#ef4444'); // Red peak
-
-                  ctx.fillStyle = gradient;
-                  
-                  // Fill bar with drop shadow
-                  ctx.shadowBlur = 6;
-                  ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-                  
+                      ctx.fillStyle = gradient;
+                      
+                      if (style === 'blocks') {
+                          const blockSize = 4;
+                          const numBlocks = Math.floor(barHeight / (blockSize + 2));
+                          for (let j = 0; j < numBlocks; j++) {
+                              ctx.fillRect(x, height - (j * (blockSize + 2)), barWidth, blockSize);
+                          }
+                      } else if (style === 'pixels') {
+                          ctx.fillRect(x, height - barHeight, barWidth, barHeight);
+                      } else {
+                          ctx.beginPath();
+                          const radius = barWidth / 2;
+                          ctx.roundRect(x, height - barHeight, barWidth, barHeight, [radius, radius, 0, 0]);
+                          ctx.fill();
+                      }
+                      
+                      x += barWidth + spacing;
+                  }
+              } else if (style === 'wave') {
                   ctx.beginPath();
-                  ctx.roundRect(x, height - barHeight, barWidth, barHeight, [barWidth/2, barWidth/2, 0, 0]);
-                  ctx.fill();
+                  ctx.lineWidth = 3;
+                  ctx.strokeStyle = config.appearance.secondaryColor || '#fbbf24';
+                  ctx.lineCap = 'round';
+                  ctx.lineJoin = 'round';
                   
-                  ctx.shadowBlur = 0;
+                  const sliceWidth = width / activeBars;
+                  let x = 0;
 
-                  x += barWidth + spacing;
+                  for (let i = 0; i < activeBars; i++) {
+                      const v = dataArray[i] / 128.0;
+                      const y = (v * height) / 2;
+
+                      if (i === 0) ctx.moveTo(x, y);
+                      else ctx.lineTo(x, y);
+
+                      x += sliceWidth;
+                  }
+                  ctx.stroke();
+              } else if (style === 'circles') {
+                  const centerX = width / 2;
+                  const centerY = height / 2;
+                  const radiusBase = Math.min(width, height) / 4;
+                  
+                  ctx.strokeStyle = config.appearance.secondaryColor || '#fbbf24';
+                  ctx.lineWidth = 2;
+
+                  for (let i = 0; i < activeBars; i++) {
+                      const barHeightScale = dataArray[i] / 255;
+                      const r = radiusBase + (barHeightScale * radiusBase);
+                      const angle = (i / activeBars) * Math.PI * 2;
+                      const x = centerX + Math.cos(angle) * r;
+                      const y = centerY + Math.sin(angle) * r;
+
+                      if (i === 0) ctx.moveTo(x, y);
+                      else ctx.lineTo(x, y);
+                  }
+                  ctx.closePath();
+                  ctx.stroke();
+              } else if (style === 'neon') {
+                  ctx.lineWidth = 1;
+                  const primaryColor = config.appearance.secondaryColor || '#fbbf24';
+                  
+                  for (let i = 0; i < activeBars; i++) {
+                      const v = dataArray[i] / 255;
+                      const h = v * height;
+                      ctx.strokeStyle = primaryColor;
+                      ctx.shadowBlur = 10;
+                      ctx.shadowColor = primaryColor;
+                      ctx.beginPath();
+                      ctx.moveTo(0, height - (i * (height/activeBars)));
+                      ctx.lineTo(width * v, height - (i * (height/activeBars)));
+                      ctx.stroke();
+                  }
+                  ctx.shadowBlur = 0;
+              } else if (style === 'glow') {
+                  const primaryColor = config.appearance.secondaryColor || '#fbbf24';
+                  for (let i = 0; i < activeBars; i += 4) {
+                      const v = dataArray[i] / 255;
+                      ctx.fillStyle = primaryColor + '33';
+                      ctx.beginPath();
+                      ctx.arc(i * (width/activeBars), height/2, v * height/2, 0, Math.PI * 2);
+                      ctx.fill();
+                  }
+              } else if (style === 'minimal') {
+                  const primaryColor = config.appearance.secondaryColor || '#fbbf24';
+                  ctx.fillStyle = primaryColor;
+                  for (let i = 0; i < activeBars; i++) {
+                      const v = (dataArray[i] / 255) * 5;
+                      ctx.beginPath();
+                      ctx.arc(i * (width/activeBars), height - v, 2, 0, Math.PI * 2);
+                      ctx.fill();
+                  }
               }
           };
 
