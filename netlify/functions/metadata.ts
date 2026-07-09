@@ -52,8 +52,19 @@ export const handler: Handler = async (event, context) => {
         let t = "";
         let a = "";
 
+        if (!responseText || typeof responseText !== 'string') return { t, a };
+
+        // Handle AllOrigins response format if it's used
+        let content = responseText;
+        try {
+            const potentialJson = JSON.parse(responseText);
+            if (potentialJson && potentialJson.contents) {
+                content = potentialJson.contents;
+            }
+        } catch (e) {}
+
         // Shoutcast 1 (7.html format: 123,1,45,200,45,128,Artist - Title)
-        const shoutcastMatch = responseText.match(/^\d+,\d+,\d+,\d+,\d+,\d+,(.*)/);
+        const shoutcastMatch = content.match(/^\d+,\d+,\d+,\d+,\d+,\d+,(.*)/);
         if (shoutcastMatch) {
             const fullTitle = shoutcastMatch[1];
             if (fullTitle && !fullTitle.toLowerCase().includes("transmision")) {
@@ -69,12 +80,12 @@ export const handler: Handler = async (event, context) => {
         // JSON Parsing
         let data: any;
         try { 
-            data = JSON.parse(responseText.replace(/,\s*([\]}])/g, '$1')); 
+            data = JSON.parse(content.replace(/,\s*([\]}])/g, '$1')); 
         } catch (e) {
             // Manual regex fallback for common keys
-            const tm = responseText.match(/"title"\s*:\s*"([^"]+)"/);
-            const am = responseText.match(/"yp_currently_playing"\s*:\s*"([^"]+)"/);
-            const sm = responseText.match(/"songtitle"\s*:\s*"([^"]+)"/);
+            const tm = content.match(/"title"\s*:\s*"([^"]+)"/);
+            const am = content.match(/"yp_currently_playing"\s*:\s*"([^"]+)"/);
+            const sm = content.match(/"songtitle"\s*:\s*"([^"]+)"/);
             if (tm || am || sm) {
                 const ft = sm ? sm[1] : (am ? am[1] : (tm ? tm[1] : ""));
                 if (ft) {
@@ -107,45 +118,51 @@ export const handler: Handler = async (event, context) => {
         return { t, a };
     };
 
-    // Try top 3 URLs in parallel for speed
-    const firstBatch = fetchUrls.slice(0, 3);
-    const batchResults = await Promise.all(firstBatch.map(async (url) => {
+    // Try URLs in parallel. For each URL, try direct and via proxy fallback
+    const urlsToTry = fetchUrls.slice(0, 3);
+    const results = await Promise.all(urlsToTry.map(async (url) => {
+        // Race direct vs proxy for this specific URL
+        const controllerLocal = new AbortController();
+        const timeoutIdLocal = setTimeout(() => controllerLocal.abort(), 6000);
+
         try {
-            const res = await axios.get(url, { 
-                timeout: 4000, 
+            const directPromise = axios.get(url, { 
+                timeout: 5000, 
                 httpsAgent, 
-                signal: controller.signal,
+                signal: controllerLocal.signal,
                 headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
-            });
-            return { url, data: res.data };
-        } catch (e) { return null; }
+            }).then(r => r.data).catch(() => null);
+
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+            const proxyPromise = axios.get(proxyUrl, { 
+                timeout: 5000, 
+                signal: controllerLocal.signal,
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            }).then(r => r.data?.contents).catch(() => null);
+
+            const fastRes = await Promise.race([directPromise, proxyPromise]);
+            clearTimeout(timeoutIdLocal);
+            if (fastRes) {
+                const { t, a } = parseMetadata(String(fastRes));
+                if (t || a) return { t, a };
+            }
+            // If the faster one failed or had no metadata, try the slower one
+            const slowRes = fastRes === directPromise ? await proxyPromise : await directPromise;
+            if (slowRes) {
+                const { t, a } = parseMetadata(String(slowRes));
+                if (t || a) return { t, a };
+            }
+        } catch (e) {
+            clearTimeout(timeoutIdLocal);
+        }
+        return null;
     }));
 
-    for (const res of batchResults) {
-        if (!res || !res.data) continue;
-        const { t, a } = parseMetadata(String(res.data));
-        if (t || a) {
-            title = t;
-            artist = a;
-            metadataFound = true;
-            break;
-        }
-    }
-
-    // If still not found, try the rest sequentially (but we probably won't have much time left)
-    if (!metadataFound && fetchUrls.length > 3) {
-        for (const url of fetchUrls.slice(3)) {
-            try {
-                const res = await axios.get(url, { timeout: 2000, httpsAgent, signal: controller.signal });
-                const { t, a } = parseMetadata(String(res.data));
-                if (t || a) {
-                    title = t;
-                    artist = a;
-                    metadataFound = true;
-                    break;
-                }
-            } catch (e) {}
-        }
+    const foundResult = results.find(r => r && (r.t || r.a));
+    if (foundResult) {
+        title = foundResult.t;
+        artist = foundResult.a;
+        metadataFound = true;
     }
 
     const isGeneric = (val: string) => {

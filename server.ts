@@ -156,7 +156,18 @@ async function startServer() {
       const parseMetadata = (responseText: string) => {
         let t = "";
         let a = "";
-        const shoutcastMatch = responseText.match(/^\d+,\d+,\d+,\d+,\d+,\d+,(.*)/);
+
+        if (!responseText || typeof responseText !== 'string') return { t, a };
+
+        let content = responseText;
+        try {
+            const potentialJson = JSON.parse(responseText);
+            if (potentialJson && potentialJson.contents) {
+                content = potentialJson.contents;
+            }
+        } catch (e) {}
+
+        const shoutcastMatch = content.match(/^\d+,\d+,\d+,\d+,\d+,\d+,(.*)/);
         if (shoutcastMatch) {
             const fullTitle = shoutcastMatch[1];
             if (fullTitle && !fullTitle.toLowerCase().includes("transmision")) {
@@ -167,11 +178,11 @@ async function startServer() {
         }
         let data: any;
         try { 
-            data = JSON.parse(responseText.replace(/,\s*([\]}])/g, '$1')); 
+            data = JSON.parse(content.replace(/,\s*([\]}])/g, '$1')); 
         } catch (e) {
-            const tm = responseText.match(/"title"\s*:\s*"([^"]+)"/);
-            const am = responseText.match(/"yp_currently_playing"\s*:\s*"([^"]+)"/);
-            const sm = responseText.match(/"songtitle"\s*:\s*"([^"]+)"/);
+            const tm = content.match(/"title"\s*:\s*"([^"]+)"/);
+            const am = content.match(/"yp_currently_playing"\s*:\s*"([^"]+)"/);
+            const sm = content.match(/"songtitle"\s*:\s*"([^"]+)"/);
             if (tm || am || sm) {
                 const ft = sm ? sm[1] : (am ? am[1] : (tm ? tm[1] : ""));
                 if (ft) {
@@ -199,41 +210,48 @@ async function startServer() {
         return { t, a };
       };
 
-      const firstBatch = fetchUrls.slice(0, 3);
-      const batchResults = await Promise.all(firstBatch.map(async (url) => {
+      const urlsToTry = fetchUrls.slice(0, 3);
+      const results = await Promise.all(urlsToTry.map(async (url) => {
+          const controllerLocal = new AbortController();
+          const timeoutIdLocal = setTimeout(() => controllerLocal.abort(), 6000);
+
           try {
-              const res = await axios.get(url, { 
+              const directPromise = axios.get(url, { 
                   timeout: 5000, 
                   httpsAgent, 
-                  signal: controller.signal,
+                  signal: controllerLocal.signal,
                   headers: { 'User-Agent': 'Mozilla/5.0' }
-              });
-              return res.data;
-          } catch (e) { return null; }
+              }).then(r => r.data).catch(() => null);
+
+              const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+              const proxyPromise = axios.get(proxyUrl, { 
+                  timeout: 5000, 
+                  signal: controllerLocal.signal,
+                  headers: { 'User-Agent': 'Mozilla/5.0' }
+              }).then(r => r.data?.contents).catch(() => null);
+
+              const fastRes = await Promise.race([directPromise, proxyPromise]);
+              clearTimeout(timeoutIdLocal);
+              if (fastRes) {
+                  const { t, a } = parseMetadata(String(fastRes));
+                  if (t || a) return { t, a };
+              }
+              const slowRes = fastRes === directPromise ? await proxyPromise : await directPromise;
+              if (slowRes) {
+                  const { t, a } = parseMetadata(String(slowRes));
+                  if (t || a) return { t, a };
+              }
+          } catch (e) {
+              clearTimeout(timeoutIdLocal);
+          }
+          return null;
       }));
 
-      for (const resData of batchResults) {
-          if (!resData) continue;
-          const { t, a } = parseMetadata(String(resData));
-          if (t || a) {
-              title = t; artist = a;
-              metadataFound = true;
-              break;
-          }
-      }
-
-      if (!metadataFound) {
-          for (const url of fetchUrls.slice(3)) {
-              try {
-                  const res = await axios.get(url, { timeout: 3000, httpsAgent, signal: controller.signal });
-                  const { t, a } = parseMetadata(String(res.data));
-                  if (t || a) {
-                      title = t; artist = a;
-                      metadataFound = true;
-                      break;
-                  }
-              } catch (e) {}
-          }
+      const foundResult = results.find(r => r && (r.t || r.a));
+      if (foundResult) {
+          title = foundResult.t;
+          artist = foundResult.a;
+          metadataFound = true;
       }
 
       const isGeneric = (val: string) => {
