@@ -1,5 +1,6 @@
 {
-  "name": "SuperCriolla",
-  "description": "A dynamic landing page for an online radio station with a built-in admin panel for content and style management.",
-  "requestFramePermissions": []
+  "name": "Unción Radio Live",
+  "description": "Una plataforma moderna para Unción Radio 87.7 FM con reproductor inteligente y panel de administración.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -5,6 +5,19 @@ import path from "path";
 import { fileURLToPath } from "url";
 import axios from "axios";
 import https from "https";
+import { GoogleGenAI } from "@google/genai";
+
+const ai = new GoogleGenAI({ 
+    apiKey: process.env.GEMINI_API_KEY!,
+    httpOptions: {
+        headers: {
+            'User-Agent': 'aistudio-build',
+        }
+    }
+});
+
+// Cache for song info to avoid hitting Gemini too often
+let songInfoCache: { [key: string]: { text: string, timestamp: number } } = {};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,6 +37,36 @@ async function startServer() {
   });
 
   const PORT = 3000;
+
+  app.get("/api/song-info", async (req, res) => {
+    const artist = req.query.artist as string;
+    const title = req.query.title as string;
+
+    if (!artist || !title) {
+        return res.json({ text: "Escuchando Unción Radio 87.7 FM" });
+    }
+
+    const cacheKey = `${artist}-${title}`.toLowerCase();
+    const now = Date.now();
+
+    if (songInfoCache[cacheKey] && (now - songInfoCache[cacheKey].timestamp < 3600000)) { // 1 hour cache
+        return res.json({ text: songInfoCache[cacheKey].text });
+    }
+
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-3.5-flash",
+            contents: `Genera un dato curioso o informativo muy corto (máximo 150 caracteres) sobre la canción "${title}" del artista "${artist}". Si no encuentras información específica, di algo positivo sobre el estilo musical del artista. Responde solo con el dato curioso, sin introducciones ni comillas.`,
+        });
+
+        const text = response.text || "Disfruta de la mejor música cristiana en Unción Radio.";
+        songInfoCache[cacheKey] = { text, timestamp: now };
+        res.json({ text });
+    } catch (error) {
+        console.error("Gemini error:", error);
+        res.json({ text: "Sintonizando la mejor programación para ti." });
+    }
+  });
 
   // In-memory message fallback, but now we'll sync with Firestore using the client SDK
   let messages: any[] = [];
