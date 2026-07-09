@@ -15,6 +15,13 @@ NODE_VERSION = "20"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate, proxy-revalidate"
+    Expires = "0"
+    Surrogate-Control = "no-store"
+
 [[redirects]]
 from = "/api/*"
 to = "/.netlify/functions/:splat"

@@ -339,7 +339,10 @@ export const RadioPlayer: React.FC = () => {
                     logo: defaultCover
                 });
                 
-                // Use absolute path for Netlify compatibility if needed, though relative usually works
+                // Add a cache buster only once a minute to allow edge caching to work
+                const cacheBuster = Math.floor(Date.now() / 60000);
+                query.append('v', cacheBuster.toString());
+                
                 const res = await fetch(`/api/metadata?${query.toString()}`);
                 if (res.ok) {
                     const data = await res.json();
@@ -347,7 +350,11 @@ export const RadioPlayer: React.FC = () => {
                     // Only update if we got real data
                     if (data.title && data.title.length > 1) finalTitle = data.title;
                     if (data.artist && data.artist.length > 1) finalArtist = data.artist;
-                    if (data.cover && data.cover.startsWith('http')) finalCover = data.cover;
+                    
+                    // Ensure cover is HTTPS if it exists
+                    if (data.cover && data.cover.startsWith('http')) {
+                        finalCover = data.cover.replace('http://', 'https://');
+                    }
                     
                     // Update cache
                     COVER_CACHE[cacheKey] = JSON.stringify({
@@ -355,6 +362,8 @@ export const RadioPlayer: React.FC = () => {
                         artist: finalArtist,
                         cover: finalCover
                     });
+                } else {
+                    console.warn(`Metadata API returned status: ${res.status}`);
                 }
             } catch (e) {
                 console.warn("API proxy fetch error:", e);

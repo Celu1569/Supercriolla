@@ -111,12 +111,12 @@ async function startServer() {
 
   app.get("/api/metadata", async (req, res) => {
     const stream = req.query.stream as string;
-    const logo = req.query.logo as string;
+    const logo = (req.query.logo as string) || "";
     const station = (req.query.station as string) || "";
     const now = Date.now();
 
-    // Use cache if it's for the same stream and fresh (30s)
-    if (metadataCache.streamUrl === stream && (now - metadataCache.lastUpdate < 30000)) {
+    // Use cache if it's for the same stream and fresh (20s)
+    if (metadataCache.streamUrl === stream && (now - metadataCache.lastUpdate < 20000)) {
         return res.json({ 
             title: metadataCache.title, 
             artist: metadataCache.artist, 
@@ -124,20 +124,23 @@ async function startServer() {
         });
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
     try {
       let title = ""; 
       let artist = "";
       
-      let fetchUrls = [];
+      let fetchUrls: string[] = [];
       if (stream) {
         try {
           const urlObj = new URL(stream);
           const baseUrl = `${urlObj.protocol}//${urlObj.hostname}${urlObj.port ? ':' + urlObj.port : ''}`;
           fetchUrls.push(`${baseUrl}/status-json.xsl`);
+          fetchUrls.push(`${baseUrl}/7.html`);
           fetchUrls.push(`${baseUrl}/status.json`);
           fetchUrls.push(`${baseUrl}/json.xsl`);
           fetchUrls.push(`${baseUrl}/stats?json=1`);
-          fetchUrls.push(`${baseUrl}/7.html`);
           fetchUrls.push(`${baseUrl}/stats?sid=1`);
           
           if (urlObj.hostname.includes('zeno.fm')) {
@@ -150,123 +153,128 @@ async function startServer() {
       
       let metadataFound = false;
 
-      for (const fetchUrl of fetchUrls) {
-        if (metadataFound) break;
+      const parseMetadata = (responseText: string) => {
+        let t = "";
+        let a = "";
+        const shoutcastMatch = responseText.match(/^\d+,\d+,\d+,\d+,\d+,\d+,(.*)/);
+        if (shoutcastMatch) {
+            const fullTitle = shoutcastMatch[1];
+            if (fullTitle && !fullTitle.toLowerCase().includes("transmision")) {
+                if (fullTitle.includes(' - ')) [a, t] = fullTitle.split(' - ').map(s => s.trim());
+                else t = fullTitle;
+                return { t, a };
+            }
+        }
+        let data: any;
+        try { 
+            data = JSON.parse(responseText.replace(/,\s*([\]}])/g, '$1')); 
+        } catch (e) {
+            const tm = responseText.match(/"title"\s*:\s*"([^"]+)"/);
+            const am = responseText.match(/"yp_currently_playing"\s*:\s*"([^"]+)"/);
+            const sm = responseText.match(/"songtitle"\s*:\s*"([^"]+)"/);
+            if (tm || am || sm) {
+                const ft = sm ? sm[1] : (am ? am[1] : (tm ? tm[1] : ""));
+                if (ft) {
+                    if (ft.includes(' - ')) [a, t] = ft.split(' - ').map(s => s.trim());
+                    else t = ft;
+                }
+            }
+            return { t, a };
+        }
+        if (data) {
+            if (data.icestats && data.icestats.source) {
+                const sources = Array.isArray(data.icestats.source) ? data.icestats.source : [data.icestats.source];
+                const source = sources.find((s: any) => s.yp_currently_playing || s.title) || sources[0];
+                const et = source?.yp_currently_playing || source?.title || "";
+                if (et.includes(' - ')) [a, t] = et.split(' - ').map((s: string) => s.trim());
+                else t = et;
+            } else if (data.songtitle) {
+                if (data.songtitle.includes(' - ')) [a, t] = data.songtitle.split(' - ').map((s: string) => s.trim());
+                else t = data.songtitle;
+            } else if (data.now_playing) {
+                a = data.now_playing.artist || "";
+                t = data.now_playing.title || "";
+            }
+        }
+        return { t, a };
+      };
 
-        try {
-          const response = await axios.get(fetchUrl, {
-            timeout: 3000,
-            httpsAgent: httpsAgent,
-            responseType: 'text',
-            headers: { 'User-Agent': 'Mozilla/5.0' }
-          });
+      const firstBatch = fetchUrls.slice(0, 3);
+      const batchResults = await Promise.all(firstBatch.map(async (url) => {
+          try {
+              const res = await axios.get(url, { 
+                  timeout: 5000, 
+                  httpsAgent, 
+                  signal: controller.signal,
+                  headers: { 'User-Agent': 'Mozilla/5.0' }
+              });
+              return res.data;
+          } catch (e) { return null; }
+      }));
 
-          if (!response || !response.data) continue;
-          const responseText = response.data.trim();
-          if (!responseText) continue;
-
-          // Shoutcast 1
-          if (responseText.match(/^\d+,\d+,\d+,\d+,\d+,\d+,/)) {
-              const parts = responseText.split(',');
-              if (parts.length >= 7) {
-                  const fullTitle = parts.slice(6).join(',');
-                  if (fullTitle && !fullTitle.toLowerCase().includes("transmision")) {
-                      if (fullTitle.includes(' - ')) {
-                          // Radio format is Title - Artist
-                          [title, artist] = fullTitle.split(' - ').map((s: string) => s.trim());
-                      } else {
-                          title = fullTitle;
-                      }
-                      metadataFound = true;
-                      break;
-                  }
-              }
-          }
-
-          let data: any;
-          try { 
-              data = JSON.parse(responseText.replace(/,\s*([\]}])/g, '$1')); 
-          } catch (e) {
-              const tm = responseText.match(/"title"\s*:\s*"([^"]+)"/);
-              const am = responseText.match(/"yp_currently_playing"\s*:\s*"([^"]+)"/);
-              const sm = responseText.match(/"songtitle"\s*:\s*"([^"]+)"/);
-              if (tm || am || sm) {
-                  const ft = sm ? sm[1] : (am ? am[1] : (tm ? tm[1] : ""));
-                  if (ft) {
-                      if (ft.includes(' - ')) [title, artist] = ft.split(' - ').map((s: string) => s.trim());
-                      else title = ft;
-                      metadataFound = true;
-                      break;
-                  }
-              }
-              continue;
-          }
-
-          if (data && data.icestats && data.icestats.source) {
-              const sources = Array.isArray(data.icestats.source) ? data.icestats.source : [data.icestats.source];
-              const source = sources[0];
-              const et = source?.yp_currently_playing || source?.title || "";
-              if (et) {
-                if (et.includes(' - ')) [title, artist] = et.split(' - ').map((s: string) => s.trim());
-                else title = et;
-                metadataFound = true;
-                break;
-              }
-          } else if (data && data.songtitle) {
-              if (data.songtitle.includes(' - ')) [title, artist] = data.songtitle.split(' - ').map((s: string) => s.trim());
-              else title = data.songtitle;
+      for (const resData of batchResults) {
+          if (!resData) continue;
+          const { t, a } = parseMetadata(String(resData));
+          if (t || a) {
+              title = t; artist = a;
               metadataFound = true;
               break;
-          } else if (data && data.now_playing) {
-               artist = data.now_playing.artist || "";
-               title = data.now_playing.title || "";
-               metadataFound = true;
-               break;
           }
-        } catch (err) {
-          // Ignore and check next
-        }
+      }
+
+      if (!metadataFound) {
+          for (const url of fetchUrls.slice(3)) {
+              try {
+                  const res = await axios.get(url, { timeout: 3000, httpsAgent, signal: controller.signal });
+                  const { t, a } = parseMetadata(String(res.data));
+                  if (t || a) {
+                      title = t; artist = a;
+                      metadataFound = true;
+                      break;
+                  }
+              } catch (e) {}
+          }
       }
 
       const isGeneric = (val: string) => {
         if (!val) return true;
         const l = val.toLowerCase();
-        // These are definitely technical strings that shouldn't be searched on iTunes
         return l.includes("señal") || l.includes("recuperando") || l.includes("conectando") || 
                l.includes("en vivo") || l.includes("transmision") || l.includes("icecast") || 
                l.includes("shoutcast") || l.includes("unknown") || l.includes("stream");
       };
       
       let cover = logo || '';
-      // We search for covers only if we have non-generic title and artist
-      // and they are not just the station name (to avoid generic radio logo results)
       const stationLower = station.toLowerCase();
       const isStationName = (s: string) => stationLower && (s.toLowerCase().includes(stationLower) || stationLower.includes(s.toLowerCase()));
 
-      if (title && artist && !isGeneric(title) && !isGeneric(artist) && !isStationName(title) && !isStationName(artist)) {
+      const finalTitle = isGeneric(title) ? "" : title;
+      const finalArtist = isGeneric(artist) ? "" : artist;
+
+      if (finalTitle && finalArtist && !isStationName(finalTitle) && !isStationName(finalArtist)) {
           try {
-            const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(`${artist} ${title}`)}&media=music&limit=1`;
-            const itunesResponse = await axios.get(itunesUrl, { timeout: 3000 });
+            const searchTerm = `${finalArtist} ${finalTitle}`.replace(/[\[\(\{].*?[\]\)\}]/g, '').trim();
+            const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&media=music&limit=1`;
+            const itunesResponse = await axios.get(itunesUrl, { timeout: 4000, signal: controller.signal });
             if (itunesResponse.data?.results?.[0]?.artworkUrl100) {
               cover = itunesResponse.data.results[0].artworkUrl100.replace('100x100', '600x600');
             }
-          } catch (e) { console.error("iTunes error", e); }
+          } catch (e) {}
       }
 
-      const cleanTitle = isGeneric(title) ? "" : title;
-      const cleanArtist = isGeneric(artist) ? "" : artist;
+      clearTimeout(timeoutId);
 
-      // Update cache
       metadataCache = {
-        title: cleanTitle,
-        artist: cleanArtist,
+        title: finalTitle,
+        artist: finalArtist,
         cover: cover,
         lastUpdate: now,
         streamUrl: stream
       };
 
-      res.json({ title: cleanTitle, artist: cleanArtist, cover });
+      res.json({ title: finalTitle, artist: finalArtist, cover });
     } catch (error) {
+      clearTimeout(timeoutId);
       console.error("Metadata error:", error);
       res.json({ title: metadataCache.title || '', artist: metadataCache.artist || '', cover: metadataCache.cover || logo || '' });
     }

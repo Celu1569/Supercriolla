@@ -8,7 +8,7 @@ import { SocialCarousel } from './SocialCarousel';
 import { WidgetEmbed } from './WidgetEmbed';
 import { Menu, X, Facebook, Instagram, Youtube, Phone, Mail, MapPin, Radio, ChevronLeft, ChevronRight, Sun, Moon, PlayCircle, Video, Heart, CreditCard, Tv, Play, MessageSquare, Users, Mic2, Newspaper, Calendar, User, ArrowRight, ChevronDown } from 'lucide-react';
 import { TikTok } from './TikTokIcon';
-import { NewsItem } from '../types';
+import { NewsItem, ProgramItem } from '../types';
 
 interface NavLinkProps {
   children: React.ReactNode;
