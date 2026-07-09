@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useConfig } from '../context/ConfigContext';
 import { RadioPlayer } from './RadioPlayer';
-import { ModernRadioPlayer } from './ModernRadioPlayer';
 import Chat from './Chat';
 import { ClientGallery } from './ClientGallery';
 import { SocialEmbed } from './SocialEmbed';
@@ -201,8 +200,6 @@ const PublicView: React.FC = () => {
     donations: true,
     contact: true
   });
-
-  const [useModernPlayer, setUseModernPlayer] = useState(true);
 
   // Calculate Header Height dynamically
   const isLogoVisible = config.navigation.showLogo && config.navigation.logoUrl;
@@ -479,24 +476,7 @@ const PublicView: React.FC = () => {
 
       {/* Main Radio Player */}
       <div style={{ paddingTop: `${dynamicNavHeight}px` }}>
-        <div className="flex flex-col items-center gap-4 mb-8">
-            <div className="flex bg-black/20 p-1 rounded-full border border-white/10 backdrop-blur-sm">
-                <button 
-                    onClick={() => setUseModernPlayer(false)}
-                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${!useModernPlayer ? 'bg-primary text-white shadow-lg' : 'text-white/50 hover:text-white'}`}
-                >
-                    CLÁSICO
-                </button>
-                <button 
-                    onClick={() => setUseModernPlayer(true)}
-                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${useModernPlayer ? 'bg-primary text-white shadow-lg' : 'text-white/50 hover:text-white'}`}
-                >
-                    MODERNO
-                </button>
-            </div>
-        </div>
-
-        {useModernPlayer ? <ModernRadioPlayer /> : <RadioPlayer />}
+        <RadioPlayer />
       </div>
 
       {(() => {
