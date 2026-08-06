@@ -1983,7 +1983,7 @@ export const AdminPanel: React.FC = () => {
             </div>
             <div>
                 <span className="block font-bold text-white text-lg lg:text-xl tracking-tight">Panel de Administración</span>
-                <span className="block text-sm text-gray-500">v1.3.0 - Unción Radio</span>
+                <span className="block text-sm text-gray-500">v1.3.0 - BUENÍSIMA</span>
             </div>
         </div>
         

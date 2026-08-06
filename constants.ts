@@ -8,14 +8,14 @@ export const DEFAULT_CONFIG: SiteConfig = {
     fallbackStreamUrl: "",
     autoDJTracks: [],
     autoDJMode: 'alphabetical',
-    logoUrl: "https://cdn-icons-png.flaticon.com/512/7508/7508493.png", 
+    logoUrl: "https://i.ibb.co/ZptWRz8G/LOGO-2.png", 
     contactEmail: "contacto@buenisima.com",
     contactPhone: "+584144105077",
     city: "Valencia",
     country: "Venezuela"
   },
   navigation: {
-    logoUrl: "https://cdn-icons-png.flaticon.com/512/7508/7508493.png",
+    logoUrl: "https://i.ibb.co/ZptWRz8G/LOGO-2.png",
     showLogo: true,
     logoHeight: 45,
     navBackgroundColor: "#0f172a",

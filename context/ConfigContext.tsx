@@ -135,6 +135,83 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   return errInfo;
 }
 
+const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
+  let updated = false;
+  const c = JSON.parse(JSON.stringify(cfg)) as SiteConfig;
+
+  // Station Name & Logo
+  if (!c.general?.stationName || /supercriolla|uncion|unción/i.test(c.general.stationName)) {
+    if (!c.general) c.general = { ...DEFAULT_CONFIG.general };
+    c.general.stationName = "BUENÍSIMA";
+    updated = true;
+  }
+  if (!c.general?.logoUrl || c.general.logoUrl.includes('flaticon.com')) {
+    if (!c.general) c.general = { ...DEFAULT_CONFIG.general };
+    c.general.logoUrl = "https://i.ibb.co/ZptWRz8G/LOGO-2.png";
+    updated = true;
+  }
+  if (!c.navigation?.logoUrl || c.navigation.logoUrl.includes('flaticon.com')) {
+    if (!c.navigation) c.navigation = { ...DEFAULT_CONFIG.navigation };
+    c.navigation.logoUrl = "https://i.ibb.co/ZptWRz8G/LOGO-2.png";
+    updated = true;
+  }
+
+  // Hero Slides
+  if (c.content?.hero) {
+    c.content.hero = c.content.hero.map((slide) => {
+      let newTitle = slide.title;
+      let newSubtitle = slide.subtitle;
+      if (/supercriolla|uncion|unción/i.test(slide.title || '')) {
+        newTitle = "BUENÍSIMA";
+        updated = true;
+      }
+      if (/supercriolla|uncion|unción|folklore|cristiana/i.test(slide.subtitle || '')) {
+        newSubtitle = "La Radio de la Buena Vibra";
+        updated = true;
+      }
+      return { ...slide, title: newTitle, subtitle: newSubtitle };
+    });
+  }
+
+  // Ribbons
+  if (c.content?.ribbons) {
+    c.content.ribbons = c.content.ribbons.map((r) => {
+      if (/supercriolla|uncion|unción/i.test(r.text || '')) {
+        updated = true;
+        return {
+          ...r,
+          text: "¡Bienvenidos a BUENÍSIMA! La Radio de la Buena Vibra las 24 horas."
+        };
+      }
+      return r;
+    });
+  }
+
+  // Chat
+  if (c.content?.chat) {
+    if (/supercriolla|uncion|unción/i.test(c.content.chat.title || '')) {
+      c.content.chat.title = "Comunidad BUENÍSIMA";
+      updated = true;
+    }
+    if (/supercriolla|uncion|unción/i.test(c.content.chat.adminName || '')) {
+      c.content.chat.adminName = "BUENÍSIMA Admin";
+      updated = true;
+    }
+  }
+
+  // Auto-sync sanitized config back to Firestore if updated
+  if (updated && hasFirebaseKeys && db) {
+    try {
+      const configDocRef = doc(db, 'settings', 'config');
+      setDoc(configDocRef, deepClean(c));
+    } catch (e) {
+      console.warn("Could not auto-update sanitized brand to Firestore", e);
+    }
+  }
+
+  return c;
+};
+
 export const ConfigProvider = ({ children }: ConfigProviderProps) => {
   const [config, setConfig] = useState<SiteConfig>(DEFAULT_CONFIG);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -184,9 +261,10 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
             parsed.general.streamUrl = DEFAULT_CONFIG.general.streamUrl;
         }
 
+        let finalConfig: SiteConfig;
         if (needsMigration) {
           console.warn("Detected old config schema in Firestore. Merging with defaults.");
-          const merged = {
+          finalConfig = {
             ...DEFAULT_CONFIG,
             ...parsed,
             navigation: { 
@@ -222,11 +300,11 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
                 radioPlayer: parsed.appearance?.radioPlayer || DEFAULT_CONFIG.appearance.radioPlayer
             }
           };
-          
-          setConfig(merged);
         } else {
-          setConfig(parsed);
+          finalConfig = parsed;
         }
+
+        setConfig(sanitizeBrandConfig(finalConfig));
       } else {
         // If doc doesn't exist, use default and attempt to initialize it in Firestore
         console.log("Config document missing in Firestore. Initializing with defaults.");
