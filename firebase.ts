@@ -30,6 +30,12 @@ const firebaseConfig = {
   firestoreDatabaseId: getEnv('VITE_FIREBASE_DATABASE_ID') || firebaseConfigImport.firestoreDatabaseId
 };
 
+// Robustness: Detect if projectId was accidentally set to an API key
+if (firebaseConfig.projectId && firebaseConfig.projectId.startsWith('AIza')) {
+  console.error("CRITICAL: VITE_FIREBASE_PROJECT_ID seems to be an API key. Falling back to config file project ID.");
+  firebaseConfig.projectId = firebaseConfigImport.projectId;
+}
+
 // Check if we have minimum requirements for Firebase
 const hasFirebaseKeys = !!(firebaseConfig.apiKey && firebaseConfig.apiKey !== "");
 

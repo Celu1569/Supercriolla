@@ -6,12 +6,12 @@ publish = "dist"
 NODE_VERSION = "20"
 
 [[headers]]
-  for = "/*"
+  for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
 [[headers]]
-  for = "/index.html"
+  for = "/*"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
