@@ -145,12 +145,12 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
     c.general.stationName = "BUENÍSIMA";
     updated = true;
   }
-  if (!c.general?.logoUrl || c.general.logoUrl.includes('flaticon.com')) {
+  if (!c.general?.logoUrl || c.general.logoUrl.includes('flaticon') || c.general.logoUrl.includes('7508493')) {
     if (!c.general) c.general = { ...DEFAULT_CONFIG.general };
     c.general.logoUrl = "https://i.ibb.co/ZptWRz8G/LOGO-2.png";
     updated = true;
   }
-  if (!c.navigation?.logoUrl || c.navigation.logoUrl.includes('flaticon.com')) {
+  if (!c.navigation?.logoUrl || c.navigation.logoUrl.includes('flaticon') || c.navigation.logoUrl.includes('7508493')) {
     if (!c.navigation) c.navigation = { ...DEFAULT_CONFIG.navigation };
     c.navigation.logoUrl = "https://i.ibb.co/ZptWRz8G/LOGO-2.png";
     updated = true;
