@@ -155,7 +155,7 @@ const InputGroup: React.FC<{ label: string; children?: React.ReactNode; classNam
 
 const AdminAuthManager: React.FC = () => {
     const [username, setUsername] = useState('admin');
-    const [password, setPassword] = useState('uncionradio123');
+    const [password, setPassword] = useState('buenisima123');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -168,7 +168,7 @@ const AdminAuthManager: React.FC = () => {
                 if (snap.exists()) {
                     const data = snap.data();
                     setUsername(data.username || 'admin');
-                    setPassword(data.password || 'uncionradio123');
+                    setPassword(data.password || 'buenisima123');
                 }
                 setLoading(false);
             } catch (e) {
@@ -1047,7 +1047,7 @@ const LeadsView: React.FC = () => {
         const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
         link.setAttribute('href', url);
-        link.setAttribute('download', `oyentes_uncion_radio_${new Date().toISOString().split('T')[0]}.csv`);
+        link.setAttribute('download', `oyentes_buenisima_radio_${new Date().toISOString().split('T')[0]}.csv`);
         link.style.visibility = 'hidden';
         document.body.appendChild(link);
         link.click();

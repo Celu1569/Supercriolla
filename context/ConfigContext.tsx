@@ -379,12 +379,12 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
 
     // Emergency Fallback Usernames
     const isAdminUser = cleanUser === 'admin' || 
-                        cleanUser === 'uncionradio' || 
-                        cleanUser === 'uncionradio87.7fm' || 
+                        cleanUser === 'buenisima' || 
+                        cleanUser === 'buenisimaradio' || 
                         cleanUser === 'uncionradio87.7fm@gmail.com';
 
     if (!hasFirebaseKeys) {
-        if (isAdminUser && (cleanPass === 'admin' || cleanPass === 'uncionradio123' || cleanPass === 'admin123')) {
+        if (isAdminUser && (cleanPass === 'admin' || cleanPass === 'buenisima123' || cleanPass === 'admin123')) {
             setIsAuthenticated(true);
             localStorage.setItem('radio_admin_auth', 'true');
             return true;
@@ -400,7 +400,7 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
       });
       
       let validUser = 'admin';
-      let validPass = 'uncionradio123';
+      let validPass = 'buenisima123';
       
       if (snap && snap.exists()) {
         const data = snap.data();
@@ -409,14 +409,14 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
       } else {
         // If auth doc doesn't exist, initialize it with default so user isn't locked out
         try {
-          await setDoc(authDocRef, { username: 'admin', password: 'uncionradio123' });
+          await setDoc(authDocRef, { username: 'admin', password: 'buenisima123' });
         } catch (initErr) {
           console.error("Could not initialize auth doc", initErr);
         }
       }
 
       const matchesRemote = (cleanUser === validUser && cleanPass === validPass);
-      const matchesEmergency = isAdminUser && (cleanPass === 'admin' || cleanPass === 'uncionradio123' || cleanPass === 'admin123');
+      const matchesEmergency = isAdminUser && (cleanPass === 'admin' || cleanPass === 'buenisima123' || cleanPass === 'admin123');
 
       if (matchesRemote || matchesEmergency) {
         setIsAuthenticated(true);
@@ -426,7 +426,7 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
       
       return false;
     } catch (e) {
-      if (isAdminUser && (cleanPass === 'admin' || cleanPass === 'uncionradio123' || cleanPass === 'admin123')) {
+      if (isAdminUser && (cleanPass === 'admin' || cleanPass === 'buenisima123' || cleanPass === 'admin123')) {
           setIsAuthenticated(true);
           localStorage.setItem('radio_admin_auth', 'true');
           return true;
