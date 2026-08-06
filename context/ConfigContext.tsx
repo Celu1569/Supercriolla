@@ -102,6 +102,39 @@ const deepClean = (obj: any, seen = new WeakSet()): any => {
   return res;
 };
 
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+  };
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth?.currentUser?.uid || null,
+      email: auth?.currentUser?.email || null,
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  return errInfo;
+}
+
 export const ConfigProvider = ({ children }: ConfigProviderProps) => {
   const [config, setConfig] = useState<SiteConfig>(DEFAULT_CONFIG);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -210,11 +243,7 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
       }
       setIsConfigLoaded(true);
     }, (error) => {
-      console.error('Firestore Error sync config: ', JSON.stringify({
-        error: error instanceof Error ? error.message : String(error),
-        operationType: 'get',
-        path: 'settings/config'
-      }));
+      handleFirestoreError(error, OperationType.GET, 'settings/config');
       setIsConfigLoaded(true);
     });
 
@@ -225,7 +254,7 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
     const cleaned = deepClean(newConfig);
     if (!cleaned) return; 
     
-    // Always update locally immediately for snappy UX
+    // Always update locally immediately for snappy UI
     setConfig(cleaned);
 
     if (!hasFirebaseKeys) {
@@ -238,16 +267,8 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
       const configDocRef = doc(db, 'settings', 'config');
       await setDoc(configDocRef, cleaned);
     } catch (e: any) {
-      console.error("Failed to save config", JSON.stringify({
-          error: e instanceof Error ? e.message : String(e),
-          operationType: 'write',
-          path: 'settings/config'
-      }));
-      if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-        alert("⚠️ Error: No hay espacio suficiente para guardar los cambios en caché. Recomendamos reiniciar la app.");
-      } else {
-        alert("Ocurrió un error al intentar guardar la configuración en la base de datos.");
-      }
+      handleFirestoreError(e, OperationType.WRITE, 'settings/config');
+      console.warn("Could not sync config changes to Firestore; changes stored locally in app state.");
     }
   };
 
