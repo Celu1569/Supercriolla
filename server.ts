@@ -32,6 +32,10 @@ async function startServer() {
   try {
     const { collection, onSnapshot, addDoc, query, orderBy, limit, serverTimestamp } = await import('firebase/firestore');
     const { db } = await import('./firebase.js');
+    
+    if (!db) {
+        throw new Error("Firebase database not initialized. Check your configuration.");
+    }
 
     const messagesRef = collection(db, 'messages');
     const q = query(messagesRef, orderBy('timestamp', 'asc'), limit(100));

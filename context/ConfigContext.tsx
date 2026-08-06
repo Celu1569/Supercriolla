@@ -164,17 +164,13 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
             content: { 
                 ...DEFAULT_CONFIG.content, 
                 ...parsed.content,
-                // Ensure specifically heroInterval is set if missing in parsed.content
                 heroInterval: parsed.content?.heroInterval ?? DEFAULT_CONFIG.content.heroInterval,
-                // Ensure clients is initialized
                 clients: parsed.content?.clients ?? DEFAULT_CONFIG.content.clients,
-                // Ensure weekendPrograms is initialized
                 program: {
                     ...DEFAULT_CONFIG.content.program,
                     ...parsed.content?.program,
                     weekendPrograms: parsed.content?.program?.weekendPrograms ?? DEFAULT_CONFIG.content.program.weekendPrograms ?? []
                 },
-                // Migrate hero slides
                 hero: (parsed.content?.hero || DEFAULT_CONFIG.content.hero).map((slide: any) => ({
                     ...slide,
                     titleColor: slide.titleColor || slide.textColor || '#ffffff',
@@ -199,8 +195,18 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
           setConfig(parsed);
         }
       } else {
-        // If doc doesn't exist, just use default locally. An admin will create it when they save.
+        // If doc doesn't exist, use default and attempt to initialize it in Firestore
+        console.log("Config document missing in Firestore. Initializing with defaults.");
         setConfig(DEFAULT_CONFIG);
+        
+        if (hasFirebaseKeys) {
+            try {
+                const configDocRef = doc(db, 'settings', 'config');
+                setDoc(configDocRef, DEFAULT_CONFIG);
+            } catch (initErr) {
+                console.error("Failed to initialize config in Firestore", initErr);
+            }
+        }
       }
       setIsConfigLoaded(true);
     }, (error) => {
@@ -272,8 +278,14 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
     const cleanUser = (username || '').trim().toLowerCase();
     const cleanPass = (password || '').trim();
 
+    // Emergency Fallback Usernames
+    const isAdminUser = cleanUser === 'admin' || 
+                        cleanUser === 'uncionradio' || 
+                        cleanUser === 'uncionradio87.7fm' || 
+                        cleanUser === 'uncionradio87.7fm@gmail.com';
+
     if (!hasFirebaseKeys) {
-        if (cleanUser === 'admin' && (cleanPass === 'admin' || cleanPass === 'uncionradio123' || cleanPass === 'admin123')) {
+        if (isAdminUser && (cleanPass === 'admin' || cleanPass === 'uncionradio123' || cleanPass === 'admin123')) {
             setIsAuthenticated(true);
             localStorage.setItem('radio_admin_auth', 'true');
             return true;
@@ -295,10 +307,17 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
         const data = snap.data();
         validUser = (data.username || validUser).trim().toLowerCase();
         validPass = (data.password || validPass).trim();
+      } else {
+        // If auth doc doesn't exist, initialize it with default so user isn't locked out
+        try {
+          await setDoc(authDocRef, { username: 'admin', password: 'uncionradio123' });
+        } catch (initErr) {
+          console.error("Could not initialize auth doc", initErr);
+        }
       }
 
       const matchesRemote = (cleanUser === validUser && cleanPass === validPass);
-      const matchesEmergency = (cleanUser === 'admin' && (cleanPass === 'admin' || cleanPass === 'uncionradio123' || cleanPass === 'admin123'));
+      const matchesEmergency = isAdminUser && (cleanPass === 'admin' || cleanPass === 'uncionradio123' || cleanPass === 'admin123');
 
       if (matchesRemote || matchesEmergency) {
         setIsAuthenticated(true);
@@ -308,7 +327,7 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
       
       return false;
     } catch (e) {
-      if (cleanUser === 'admin' && (cleanPass === 'admin' || cleanPass === 'uncionradio123' || cleanPass === 'admin123')) {
+      if (isAdminUser && (cleanPass === 'admin' || cleanPass === 'uncionradio123' || cleanPass === 'admin123')) {
           setIsAuthenticated(true);
           localStorage.setItem('radio_admin_auth', 'true');
           return true;

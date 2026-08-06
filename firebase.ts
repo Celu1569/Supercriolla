@@ -5,16 +5,29 @@ import { getStorage } from 'firebase/storage';
 
 import firebaseConfigImport from './firebase-applet-config.json';
 
-// Use Environment Variables if available (standard for Netlify/Production)
-// Fallback to the JSON file for local development or simple exports
+// Helper to get environment variables safely in both Vite (browser) and Node.js (server)
+const getEnv = (key: string): string | undefined => {
+  // Check process.env (Node.js)
+  if (typeof process !== 'undefined' && process.env && process.env[key]) {
+    return process.env[key];
+  }
+  // Check import.meta.env (Vite)
+  // @ts-ignore
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
+    // @ts-ignore
+    return import.meta.env[key];
+  }
+  return undefined;
+};
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfigImport.apiKey,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigImport.authDomain,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfigImport.projectId,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfigImport.storageBucket,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfigImport.messagingSenderId,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfigImport.appId,
-  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || firebaseConfigImport.firestoreDatabaseId
+  apiKey: getEnv('VITE_FIREBASE_API_KEY') || firebaseConfigImport.apiKey,
+  authDomain: getEnv('VITE_FIREBASE_AUTH_DOMAIN') || firebaseConfigImport.authDomain,
+  projectId: getEnv('VITE_FIREBASE_PROJECT_ID') || firebaseConfigImport.projectId,
+  storageBucket: getEnv('VITE_FIREBASE_STORAGE_BUCKET') || firebaseConfigImport.storageBucket,
+  messagingSenderId: getEnv('VITE_FIREBASE_MESSAGING_SENDER_ID') || firebaseConfigImport.messagingSenderId,
+  appId: getEnv('VITE_FIREBASE_APP_ID') || firebaseConfigImport.appId,
+  firestoreDatabaseId: getEnv('VITE_FIREBASE_DATABASE_ID') || firebaseConfigImport.firestoreDatabaseId
 };
 
 // Check if we have minimum requirements for Firebase

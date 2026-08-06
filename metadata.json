@@ -1,6 +1,6 @@
 {
-  "name": "Unción Radio Live",
-  "description": "Una plataforma moderna para Unción Radio 87.7 FM con reproductor inteligente y panel de administración.",
+  "name": "BUENÍSIMA",
+  "description": "BUENÍSIMA - La Radio de la Buena Vibra. Una plataforma moderna con reproductor en vivo y panel de administración.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
