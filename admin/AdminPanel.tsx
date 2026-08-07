@@ -2386,12 +2386,52 @@ export const AdminPanel: React.FC = () => {
                     <SectionHeader title="Encabezado y Navegación" subtitle="Personaliza el logo, el título y los estilos del menú." />
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                          <div className="space-y-4">
-                             <InputGroup label="Nombre del Sitio (Título)">
-                                <input type="text" value={formData.general.stationName || ''} onChange={e => setFormData(prev => ({...prev, general: {...prev.general, stationName: e.target.value}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" />
+                             <InputGroup label="Nombre de la Estación (General)">
+                                <input 
+                                    type="text" 
+                                    value={formData.general.stationName || ''} 
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        setFormData(prev => ({
+                                            ...prev, 
+                                            general: {...prev.general, stationName: val},
+                                            navigation: {
+                                                ...prev.navigation,
+                                                headerTitle: prev.navigation.headerTitle === undefined || prev.navigation.headerTitle === prev.general.stationName ? val : prev.navigation.headerTitle
+                                            }
+                                        }));
+                                    }} 
+                                    className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" 
+                                    placeholder="Ej: Radio Unción 87.7 FM"
+                                />
                              </InputGroup>
+
+                             <div className="flex items-center space-x-3 bg-gray-800 p-3 rounded-lg border border-gray-700">
+                                <input 
+                                    type="checkbox" 
+                                    id="showTitle" 
+                                    checked={formData.navigation.showTitle !== false} 
+                                    onChange={e => setFormData(prev => ({...prev, navigation: {...prev.navigation, showTitle: e.target.checked}}))} 
+                                    className="h-5 w-5 accent-primary rounded bg-gray-700 border-gray-600" 
+                                />
+                                <label htmlFor="showTitle" className="text-sm font-bold text-gray-300">Mostrar Título de Texto en el Menú</label>
+                             </div>
+
+                             {formData.navigation.showTitle !== false && (
+                                <InputGroup label="Título en el Menú (Al lado del Logo)">
+                                   <input 
+                                       type="text" 
+                                       value={formData.navigation.headerTitle !== undefined ? formData.navigation.headerTitle : (formData.general.stationName || '')} 
+                                       onChange={e => setFormData(prev => ({...prev, navigation: {...prev.navigation, headerTitle: e.target.value}}))} 
+                                       className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" 
+                                       placeholder="Ej: Radio Unción"
+                                   />
+                                </InputGroup>
+                             )}
+
                              <div className="flex items-center space-x-3 bg-gray-800 p-3 rounded-lg border border-gray-700">
                                 <input type="checkbox" id="showLogo" checked={!!formData.navigation.showLogo} onChange={e => setFormData(prev => ({...prev, navigation: {...prev.navigation, showLogo: e.target.checked}}))} className="h-5 w-5 accent-primary rounded bg-gray-700 border-gray-600" />
-                                <label htmlFor="showLogo" className="text-sm font-bold text-gray-300">Mostrar Logotipo</label>
+                                <label htmlFor="showLogo" className="text-sm font-bold text-gray-300">Mostrar Imagen de Logotipo</label>
                              </div>
                              {formData.navigation.showLogo && (
                                 <>

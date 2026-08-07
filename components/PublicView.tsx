@@ -424,19 +424,21 @@ const PublicView: React.FC = () => {
       {/* Navigation */}
       <nav className="fixed top-0 w-full z-40 shadow-lg border-b border-white/10 transition-all duration-300" style={navStyle}>
         <div className="container mx-auto px-4 py-4 flex items-center justify-between min-h-[80px]">
-          {/* Logo & Branding - NOW ALWAYS SHOWS TEXT, LOGO OPTIONAL BESIDE IT */}
+          {/* Logo & Branding */}
           <div className="flex items-center gap-3 cursor-pointer min-w-0 flex-1 md:flex-none" onClick={() => toggleSection('hero')}>
              {config.navigation.showLogo && config.navigation.logoUrl && (
                  <img 
                     src={getDirectImageUrl(config.navigation.logoUrl)} 
-                    alt={config.general.stationName} 
+                    alt={config.navigation.headerTitle || config.general.stationName} 
                     className="w-auto object-contain transition-all flex-shrink-0 max-w-[150px] md:max-w-none"
                     style={{ height: `${config.navigation.logoHeight}px` }} 
                  />
              )}
-             <div className="text-lg md:text-2xl font-heading font-bold tracking-tighter truncate max-w-[180px] sm:max-w-[260px] md:max-w-none">
-                {config.general.stationName}
-             </div>
+             {(config.navigation.showTitle !== false) && (
+                 <div className="text-lg md:text-2xl font-heading font-bold tracking-tighter truncate max-w-[180px] sm:max-w-[260px] md:max-w-none">
+                    {config.navigation.headerTitle || config.general.stationName}
+                 </div>
+             )}
           </div>
 
           {/* Desktop Menu */}

@@ -205,7 +205,9 @@ export interface NewsConfig {
 export interface NavigationConfig {
     logoUrl: string;
     showLogo: boolean;
-    logoHeight: number; // New: Control logo size in pixels
+    showTitle?: boolean;
+    headerTitle?: string;
+    logoHeight: number; // Control logo size in pixels
     navBackgroundColor: string;
     navTextColor: string;
     navActiveColor: string; // New: Color for active/highlighted item

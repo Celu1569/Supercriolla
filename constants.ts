@@ -20,6 +20,8 @@ export const DEFAULT_CONFIG: SiteConfig = {
   navigation: {
     logoUrl: "https://i.ibb.co/ZptWRz8G/LOGO-2.png",
     showLogo: true,
+    showTitle: true,
+    headerTitle: "",
     logoHeight: 45,
     navBackgroundColor: "#0f172a",
     navTextColor: "#f8fafc",
