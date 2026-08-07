@@ -119,8 +119,12 @@ async function startServer() {
     const station = (req.query.station as string) || "";
     const now = Date.now();
 
-    // Use cache if it's for the same stream and fresh (20s)
-    if (metadataCache.streamUrl === stream && (now - metadataCache.lastUpdate < 20000)) {
+    // Use cache if it's for the same stream and fresh (15s)
+    // ONLY use cache if it has real metadata (title/artist)
+    if (metadataCache.streamUrl === stream && 
+        (now - metadataCache.lastUpdate < 15000) && 
+        metadataCache.title && 
+        metadataCache.artist) {
         return res.json({ 
             title: metadataCache.title, 
             artist: metadataCache.artist, 
@@ -129,7 +133,7 @@ async function startServer() {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     try {
       let title = ""; 
@@ -140,6 +144,13 @@ async function startServer() {
         try {
           const urlObj = new URL(stream);
           const baseUrl = `${urlObj.protocol}//${urlObj.hostname}${urlObj.port ? ':' + urlObj.port : ''}`;
+          const mount = urlObj.pathname.startsWith('/') ? urlObj.pathname : `/${urlObj.pathname}`;
+          
+          // Try specific mount status first, then general
+          if (mount && mount !== '/' && mount !== '/live') {
+            fetchUrls.push(`${baseUrl}/status-json.xsl?mount=${mount}`);
+          }
+          
           fetchUrls.push(`${baseUrl}/status-json.xsl`);
           fetchUrls.push(`${baseUrl}/7.html`);
           fetchUrls.push(`${baseUrl}/status.json`);
@@ -155,8 +166,6 @@ async function startServer() {
         } catch (e) {}
       }
       
-      let metadataFound = false;
-
       const parseMetadata = (responseText: string) => {
         let t = "";
         let a = "";
@@ -180,6 +189,7 @@ async function startServer() {
                 return { t, a };
             }
         }
+
         let data: any;
         try { 
             data = JSON.parse(content.replace(/,\s*([\]}])/g, '$1')); 
@@ -196,11 +206,13 @@ async function startServer() {
             }
             return { t, a };
         }
+
         if (data) {
             if (data.icestats && data.icestats.source) {
                 const sources = Array.isArray(data.icestats.source) ? data.icestats.source : [data.icestats.source];
-                const source = sources.find((s: any) => s.yp_currently_playing || s.title) || sources[0];
-                const et = source?.yp_currently_playing || source?.title || "";
+                // Prefer source with a title, then fallback to first source
+                const source = sources.find((s: any) => (s.yp_currently_playing || s.title || s.song_title)) || sources[0];
+                const et = source?.yp_currently_playing || source?.title || source?.song_title || "";
                 if (et.includes(' - ')) [a, t] = et.split(' - ').map((s: string) => s.trim());
                 else t = et;
             } else if (data.songtitle) {
@@ -209,22 +221,27 @@ async function startServer() {
             } else if (data.now_playing) {
                 a = data.now_playing.artist || "";
                 t = data.now_playing.title || "";
+            } else if (data.title && data.artist) {
+                t = data.title;
+                a = data.artist;
             }
         }
         return { t, a };
       };
 
-      const urlsToTry = fetchUrls.slice(0, 3);
+      const urlsToTry = fetchUrls.slice(0, 4);
       const results = await Promise.all(urlsToTry.map(async (url) => {
           const controllerLocal = new AbortController();
           const timeoutIdLocal = setTimeout(() => controllerLocal.abort(), 6000);
 
           try {
+              const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' };
+              
               const directPromise = axios.get(url, { 
                   timeout: 5000, 
                   httpsAgent, 
                   signal: controllerLocal.signal,
-                  headers: { 'User-Agent': 'Mozilla/5.0' }
+                  headers
               }).then(r => r.data).catch(() => null);
 
               const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
@@ -255,23 +272,29 @@ async function startServer() {
       if (foundResult) {
           title = foundResult.t;
           artist = foundResult.a;
-          metadataFound = true;
       }
 
       const isGeneric = (val: string) => {
         if (!val) return true;
         const l = val.toLowerCase();
         return l.includes("señal") || l.includes("recuperando") || l.includes("conectando") || 
-               l.includes("en vivo") || l.includes("transmision") || l.includes("icecast") || 
-               l.includes("shoutcast") || l.includes("unknown") || l.includes("stream");
+               l.includes("transmision") || l.includes("icecast") || 
+               l.includes("shoutcast") || l.includes("unknown") || l.includes("undefined") ||
+               l.includes("no title") || l.includes("stream") || l.trim() === "-";
       };
       
       let cover = logo || '';
       const stationLower = station.toLowerCase();
       const isStationName = (s: string) => stationLower && (s.toLowerCase().includes(stationLower) || stationLower.includes(s.toLowerCase()));
 
-      const finalTitle = isGeneric(title) ? "" : title;
-      const finalArtist = isGeneric(artist) ? "" : artist;
+      let finalTitle = isGeneric(title) ? "" : title;
+      let finalArtist = isGeneric(artist) ? "" : artist;
+
+      // If we only have one part, try to use it as title
+      if (!finalTitle && finalArtist) {
+          finalTitle = finalArtist;
+          finalArtist = "";
+      }
 
       if (finalTitle && finalArtist && !isStationName(finalTitle) && !isStationName(finalArtist)) {
           try {
@@ -286,6 +309,7 @@ async function startServer() {
 
       clearTimeout(timeoutId);
 
+      // Cache the result
       metadataCache = {
         title: finalTitle,
         artist: finalArtist,

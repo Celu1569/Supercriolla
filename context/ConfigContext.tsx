@@ -139,64 +139,30 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
   let updated = false;
   const c = JSON.parse(JSON.stringify(cfg)) as SiteConfig;
 
-  // Station Name & Logo
-  if (!c.general?.stationName || /supercriolla|uncion|unción/i.test(c.general.stationName)) {
-    if (!c.general) c.general = { ...DEFAULT_CONFIG.general };
-    c.general.stationName = "BUENÍSIMA";
+  // Ensure required fields exist, but don't force specific branding
+  if (!c.general) {
+    c.general = { ...DEFAULT_CONFIG.general };
     updated = true;
   }
-  if (!c.general?.logoUrl || c.general.logoUrl.includes('flaticon') || c.general.logoUrl.includes('7508493')) {
-    if (!c.general) c.general = { ...DEFAULT_CONFIG.general };
-    c.general.logoUrl = "https://i.ibb.co/ZptWRz8G/LOGO-2.png";
-    updated = true;
-  }
-  if (!c.navigation?.logoUrl || c.navigation.logoUrl.includes('flaticon') || c.navigation.logoUrl.includes('7508493')) {
-    if (!c.navigation) c.navigation = { ...DEFAULT_CONFIG.navigation };
-    c.navigation.logoUrl = "https://i.ibb.co/ZptWRz8G/LOGO-2.png";
+  
+  if (!c.general.stationName) {
+    c.general.stationName = DEFAULT_CONFIG.general.stationName;
     updated = true;
   }
 
-  // Hero Slides
-  if (c.content?.hero) {
-    c.content.hero = c.content.hero.map((slide) => {
-      let newTitle = slide.title;
-      let newSubtitle = slide.subtitle;
-      if (/supercriolla|uncion|unción/i.test(slide.title || '')) {
-        newTitle = "BUENÍSIMA";
-        updated = true;
-      }
-      if (/supercriolla|uncion|unción|folklore|cristiana/i.test(slide.subtitle || '')) {
-        newSubtitle = "La Radio de la Buena Vibra";
-        updated = true;
-      }
-      return { ...slide, title: newTitle, subtitle: newSubtitle };
-    });
+  if (!c.general.logoUrl) {
+    c.general.logoUrl = DEFAULT_CONFIG.general.logoUrl;
+    updated = true;
   }
 
-  // Ribbons
-  if (c.content?.ribbons) {
-    c.content.ribbons = c.content.ribbons.map((r) => {
-      if (/supercriolla|uncion|unción/i.test(r.text || '')) {
-        updated = true;
-        return {
-          ...r,
-          text: "¡Bienvenidos a BUENÍSIMA! La Radio de la Buena Vibra las 24 horas."
-        };
-      }
-      return r;
-    });
+  if (!c.navigation) {
+    c.navigation = { ...DEFAULT_CONFIG.navigation };
+    updated = true;
   }
 
-  // Chat
-  if (c.content?.chat) {
-    if (/supercriolla|uncion|unción/i.test(c.content.chat.title || '')) {
-      c.content.chat.title = "Comunidad BUENÍSIMA";
-      updated = true;
-    }
-    if (/supercriolla|uncion|unción/i.test(c.content.chat.adminName || '')) {
-      c.content.chat.adminName = "BUENÍSIMA Admin";
-      updated = true;
-    }
+  if (!c.navigation.logoUrl) {
+    c.navigation.logoUrl = DEFAULT_CONFIG.navigation.logoUrl || c.general.logoUrl;
+    updated = true;
   }
 
   // Auto-sync sanitized config back to Firestore if updated

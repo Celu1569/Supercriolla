@@ -348,13 +348,23 @@ export const RadioPlayer: React.FC = () => {
                     const data = await res.json();
                     
                     // Only update if we got real data
-                    if (data.title && data.title.length > 1) finalTitle = data.title;
-                    if (data.artist && data.artist.length > 1) finalArtist = data.artist;
+                    if (data.title && String(data.title).trim().length > 1) {
+                        finalTitle = String(data.title).trim();
+                    }
+                    if (data.artist && String(data.artist).trim().length > 1) {
+                        finalArtist = String(data.artist).trim();
+                    }
                     
                     // Ensure cover is HTTPS if it exists
-                    if (data.cover && data.cover.startsWith('http')) {
+                    if (data.cover && typeof data.cover === 'string' && data.cover.startsWith('http')) {
                         finalCover = data.cover.replace('http://', 'https://');
+                    } else if (data.cover === "" || !data.cover) {
+                        finalCover = defaultCover;
                     }
+                    
+                    // If we got "generic" empty strings from API, ensure we show fallbacks
+                    if (!finalTitle || finalTitle.length < 2) finalTitle = defaultSlogan;
+                    if (!finalArtist || finalArtist.length < 2) finalArtist = stationName;
                     
                     // Update cache
                     COVER_CACHE[cacheKey] = JSON.stringify({

@@ -17,9 +17,10 @@ export const handler: Handler = async (event, context) => {
     const logo = event.queryStringParameters?.logo;
     const stationName = event.queryStringParameters?.station || "";
     
-    // Log for debugging (Netlify console)
-    console.log(`[Metadata] Request for stream: ${stream}`);
-
+    // Use cache if it's for the same stream and fresh (20s)
+    // ONLY use cache if it has real metadata (title/artist)
+    // Note: Netlify functions are stateless, but we might get lucky with some warm containers
+    
     let title = ""; 
     let artist = "";
     
@@ -28,6 +29,12 @@ export const handler: Handler = async (event, context) => {
       try {
         const urlObj = new URL(stream);
         const baseUrl = `${urlObj.protocol}//${urlObj.hostname}${urlObj.port ? ':' + urlObj.port : ''}`;
+        const mount = urlObj.pathname.startsWith('/') ? urlObj.pathname : `/${urlObj.pathname}`;
+        
+        // Try specific mount status first, then general
+        if (mount && mount !== '/' && mount !== '/live') {
+          fetchUrls.push(`${baseUrl}/status-json.xsl?mount=${mount}`);
+        }
         
         // Prioritize known working paths
         fetchUrls.push(`${baseUrl}/status-json.xsl`);
@@ -45,8 +52,6 @@ export const handler: Handler = async (event, context) => {
       } catch (e) {}
     }
     
-    let metadataFound = false;
-
     // Helper to parse metadata from various responses
     const parseMetadata = (responseText: string) => {
         let t = "";
@@ -99,8 +104,8 @@ export const handler: Handler = async (event, context) => {
         if (data) {
             if (data.icestats && data.icestats.source) {
                 const sources = Array.isArray(data.icestats.source) ? data.icestats.source : [data.icestats.source];
-                const source = sources.find((s: any) => s.yp_currently_playing || s.title) || sources[0];
-                const et = source?.yp_currently_playing || source?.title || "";
+                const source = sources.find((s: any) => s.yp_currently_playing || s.title || s.song_title) || sources[0];
+                const et = source?.yp_currently_playing || source?.title || source?.song_title || "";
                 if (et.includes(' - ')) [a, t] = et.split(' - ').map((s: string) => s.trim());
                 else t = et;
             } else if (data.songtitle) {
@@ -119,18 +124,20 @@ export const handler: Handler = async (event, context) => {
     };
 
     // Try URLs in parallel. For each URL, try direct and via proxy fallback
-    const urlsToTry = fetchUrls.slice(0, 3);
+    const urlsToTry = fetchUrls.slice(0, 4);
     const results = await Promise.all(urlsToTry.map(async (url) => {
         // Race direct vs proxy for this specific URL
         const controllerLocal = new AbortController();
         const timeoutIdLocal = setTimeout(() => controllerLocal.abort(), 6000);
 
         try {
+            const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' };
+
             const directPromise = axios.get(url, { 
                 timeout: 5000, 
                 httpsAgent, 
                 signal: controllerLocal.signal,
-                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
+                headers
             }).then(r => r.data).catch(() => null);
 
             const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
@@ -162,27 +169,29 @@ export const handler: Handler = async (event, context) => {
     if (foundResult) {
         title = foundResult.t;
         artist = foundResult.a;
-        metadataFound = true;
     }
 
     const isGeneric = (val: string) => {
       if (!val) return true;
       const l = val.toLowerCase();
       return l.includes("señal") || l.includes("recuperando") || l.includes("conectando") || 
-             l.includes("en vivo") || l.includes("transmision") || l.includes("icecast") || 
-             l.includes("shoutcast") || l.includes("unknown") || l.includes("stream") ||
-             l.includes("no title") || l.includes("undefined");
+             l.includes("transmision") || l.includes("icecast") || 
+             l.includes("shoutcast") || l.includes("unknown") || l.includes("undefined") ||
+             l.includes("no title") || l.includes("stream") || l.trim() === "-";
     };
     
     let cover = logo || '';
     const stationLower = stationName.toLowerCase();
     const isStationName = (s: string) => stationLower && (s.toLowerCase().includes(stationLower) || stationLower.includes(s.toLowerCase()));
 
-    // Song metadata cleaning (sometimes they are flipped or have extra text)
-    // If it looks like "SONG - ARTIST", the parsing above handled it as a=SONG, t=ARTIST
-    // Let's ensure if one is generic, we try to use the other
-    const finalTitle = isGeneric(title) ? "" : title;
-    const finalArtist = isGeneric(artist) ? "" : artist;
+    let finalTitle = isGeneric(title) ? "" : title;
+    let finalArtist = isGeneric(artist) ? "" : artist;
+
+    // If we only have one part, try to use it as title
+    if (!finalTitle && finalArtist) {
+        finalTitle = finalArtist;
+        finalArtist = "";
+    }
 
     if (finalTitle && finalArtist && !isStationName(finalTitle) && !isStationName(finalArtist)) {
         try {
