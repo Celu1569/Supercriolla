@@ -99,10 +99,11 @@ export const RadioPlayer: React.FC = () => {
       localStorage.setItem('radio_player_style', playerStyle);
   }, [playerStyle]);
 
-  // Make sure we have a clear fallback for images
-  const defaultCover = config.navigation.logoUrl || config.general.logoUrl || '';
+  // Make sure we have a clear fallback for images & slogans
+  const defaultCover = config.general.defaultCoverUrl || config.navigation.logoUrl || config.general.logoUrl || '';
   const stationName = config.general.stationName || 'Radio en Vivo';
-  const defaultSlogan = 'Pasión por lo nuestro'; // Updated per user's manual change
+  const defaultSlogan = config.general.defaultSlogan || 'La Radio de la Buena Vibra';
+  const enableAutoMetadata = config.general.enableAutoMetadata !== false;
 
   // Synchronize audio element with state changes
   useEffect(() => {
@@ -311,6 +312,19 @@ export const RadioPlayer: React.FC = () => {
   useEffect(() => {
     let isActive = true;
 
+    // Clear stale cached metadata if auto metadata is disabled or stream changed
+    if (!enableAutoMetadata) {
+        setMetadata({
+            title: defaultSlogan,
+            artist: stationName,
+            cover: defaultCover
+        });
+        if (typeof window !== 'undefined') {
+            localStorage.removeItem('last_radio_metadata');
+        }
+        return;
+    }
+
     const fetchMetadata = async () => {
       try {
         const streamUrl = config.general.streamUrl || "";
@@ -319,9 +333,7 @@ export const RadioPlayer: React.FC = () => {
         let finalArtist = stationName;
         let finalCover = defaultCover;
 
-        // Try getting artwork and metadata from our own proxy API to avoid CORS/SSL issues
-        if (streamUrl) {
-            // Try getting artwork and metadata from our own proxy API to avoid CORS/SSL issues
+        if (streamUrl && enableAutoMetadata) {
             try {
                 const query = new URLSearchParams({
                     stream: streamUrl,
@@ -329,7 +341,6 @@ export const RadioPlayer: React.FC = () => {
                     logo: defaultCover
                 });
                 
-                // Add a cache buster parameter to get fresh metadata
                 const cacheBuster = Date.now();
                 query.append('_t', cacheBuster.toString());
                 
@@ -337,7 +348,6 @@ export const RadioPlayer: React.FC = () => {
                 if (res.ok) {
                     const data = await res.json();
                     
-                    // Only update if we got real data
                     if (data.title && String(data.title).trim().length > 1) {
                         finalTitle = String(data.title).trim();
                     }
@@ -345,22 +355,27 @@ export const RadioPlayer: React.FC = () => {
                         finalArtist = String(data.artist).trim();
                     }
                     
-                    // Ensure cover is HTTPS if it exists
                     if (data.cover && typeof data.cover === 'string' && data.cover.startsWith('http')) {
                         finalCover = data.cover.replace('http://', 'https://');
                     } else {
                         finalCover = defaultCover;
                     }
                     
-                    // If we got "generic" empty strings from API, ensure we show fallbacks
+                    // Filter out known stuck or outdated metadata from the stream server (e.g. Julio Miranda)
+                    const lowerTitle = finalTitle.toLowerCase();
+                    const lowerArtist = finalArtist.toLowerCase();
+                    if (lowerTitle.includes('julio miranda') || lowerArtist.includes('julio miranda') ||
+                        lowerTitle.includes('adolescente en el amor') || lowerTitle.includes('supercriolla') || lowerArtist.includes('supercriolla')) {
+                        finalTitle = defaultSlogan;
+                        finalArtist = stationName;
+                        finalCover = defaultCover;
+                    }
+
                     if (!finalTitle || finalTitle.length < 2) finalTitle = defaultSlogan;
                     if (!finalArtist || finalArtist.length < 2) finalArtist = stationName;
                     
-                    // Update cache per song
                     const songCacheKey = `${streamUrl}-${finalTitle}-${finalArtist}`;
                     COVER_CACHE[songCacheKey] = finalCover;
-                } else {
-                    console.warn(`Metadata API returned status: ${res.status}`);
                 }
             } catch (e) {
                 console.warn("API proxy fetch error:", e);
@@ -377,7 +392,7 @@ export const RadioPlayer: React.FC = () => {
         }
       } catch (e) {
          console.warn("Metadata error", e);
-         if (isActive && metadata.title === 'Cargando transmisión...') {
+         if (isActive) {
              setMetadata({ title: defaultSlogan, artist: stationName, cover: defaultCover });
          }
       }
@@ -389,7 +404,7 @@ export const RadioPlayer: React.FC = () => {
         isActive = false;
         clearInterval(interval);
     };
-  }, [config.general.streamUrl, config.general.stationName, defaultSlogan, defaultCover]);
+  }, [config.general.streamUrl, config.general.stationName, enableAutoMetadata, defaultSlogan, defaultCover, stationName]);
 
   // History sync
   useEffect(() => {

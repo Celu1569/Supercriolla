@@ -12,7 +12,10 @@ export const DEFAULT_CONFIG: SiteConfig = {
     contactEmail: "contacto@buenisima.com",
     contactPhone: "+584144105077",
     city: "Valencia",
-    country: "Venezuela"
+    country: "Venezuela",
+    enableAutoMetadata: true,
+    defaultSlogan: "La Radio de la Buena Vibra",
+    defaultCoverUrl: ""
   },
   navigation: {
     logoUrl: "https://i.ibb.co/ZptWRz8G/LOGO-2.png",

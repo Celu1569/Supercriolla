@@ -289,6 +289,9 @@ export interface SiteConfig {
     contactPhone: string;
     city?: string;
     country?: string;
+    enableAutoMetadata?: boolean;
+    defaultSlogan?: string;
+    defaultCoverUrl?: string;
   };
   navigation: NavigationConfig;
   appearance: {

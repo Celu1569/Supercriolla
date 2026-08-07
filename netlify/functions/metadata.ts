@@ -177,7 +177,8 @@ export const handler: Handler = async (event, context) => {
       return l.includes("señal") || l.includes("recuperando") || l.includes("conectando") || 
              l.includes("transmision") || l.includes("icecast") || 
              l.includes("shoutcast") || l.includes("unknown") || l.includes("undefined") ||
-             l.includes("no title") || l.includes("stream") || l.trim() === "-";
+             l.includes("no title") || l.includes("stream") || l.includes("julio miranda") ||
+             l.includes("adolescente en el amor") || l.includes("supercriolla") || l.trim() === "-";
     };
     
     let cover = logo || '';

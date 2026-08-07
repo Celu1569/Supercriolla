@@ -3820,6 +3820,56 @@ export const AdminPanel: React.FC = () => {
                             }))}
                         />
                     </div>
+
+                    <div className="md:col-span-2 lg:col-span-4 bg-gray-800/80 p-4 rounded-xl border border-gray-700 space-y-4">
+                        <h4 className="font-bold text-white text-sm uppercase tracking-wider text-amber-400">Configuración del Reproductor de Audio</h4>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <label className="text-white font-medium text-sm block">Metadatos Automáticos de Canción en Vivo</label>
+                                <span className="text-xs text-gray-400 block">Si la emisora transmite nombres desactualizados (ej. "Julio Miranda"), desactiva esta opción para mostrar solo el nombre y eslogan de tu radio.</span>
+                            </div>
+                            <input 
+                                type="checkbox" 
+                                checked={formData.general.enableAutoMetadata !== false} 
+                                onChange={e => setFormData(prev => ({...prev, general: {...prev.general, enableAutoMetadata: e.target.checked}}))}
+                                className="w-5 h-5 accent-amber-500 rounded cursor-pointer" 
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                            <InputGroup label="Eslogan del Reproductor (Texto de Subtítulo)">
+                                <input 
+                                    type="text" 
+                                    value={formData.general.defaultSlogan || ''} 
+                                    onChange={e => setFormData(prev => ({...prev, general: {...prev.general, defaultSlogan: e.target.value}}))} 
+                                    className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg" 
+                                    placeholder="Ej: La Radio de la Buena Vibra" 
+                                />
+                            </InputGroup>
+
+                            <MediaUploader 
+                                label="Imagen de Carátula Personalizada para el Player" 
+                                value={formData.general.defaultCoverUrl || ''} 
+                                onChange={url => setFormData(prev => ({...prev, general: {...prev.general, defaultCoverUrl: url}}))} 
+                            />
+                        </div>
+
+                        <div className="pt-2 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (typeof window !== 'undefined') {
+                                        localStorage.removeItem('last_radio_metadata');
+                                        localStorage.removeItem('radio_history');
+                                        alert('¡Caché del reproductor borrada exitosamente! Recarga la página si deseas ver el estado reseteado.');
+                                    }
+                                }}
+                                className="px-3 py-1.5 bg-red-600/80 hover:bg-red-600 text-white text-xs font-semibold rounded-lg transition"
+                            >
+                                🗑️ Limpiar Caché del Reproductor
+                            </button>
+                        </div>
+                    </div>
                     <InputGroup label="Email de Contacto">
                     <input type="email" value={formData.general.contactEmail || ''} onChange={e => setFormData(prev => ({...prev, general: {...prev.general, contactEmail: e.target.value}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" />
                     </InputGroup>
