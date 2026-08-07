@@ -296,15 +296,36 @@ async function startServer() {
           finalArtist = "";
       }
 
-      if (finalTitle && finalArtist && !isStationName(finalTitle) && !isStationName(finalArtist)) {
+      if ((finalTitle || finalArtist) && !isStationName(finalTitle) && !isStationName(finalArtist)) {
           try {
-            const searchTerm = `${finalArtist} ${finalTitle}`.replace(/[\[\(\{].*?[\]\)\}]/g, '').trim();
-            const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&media=music&limit=1`;
-            const itunesResponse = await axios.get(itunesUrl, { timeout: 4000, signal: controller.signal });
-            if (itunesResponse.data?.results?.[0]?.artworkUrl100) {
-              cover = itunesResponse.data.results[0].artworkUrl100.replace('100x100', '600x600');
+            let searchTerm = "";
+            if (finalArtist && finalTitle) {
+              searchTerm = `${finalArtist} ${finalTitle}`;
+            } else {
+              searchTerm = finalTitle || finalArtist;
             }
-          } catch (e) {}
+            searchTerm = searchTerm.replace(/[\[\(\{].*?[\]\)\}]/g, '').replace(/ft\.|feat\.|official|video|live/gi, '').trim();
+
+            if (searchTerm.length > 2) {
+              const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&media=music&limit=1`;
+              const itunesResponse = await axios.get(itunesUrl, { timeout: 4000, signal: controller.signal });
+              if (itunesResponse.data?.results?.[0]?.artworkUrl100) {
+                cover = itunesResponse.data.results[0].artworkUrl100.replace('100x100', '600x600');
+              } else if (finalTitle && finalArtist) {
+                // Fallback search with title only
+                const titleOnlyTerm = finalTitle.replace(/[\[\(\{].*?[\]\)\}]/g, '').trim();
+                if (titleOnlyTerm.length > 2) {
+                  const fallbackUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(titleOnlyTerm)}&media=music&limit=1`;
+                  const fallbackRes = await axios.get(fallbackUrl, { timeout: 3000, signal: controller.signal });
+                  if (fallbackRes.data?.results?.[0]?.artworkUrl100) {
+                    cover = fallbackRes.data.results[0].artworkUrl100.replace('100x100', '600x600');
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.error("iTunes cover search error:", e);
+          }
       }
 
       clearTimeout(timeoutId);

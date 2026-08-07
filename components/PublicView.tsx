@@ -434,7 +434,7 @@ const PublicView: React.FC = () => {
                     style={{ height: `${config.navigation.logoHeight}px` }} 
                  />
              )}
-             <div className="hidden md:block text-2xl font-heading font-bold tracking-tighter truncate">
+             <div className="text-lg md:text-2xl font-heading font-bold tracking-tighter truncate max-w-[180px] sm:max-w-[260px] md:max-w-none">
                 {config.general.stationName}
              </div>
           </div>

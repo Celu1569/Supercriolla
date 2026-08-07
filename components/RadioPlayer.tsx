@@ -321,17 +321,7 @@ export const RadioPlayer: React.FC = () => {
 
         // Try getting artwork and metadata from our own proxy API to avoid CORS/SSL issues
         if (streamUrl) {
-            // Use local cache to avoid flicker
-            const cacheKey = `${streamUrl}-${stationName}`;
-            if (COVER_CACHE[cacheKey]) {
-                try {
-                    const cachedData = JSON.parse(COVER_CACHE[cacheKey]);
-                    if (cachedData.title) finalTitle = cachedData.title;
-                    if (cachedData.artist) finalArtist = cachedData.artist;
-                    if (cachedData.cover) finalCover = cachedData.cover;
-                } catch (e) {}
-            }
-
+            // Try getting artwork and metadata from our own proxy API to avoid CORS/SSL issues
             try {
                 const query = new URLSearchParams({
                     stream: streamUrl,
@@ -339,9 +329,9 @@ export const RadioPlayer: React.FC = () => {
                     logo: defaultCover
                 });
                 
-                // Add a cache buster only once a minute to allow edge caching to work
-                const cacheBuster = Math.floor(Date.now() / 60000);
-                query.append('v', cacheBuster.toString());
+                // Add a cache buster parameter to get fresh metadata
+                const cacheBuster = Date.now();
+                query.append('_t', cacheBuster.toString());
                 
                 const res = await fetch(`/api/metadata?${query.toString()}`);
                 if (res.ok) {
@@ -358,7 +348,7 @@ export const RadioPlayer: React.FC = () => {
                     // Ensure cover is HTTPS if it exists
                     if (data.cover && typeof data.cover === 'string' && data.cover.startsWith('http')) {
                         finalCover = data.cover.replace('http://', 'https://');
-                    } else if (data.cover === "" || !data.cover) {
+                    } else {
                         finalCover = defaultCover;
                     }
                     
@@ -366,12 +356,9 @@ export const RadioPlayer: React.FC = () => {
                     if (!finalTitle || finalTitle.length < 2) finalTitle = defaultSlogan;
                     if (!finalArtist || finalArtist.length < 2) finalArtist = stationName;
                     
-                    // Update cache
-                    COVER_CACHE[cacheKey] = JSON.stringify({
-                        title: finalTitle,
-                        artist: finalArtist,
-                        cover: finalCover
-                    });
+                    // Update cache per song
+                    const songCacheKey = `${streamUrl}-${finalTitle}-${finalArtist}`;
+                    COVER_CACHE[songCacheKey] = finalCover;
                 } else {
                     console.warn(`Metadata API returned status: ${res.status}`);
                 }

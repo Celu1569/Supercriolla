@@ -3796,8 +3796,13 @@ export const AdminPanel: React.FC = () => {
             {activeTab === 'general' && (
               <div className="space-y-6 animate-fade-in">
                 <SectionHeader title="General / Footer" subtitle="Configura la información del pie de página." />
-                <h3 className="text-md font-bold text-gray-300 uppercase tracking-wide border-b border-gray-700 pb-2 mb-4">Stream y Contacto</h3>
+                <h3 className="text-md font-bold text-gray-300 uppercase tracking-wide border-b border-gray-700 pb-2 mb-4">Información Principal y Stream</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="md:col-span-2 lg:col-span-4">
+                        <InputGroup label="Nombre de la Estación / Título del Sitio">
+                        <input type="text" value={formData.general.stationName || ''} onChange={e => setFormData(prev => ({...prev, general: {...prev.general, stationName: e.target.value}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" placeholder="Ej: Radio Unción 87.7 FM" />
+                        </InputGroup>
+                    </div>
                     <div className="md:col-span-2 lg:col-span-4">
                         <InputGroup label="URL del Streaming en Vivo (Principal)">
                         <input type="text" value={formData.general.streamUrl || ''} onChange={e => setFormData(prev => ({...prev, general: {...prev.general, streamUrl: e.target.value}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" />
