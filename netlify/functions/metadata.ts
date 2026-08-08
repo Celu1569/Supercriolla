@@ -32,12 +32,14 @@ export const handler: Handler = async (event, context) => {
         const mount = urlObj.pathname.startsWith('/') ? urlObj.pathname : `/${urlObj.pathname}`;
         
         // Try specific mount status first, then general
-        if (mount && mount !== '/' && mount !== '/live') {
+        if (mount && mount !== '/') {
           fetchUrls.push(`${baseUrl}/status-json.xsl?mount=${mount}`);
+          fetchUrls.push(`${baseUrl}/status.xsl?mount=${mount}`);
         }
         
         // Prioritize known working paths
         fetchUrls.push(`${baseUrl}/status-json.xsl`);
+        fetchUrls.push(`${baseUrl}/status.xsl`);
         fetchUrls.push(`${baseUrl}/7.html`);
         fetchUrls.push(`${baseUrl}/status.json`);
         fetchUrls.push(`${baseUrl}/stats?json=1`);
@@ -68,13 +70,31 @@ export const handler: Handler = async (event, context) => {
             }
         } catch (e) {}
 
+        // Check for Icecast status.xsl HTML format
+        const icecastHtmlMatch = content.match(/(?:Currently playing|Current Song|Song Title|Playing Now):<\/td>\s*<td[^>]*>(.*?)<\/td>/i);
+        if (icecastHtmlMatch && icecastHtmlMatch[1]) {
+            const raw = icecastHtmlMatch[1].replace(/<[^>]+>/g, '').trim();
+            if (raw && raw.length > 1) {
+                if (raw.includes(' - ')) {
+                    const parts = raw.split(' - ').map(s => s.trim());
+                    t = parts[0];
+                    a = parts.slice(1).join(' - ');
+                } else {
+                    t = raw;
+                }
+                return { t, a };
+            }
+        }
+
         // Shoutcast 1 (7.html format: 123,1,45,200,45,128,Artist - Title)
         const shoutcastMatch = content.match(/^\d+,\d+,\d+,\d+,\d+,\d+,(.*)/);
         if (shoutcastMatch) {
             const fullTitle = shoutcastMatch[1];
             if (fullTitle && !fullTitle.toLowerCase().includes("transmision")) {
                 if (fullTitle.includes(' - ')) {
-                    [a, t] = fullTitle.split(' - ').map(s => s.trim());
+                    const parts = fullTitle.split(' - ').map(s => s.trim());
+                    t = parts[0];
+                    a = parts.slice(1).join(' - ');
                 } else {
                     t = fullTitle;
                 }
@@ -124,7 +144,7 @@ export const handler: Handler = async (event, context) => {
     };
 
     // Try URLs in parallel. For each URL, try direct and via proxy fallback
-    const urlsToTry = fetchUrls.slice(0, 4);
+    const urlsToTry = fetchUrls.slice(0, 6);
     const results = await Promise.all(urlsToTry.map(async (url) => {
         // Race direct vs proxy for this specific URL
         const controllerLocal = new AbortController();

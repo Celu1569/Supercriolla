@@ -30,22 +30,32 @@ const firebaseConfig = {
   firestoreDatabaseId: getEnv('VITE_FIREBASE_DATABASE_ID') || firebaseConfigImport.firestoreDatabaseId
 };
 
+const isConfigValid = (config: any) => config && config.apiKey && config.projectId && config.appId;
+
 // Robustness: Detect if projectId was accidentally set to an API key
 if (firebaseConfig.projectId && firebaseConfig.projectId.startsWith('AIza')) {
   console.error("CRITICAL: VITE_FIREBASE_PROJECT_ID seems to be an API key. Falling back to config file project ID.");
   firebaseConfig.projectId = firebaseConfigImport.projectId;
 }
 
+const selectedConfig = isConfigValid(firebaseConfig) ? firebaseConfig : firebaseConfigImport;
+
+console.log("Initializing Firebase with Project ID:", selectedConfig.projectId, "and Database ID:", selectedConfig.firestoreDatabaseId || '(default)');
+
 // Check if we have minimum requirements for Firebase
-const hasFirebaseKeys = !!(firebaseConfig.apiKey && firebaseConfig.apiKey !== "");
+const hasFirebaseKeys = !!(selectedConfig.apiKey && selectedConfig.apiKey !== "");
 
 // Initialize Firebase SDK safely or provide dummy objects
 export const app = hasFirebaseKeys 
-  ? (getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0])
+  ? (getApps().length === 0 ? initializeApp(selectedConfig) : getApps()[0])
   : null;
 
 // Handle cases where databaseId might be missing
-export const db = app ? getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)') : (null as any); 
+export const db = app 
+  ? (selectedConfig.firestoreDatabaseId && selectedConfig.firestoreDatabaseId !== "" 
+      ? getFirestore(app, selectedConfig.firestoreDatabaseId) 
+      : getFirestore(app)) 
+  : (null as any); 
 
 export const auth = app ? getAuth(app) : (null as any);
 export const storage = app ? getStorage(app) : (null as any);

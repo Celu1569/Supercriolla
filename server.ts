@@ -147,11 +147,13 @@ async function startServer() {
           const mount = urlObj.pathname.startsWith('/') ? urlObj.pathname : `/${urlObj.pathname}`;
           
           // Try specific mount status first, then general
-          if (mount && mount !== '/' && mount !== '/live') {
+          if (mount && mount !== '/') {
             fetchUrls.push(`${baseUrl}/status-json.xsl?mount=${mount}`);
+            fetchUrls.push(`${baseUrl}/status.xsl?mount=${mount}`);
           }
           
           fetchUrls.push(`${baseUrl}/status-json.xsl`);
+          fetchUrls.push(`${baseUrl}/status.xsl`);
           fetchUrls.push(`${baseUrl}/7.html`);
           fetchUrls.push(`${baseUrl}/status.json`);
           fetchUrls.push(`${baseUrl}/json.xsl`);
@@ -180,12 +182,31 @@ async function startServer() {
             }
         } catch (e) {}
 
+        // Check for Icecast status.xsl HTML format
+        const icecastHtmlMatch = content.match(/(?:Currently playing|Current Song|Song Title|Playing Now):<\/td>\s*<td[^>]*>(.*?)<\/td>/i);
+        if (icecastHtmlMatch && icecastHtmlMatch[1]) {
+            const raw = icecastHtmlMatch[1].replace(/<[^>]+>/g, '').trim();
+            if (raw && raw.length > 1) {
+                if (raw.includes(' - ')) {
+                    const parts = raw.split(' - ').map(s => s.trim());
+                    t = parts[0];
+                    a = parts.slice(1).join(' - ');
+                } else {
+                    t = raw;
+                }
+                return { t, a };
+            }
+        }
+
         const shoutcastMatch = content.match(/^\d+,\d+,\d+,\d+,\d+,\d+,(.*)/);
         if (shoutcastMatch) {
             const fullTitle = shoutcastMatch[1];
             if (fullTitle && !fullTitle.toLowerCase().includes("transmision")) {
-                if (fullTitle.includes(' - ')) [a, t] = fullTitle.split(' - ').map(s => s.trim());
-                else t = fullTitle;
+                if (fullTitle.includes(' - ')) {
+                    const parts = fullTitle.split(' - ').map(s => s.trim());
+                    t = parts[0];
+                    a = parts.slice(1).join(' - ');
+                } else t = fullTitle;
                 return { t, a };
             }
         }
@@ -200,8 +221,11 @@ async function startServer() {
             if (tm || am || sm) {
                 const ft = sm ? sm[1] : (am ? am[1] : (tm ? tm[1] : ""));
                 if (ft) {
-                    if (ft.includes(' - ')) [a, t] = ft.split(' - ').map(s => s.trim());
-                    else t = ft;
+                    if (ft.includes(' - ')) {
+                        const parts = ft.split(' - ').map(s => s.trim());
+                        t = parts[0];
+                        a = parts.slice(1).join(' - ');
+                    } else t = ft;
                 }
             }
             return { t, a };
@@ -213,23 +237,29 @@ async function startServer() {
                 // Prefer source with a title, then fallback to first source
                 const source = sources.find((s: any) => (s.yp_currently_playing || s.title || s.song_title)) || sources[0];
                 const et = source?.yp_currently_playing || source?.title || source?.song_title || "";
-                if (et.includes(' - ')) [a, t] = et.split(' - ').map((s: string) => s.trim());
-                else t = et;
+                if (et.includes(' - ')) {
+                    const parts = et.split(' - ').map((s: string) => s.trim());
+                    t = parts[0];
+                    a = parts.slice(1).join(' - ');
+                } else t = et;
             } else if (data.songtitle) {
-                if (data.songtitle.includes(' - ')) [a, t] = data.songtitle.split(' - ').map((s: string) => s.trim());
-                else t = data.songtitle;
+                if (data.songtitle.includes(' - ')) {
+                    const parts = data.songtitle.split(' - ').map((s: string) => s.trim());
+                    t = parts[0];
+                    a = parts.slice(1).join(' - ');
+                } else t = data.songtitle;
             } else if (data.now_playing) {
                 a = data.now_playing.artist || "";
                 t = data.now_playing.title || "";
-            } else if (data.title && data.artist) {
-                t = data.title;
-                a = data.artist;
+            } else if (data.title || data.artist) {
+                t = data.title || "";
+                a = data.artist || "";
             }
         }
         return { t, a };
       };
 
-      const urlsToTry = fetchUrls.slice(0, 4);
+      const urlsToTry = fetchUrls.slice(0, 6);
       const results = await Promise.all(urlsToTry.map(async (url) => {
           const controllerLocal = new AbortController();
           const timeoutIdLocal = setTimeout(() => controllerLocal.abort(), 6000);
