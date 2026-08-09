@@ -48,13 +48,7 @@ export const DEFAULT_CONFIG: SiteConfig = {
     headingFont: "Montserrat",
     bodyFont: "Inter",
     radioPlayer: {
-      backgroundImages: ["https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=2070&auto=format&fit=crop"],
-      blurIntensity: 0,
-      brightness: 1,
-      mixBlendMode: 'normal',
       showAnalyzer: true,
-      opacity: 0.5,
-      animationSpeed: 12
     }
   },
   content: {

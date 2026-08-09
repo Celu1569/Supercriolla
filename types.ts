@@ -269,14 +269,7 @@ export interface AutoDJTrack {
 }
 
 export interface RadioPlayerConfig {
-  backgroundImages: string[];
-  blurIntensity: number; // css blur filter in px
-  brightness: number; // css brightness filter (e.g., 0.5 for 50%)
-  mixBlendMode: 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'color-dodge' | 'color-burn' | 'hard-light' | 'soft-light' | 'difference' | 'exclusion' | 'hue' | 'saturation' | 'color' | 'luminosity';
   showAnalyzer: boolean;
-  analyzerStyle?: 'classic' | 'bars' | 'wave' | 'circles' | 'blocks' | 'digital' | 'pixels' | 'neon' | 'glow' | 'minimal';
-  opacity: number;
-  animationSpeed: number;
 }
 
 export interface SiteConfig {

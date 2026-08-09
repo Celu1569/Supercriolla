@@ -2080,12 +2080,12 @@ export const AdminPanel: React.FC = () => {
                              {FONT_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                         </select>
                     </InputGroup>
-                 </div>
-                 <SaveAction />
-              </div>
-            )}
+                  </div>
+                  <SaveAction />
+               </div>
+             )}
 
-            {activeTab === 'player' && (
+             {activeTab === 'player' && (
               <div className="space-y-6 animate-fade-in">
                  <SectionHeader title="Ajustes del Reproductor" subtitle="Configura el analizador de música del reproductor." />
                  
@@ -2098,56 +2098,24 @@ export const AdminPanel: React.FC = () => {
                                 onChange={(e) => {
                                     setFormData(prev => ({
                                         ...prev,
-                                        appearance: { ...prev.appearance, radioPlayer: { ...(prev.appearance.radioPlayer || { backgroundImages: [], blurIntensity: 0, brightness: 1, mixBlendMode: 'normal', showAnalyzer: true, opacity: 0.5, animationSpeed: 12 }), showAnalyzer: e.target.checked } }
+                                        appearance: { 
+                                            ...prev.appearance, 
+                                            radioPlayer: { showAnalyzer: e.target.checked } 
+                                        }
                                     }));
                                 }}
                                 className="form-checkbox h-5 w-5 text-primary rounded border-gray-600 bg-gray-700" 
                             />
-                            <span className="text-white font-medium">Mostrar Analizador Musical (Picos)</span>
+                            <span className="text-white font-medium">Mostrar Analizador Musical</span>
                         </label>
                     </div>
 
-                    {formData.appearance.radioPlayer?.showAnalyzer !== false && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-700">
-                            <InputGroup label="Estilo del Analizador">
-                                <select 
-                                    value={formData.appearance.radioPlayer?.analyzerStyle || 'classic'} 
-                                    onChange={(e) => {
-                                        setFormData(prev => ({
-                                            ...prev,
-                                            appearance: { 
-                                                ...prev.appearance, 
-                                                radioPlayer: { 
-                                                    ...(prev.appearance.radioPlayer || { backgroundImages: [], blurIntensity: 0, brightness: 1, mixBlendMode: 'normal', showAnalyzer: true, opacity: 0.5, animationSpeed: 12 }), 
-                                                    analyzerStyle: e.target.value as any 
-                                                } 
-                                            }
-                                        }));
-                                    }}
-                                    className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                                >
-                                    <option value="classic">Clásico (Pinos)</option>
-                                    <option value="bars">Barras Modernas</option>
-                                    <option value="wave">Onda Suave</option>
-                                    <option value="circles">Círculos Dinámicos</option>
-                                    <option value="blocks">Bloques Digitales</option>
-                                    <option value="digital">Reloj Digital (Barras)</option>
-                                    <option value="pixels">Píxeles Retro</option>
-                                    <option value="neon">Líneas Neón</option>
-                                    <option value="glow">Resplandor Variable</option>
-                                    <option value="minimal">Puntos Minimalistas</option>
-                                </select>
-                            </InputGroup>
-                            
-                            <div className="flex items-center justify-center p-4 bg-gray-900/50 rounded-lg border border-dashed border-gray-600">
-                                <p className="text-xs text-gray-400 text-center italic">
-                                    El analizador reacciona visualmente cuando la radio está reproduciendo.
-                                </p>
-                            </div>
-                        </div>
-                    )}
+                    <div className="flex items-center justify-center p-4 bg-gray-900/50 rounded-lg border border-dashed border-gray-600">
+                        <p className="text-xs text-gray-400 text-center italic">
+                            El analizador de barras reacciona visualmente cuando la radio está reproduciendo música en vivo.
+                        </p>
+                    </div>
                  </div>
-
                  <SaveAction />
               </div>
             )}
