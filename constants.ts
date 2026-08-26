@@ -149,23 +149,93 @@ export const DEFAULT_CONFIG: SiteConfig = {
     clients: [],
     news: {
       title: "Noticias y Novedades",
-      description: "Mantente al día con lo último en música y entretenimiento.",
-      articles: [],
-      rssFeeds: []
+      description: "Mantente al día con lo último en música, espectáculos y entretenimiento.",
+      articles: [
+        {
+          id: "news-1",
+          title: "Gran Estreno Musical de la Semana en BUENÍSIMA",
+          summary: "Los artistas más sonados del momento presentan sus nuevos sencillos en exclusiva para nuestra audiencia.",
+          content: "Esta semana te traemos lo último de la música latina e internacional con los estrenos más esperados. Sintoniza nuestros programas en vivo para conocer todas las entrevistas exclusivas y lanzamientos en primicia.",
+          date: "26 ago 2026",
+          image: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=1000&auto=format&fit=crop",
+          author: "Redacción BUENÍSIMA",
+          category: "Música",
+          isPublished: true
+        },
+        {
+          id: "news-2",
+          title: "Conoce la nueva programación y shows en vivo",
+          summary: "Descubre todos los horarios, locutores y sorpresas preparadas para esta temporada.",
+          content: "Nuestra parrilla de programación se renueva con nuevos segmentos de opinión, música variada, complacencias en vivo a través de nuestro chat interactivo y los mejores podcasts de la radio.",
+          date: "25 ago 2026",
+          image: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=1000&auto=format&fit=crop",
+          author: "Equipo de Producción",
+          category: "Estación",
+          isPublished: true
+        },
+        {
+          id: "news-3",
+          title: "Lo más viral en redes sociales y tendencias del momento",
+          summary: "Un repaso por las noticias y videos más comentados en el mundo digital.",
+          content: "Las redes no se detienen y aquí en BUENÍSIMA te mantenemos al tanto de los videos más virales, tendencias de TikTok y momentos que están dando de qué hablar en todo el mundo.",
+          date: "24 ago 2026",
+          image: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?q=80&w=1000&auto=format&fit=crop",
+          author: "Tendencias Digitales",
+          category: "Entretenimiento",
+          isPublished: true
+        }
+      ],
+      rssFeeds: [
+        {
+          id: "rss-1",
+          name: "Billboard Español",
+          url: "https://billboard.com/feed/"
+        }
+      ]
     },
     topVideos: {
         enabled: true,
         title: "Top 5 más viral y comentado del momento",
         description: "Los vídeos y temas más virales y comentados del momento.",
-        videos: []
+        videos: [
+          {
+            id: "vid-1",
+            title: "Karol G - Si Antes Te Hubiera Conocido",
+            url: "https://www.youtube.com/watch?v=MsdYg36mCjU"
+          },
+          {
+            id: "vid-2",
+            title: "Feid, ATL Jacob - LUNA",
+            url: "https://www.youtube.com/watch?v=FqG7u_m-qg8"
+          },
+          {
+            id: "vid-3",
+            title: "Manuel Turizo - La Bachata",
+            url: "https://www.youtube.com/watch?v=TiM_TFpT_DE"
+          },
+          {
+            id: "vid-4",
+            title: "Shakira, Bizarrap - Bzrp Music Sessions #53",
+            url: "https://www.youtube.com/watch?v=CocEMWrm9uc"
+          },
+          {
+            id: "vid-5",
+            title: "Camilo, Carin Leon - Una Vida Pasada",
+            url: "https://www.youtube.com/watch?v=8V9Mh78mJ1I"
+          }
+        ]
     }
   },
   layout: {
     sections: [
       { id: 'hero', visible: true },
+      { id: 'topvideos', visible: true },
       { id: 'ribbons', visible: true },
       { id: 'podcast', visible: true },
       { id: 'program', visible: true },
+      { id: 'gallery', visible: true },
+      { id: 'news', visible: true },
+      { id: 'clients', visible: true },
       { id: 'chat', visible: true },
       { id: 'contact', visible: true }
     ]

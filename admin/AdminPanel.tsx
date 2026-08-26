@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useConfig } from '../context/ConfigContext';
 import { SiteConfig, HeroSlide, PodcastEpisode, GalleryItem, NavItemConfig, FontFamily, Client, AutoDJTrack } from '../types';
-import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2, ListOrdered } from 'lucide-react';
+import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2, ListOrdered, Sparkles, Play, CheckCircle2, ExternalLink, Rss, FileText, X } from 'lucide-react';
 
 // --- CONSTANTS ---
 const FONT_OPTIONS: { value: FontFamily; label: string }[] = [
@@ -1163,6 +1163,147 @@ export const AdminPanel: React.FC = () => {
   const [adminProgramTab, setAdminProgramTab] = useState<'week' | 'weekend'>('week');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [collapsedItems, setCollapsedItems] = useState<Record<string, boolean>>({});
+  const [newsSubTab, setNewsSubTab] = useState<'articles' | 'rss'>('articles');
+  const [previewVideo, setPreviewVideo] = useState<{ url: string; title: string } | null>(null);
+  const [adminRssArticles, setAdminRssArticles] = useState<any[]>([]);
+  const [loadingAdminRss, setLoadingAdminRss] = useState(false);
+
+  const getYouTubeIdAndThumb = (url: string) => {
+    if (!url) return { id: null, thumb: null, embedUrl: null };
+    const regExp = /^.*(?:(?:youtu\.be\/|v\/|vi\/|u\/\w\/|embed\/|live\/|shorts\/)|(?:(?:watch)?\?v(?:i)?=|\&v(?:i)?=))([^#\&\?]*).*/;
+    const match = url.trim().match(regExp);
+    if (match && match[1] && match[1].length === 11) {
+        return {
+            id: match[1],
+            thumb: `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg`,
+            embedUrl: `https://www.youtube-nocookie.com/embed/${match[1]}?autoplay=1&rel=0&modestbranding=1`
+        };
+    }
+    return { id: null, thumb: null, embedUrl: null };
+  };
+
+  const fetchAdminRss = useCallback(async () => {
+    const feeds = formData.content.news?.rssFeeds || [];
+    if (feeds.length === 0) {
+        setAdminRssArticles([]);
+        return;
+    }
+    setLoadingAdminRss(true);
+    try {
+        const urls = feeds.map(f => encodeURIComponent(f.url)).join(',');
+        const response = await fetch(`/api/rss?urls=${urls}`);
+        if (response.ok) {
+            const data = await response.json();
+            setAdminRssArticles(data || []);
+        }
+    } catch (e) {
+        console.error("Admin RSS error", e);
+    } finally {
+        setLoadingAdminRss(false);
+    }
+  }, [formData.content.news?.rssFeeds]);
+
+  useEffect(() => {
+    if (activeTab === 'news' && newsSubTab === 'rss') {
+        fetchAdminRss();
+    }
+  }, [activeTab, newsSubTab, fetchAdminRss]);
+
+  const loadDefaultTopVideos = () => {
+    const defaultVideos = [
+      {
+        id: uuidv4(),
+        title: "Karol G - Si Antes Te Hubiera Conocido",
+        url: "https://www.youtube.com/watch?v=MsdYg36mCjU"
+      },
+      {
+        id: uuidv4(),
+        title: "Feid, ATL Jacob - LUNA",
+        url: "https://www.youtube.com/watch?v=FqG7u_m-qg8"
+      },
+      {
+        id: uuidv4(),
+        title: "Manuel Turizo - La Bachata",
+        url: "https://www.youtube.com/watch?v=TiM_TFpT_DE"
+      },
+      {
+        id: uuidv4(),
+        title: "Shakira, Bizarrap - Bzrp Music Sessions #53",
+        url: "https://www.youtube.com/watch?v=CocEMWrm9uc"
+      },
+      {
+        id: uuidv4(),
+        title: "Camilo, Carin Leon - Una Vida Pasada",
+        url: "https://www.youtube.com/watch?v=8V9Mh78mJ1I"
+      }
+    ];
+    setFormData(prev => ({
+        ...prev,
+        content: {
+            ...prev.content,
+            topVideos: {
+                enabled: true,
+                title: prev.content.topVideos?.title || "Top 5 más viral y comentado del momento",
+                description: prev.content.topVideos?.description || "Los vídeos y temas más virales y comentados del momento.",
+                videos: defaultVideos,
+                history: prev.content.topVideos?.history || [],
+                monthlySummaries: prev.content.topVideos?.monthlySummaries || []
+            }
+        }
+    }));
+  };
+
+  const loadDefaultNewsArticles = () => {
+    const defaultArticles = [
+      {
+        id: uuidv4(),
+        title: "Gran Estreno Musical de la Semana en BUENÍSIMA",
+        summary: "Los artistas más sonados del momento presentan sus nuevos sencillos en exclusiva para nuestra audiencia.",
+        content: "Esta semana te traemos lo último de la música latina e internacional con los estrenos más esperados. Sintoniza nuestros programas en vivo para conocer todas las entrevistas exclusivas y lanzamientos en primicia.",
+        date: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }),
+        image: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=1000&auto=format&fit=crop",
+        author: "Redacción BUENÍSIMA",
+        category: "Música",
+        isPublished: true
+      },
+      {
+        id: uuidv4(),
+        title: "Conoce la nueva programación y shows en vivo",
+        summary: "Descubre todos los horarios, locutores y sorpresas preparadas para esta temporada.",
+        content: "Nuestra parrilla de programación se renueva con nuevos segmentos de opinión, música variada, complacencias en vivo a través de nuestro chat interactivo y los mejores podcasts de la radio.",
+        date: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }),
+        image: "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=1000&auto=format&fit=crop",
+        author: "Equipo de Producción",
+        category: "Estación",
+        isPublished: true
+      },
+      {
+        id: uuidv4(),
+        title: "Lo más viral en redes sociales y tendencias del momento",
+        summary: "Un repaso por las noticias y videos más comentados en el mundo digital.",
+        content: "Las redes no se detienen y aquí en BUENÍSIMA te mantenemos al tanto de los videos más virales, tendencias de TikTok y momentos que están dando de qué hablar en todo el mundo.",
+        date: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }),
+        image: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?q=80&w=1000&auto=format&fit=crop",
+        author: "Tendencias Digitales",
+        category: "Entretenimiento",
+        isPublished: true
+      }
+    ];
+    setFormData(prev => ({
+        ...prev,
+        content: {
+            ...prev.content,
+            news: {
+                title: prev.content.news?.title || "Noticias y Novedades",
+                description: prev.content.news?.description || "Mantente al día con lo último en música, espectáculos y entretenimiento.",
+                articles: [...defaultArticles, ...(prev.content.news?.articles || [])],
+                rssFeeds: prev.content.news?.rssFeeds || [
+                    { id: uuidv4(), name: "Billboard Español", url: "https://billboard.com/feed/" }
+                ]
+            }
+        }
+    }));
+  };
 
   const toggleCollapse = (id: string, e?: React.MouseEvent) => {
       e?.stopPropagation();
@@ -3218,15 +3359,65 @@ export const AdminPanel: React.FC = () => {
               <div className="space-y-6 animate-fade-in">
                 <SectionHeader 
                     title="Gestión de Noticias" 
-                    subtitle="Administra las noticias y artículos que se muestran en el sitio." 
+                    subtitle="Administra los artículos redactados y las fuentes RSS en vivo para tu audiencia." 
                     action={
-                        <button onClick={addNewsArticle} className="bg-primary text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-900 flex items-center text-sm shadow-md transition-all active:scale-95">
-                            <Plus size={18} className="mr-1"/> Agregar Noticia
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {newsSubTab === 'articles' && (
+                                <>
+                                    <button 
+                                        onClick={loadDefaultNewsArticles} 
+                                        className="bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-2 rounded-lg font-bold flex items-center text-xs shadow-md transition-all"
+                                        title="Cargar artículos de demostración predefinidos"
+                                    >
+                                        <Sparkles size={15} className="mr-1 text-secondary"/> Cargar Ejemplos
+                                    </button>
+                                    <button onClick={addNewsArticle} className="bg-primary text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-900 flex items-center text-sm shadow-md transition-all active:scale-95">
+                                        <Plus size={18} className="mr-1"/> Agregar Noticia
+                                    </button>
+                                </>
+                            )}
+                            {newsSubTab === 'rss' && (
+                                <button onClick={addRssFeed} className="bg-secondary text-white px-4 py-2 rounded-lg font-bold hover:bg-orange-600 flex items-center text-sm shadow-md transition-all active:scale-95">
+                                    <Plus size={18} className="mr-1"/> Agregar Fuente RSS
+                                </button>
+                            )}
+                        </div>
                     }
                 />
+
+                {/* Subtabs Selector */}
+                <div className="flex items-center gap-2 border-b border-gray-700 pb-3">
+                    <button
+                        onClick={() => setNewsSubTab('articles')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                            newsSubTab === 'articles'
+                                ? 'bg-primary text-white shadow-lg'
+                                : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
+                        }`}
+                    >
+                        <FileText size={16} />
+                        Artículos Redactados
+                        <span className="ml-1.5 px-2 py-0.5 text-xs rounded-full bg-black/30">
+                            {(formData.content.news?.articles || []).length}
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => setNewsSubTab('rss')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                            newsSubTab === 'rss'
+                                ? 'bg-secondary text-white shadow-lg'
+                                : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
+                        }`}
+                    >
+                        <Rss size={16} />
+                        Noticias RSS en Vivo
+                        <span className="ml-1.5 px-2 py-0.5 text-xs rounded-full bg-black/30">
+                            {(formData.content.news?.rssFeeds || []).length}
+                        </span>
+                    </button>
+                </div>
                 
-                <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 mb-8 space-y-6">
+                <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <InputGroup label="Título de la Sección">
                             <input type="text" value={formData.content.news?.title || ''} onChange={e => setFormData(prev => ({...prev, content: {...prev.content, news: {...prev.content.news!, title: e.target.value}}}))} className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg focus:border-primary outline-none" />
@@ -3237,179 +3428,278 @@ export const AdminPanel: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="space-y-6">
-                    {(formData.content.news?.articles || []).map((article, idx) => (
-                        <div key={article.id} className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-lg animate-fade-in relative group">
-                            <div className="bg-gray-700 px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-600/50 transition-colors" onClick={(e) => toggleCollapse(article.id, e)}>
-                                <div className="flex items-center gap-3">
-                                    <div className="flex flex-col">
-                                        <button onClick={(e) => { e.stopPropagation(); setFormData(prev => ({...prev, content: {...prev.content, news: {...prev.content.news!, articles: moveArrayItem(prev.content.news?.articles || [], idx, 'up')}}})); }} disabled={idx === 0} className={`p-0.5 ${idx === 0 ? 'text-gray-600 pointer-events-none' : 'text-gray-400 hover:text-white'}`}><ChevronUp size={16}/></button>
-                                        <button onClick={(e) => { e.stopPropagation(); setFormData(prev => ({...prev, content: {...prev.content, news: {...prev.content.news!, articles: moveArrayItem(prev.content.news?.articles || [], idx, 'down')}}})); }} disabled={idx === (formData.content.news?.articles || []).length - 1} className={`p-0.5 ${idx === (formData.content.news?.articles || []).length - 1 ? 'text-gray-600 pointer-events-none' : 'text-gray-400 hover:text-white'}`}><ChevronDown size={16}/></button>
-                                    </div>
-                                    <span className="bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded">Noticia #{formData.content.news!.articles.length - idx}</span>
-                                    <h3 className="font-bold text-white truncate max-w-[200px] md:max-w-[400px]">{(article.title && article.title.length > 0) ? article.title : "Sin título"}</h3>
-                                </div>
-                                <div className="flex items-center space-x-4">
-                                    <label className="relative inline-flex items-center cursor-pointer" title={article.isPublished ? 'Publicado' : 'Borrador'} onClick={(e) => e.stopPropagation()}>
-                                        <input 
-                                            type="checkbox" 
-                                            checked={!!article.isPublished} 
-                                            onChange={(e) => updateNewsArticle(article.id, 'isPublished', e.target.checked)}
-                                            className="sr-only peer"
-                                        />
-                                        <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
-                                    </label>
-                                    <span className="text-gray-400">
-                                        {collapsedItems[article.id] ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-                                    </span>
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); removeNewsArticle(article.id); }}
-                                        className="text-red-400 hover:text-red-300 p-1.5 transition-colors bg-red-900/20 rounded-lg border border-red-900/50"
-                                        title="Eliminar Noticia"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {!collapsedItems[article.id] && (
-                            <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8 border-t border-gray-700/50">
-                                <div className="space-y-4">
-                                    <InputGroup label="Título de la Noticia">
-                                        <input 
-                                            type="text" 
-                                            value={article.title || ''} 
-                                            onChange={e => updateNewsArticle(article.id, 'title', e.target.value)}
-                                            className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-primary outline-none" 
-                                        />
-                                    </InputGroup>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <InputGroup label="Categoría">
-                                            <input 
-                                                type="text" 
-                                                value={article.category || ''} 
-                                                onChange={e => updateNewsArticle(article.id, 'category', e.target.value)}
-                                                className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-primary outline-none" 
-                                                placeholder="Ej. Nacional, Deportes..."
-                                            />
-                                        </InputGroup>
-                                        <InputGroup label="Fecha">
-                                            <input 
-                                                type="text" 
-                                                value={article.date || ''} 
-                                                onChange={e => updateNewsArticle(article.id, 'date', e.target.value)}
-                                                className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-primary outline-none" 
-                                            />
-                                        </InputGroup>
-                                    </div>
-
-                                    <InputGroup label="Autor">
-                                        <input 
-                                            type="text" 
-                                            value={article.author || ''} 
-                                            onChange={e => updateNewsArticle(article.id, 'author', e.target.value)}
-                                            className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-primary outline-none" 
-                                        />
-                                    </InputGroup>
-
-                                    <MediaUploader 
-                                        label="Imagen de la Noticia" 
-                                        value={article.image || ''} 
-                                        onChange={val => updateNewsArticle(article.id, 'image', val)} 
-                                    />
-                                </div>
-
-                                <div className="space-y-4">
-                                    <InputGroup label="Resumen (Breve)">
-                                        <textarea 
-                                            value={article.summary || ''} 
-                                            onChange={e => updateNewsArticle(article.id, 'summary', e.target.value)}
-                                            className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg h-24 resize-none" 
-                                            placeholder="Un breve resumen que aparece en la lista..."
-                                        />
-                                    </InputGroup>
-
-                                    <InputGroup label="Contenido Completo">
-                                        <textarea 
-                                            value={article.content || ''} 
-                                            onChange={e => updateNewsArticle(article.id, 'content', e.target.value)}
-                                            className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg h-56" 
-                                            placeholder="Escribe toda la noticia aquí..."
-                                        />
-                                    </InputGroup>
-                                </div>
-                            </div>
+                {newsSubTab === 'articles' && (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                <FileText size={20} className="text-primary"/> Lista de Artículos ({(formData.content.news?.articles || []).length})
+                            </h3>
+                            {(formData.content.news?.articles || []).length > 0 && (
+                                <button onClick={addNewsArticle} className="text-primary text-sm font-bold hover:underline flex items-center">
+                                    <Plus size={16} className="mr-1"/> Añadir otra noticia
+                                </button>
                             )}
                         </div>
-                    ))}
 
-                    {(formData.content.news?.articles || []).length === 0 && (
-                        <div className="text-center py-20 bg-gray-800 rounded-xl border border-dashed border-gray-700">
-                            <Newspaper size={48} className="mx-auto text-gray-700 mb-4 opacity-50" />
-                            <p className="text-gray-400">No hay noticias registradas. ¡Crea la primera!</p>
-                            <button onClick={addNewsArticle} className="mt-4 text-primary hover:underline font-bold">Agregar Noticia</button>
-                        </div>
-                    )}
-                </div>
+                        <div className="space-y-4">
+                            {(formData.content.news?.articles || []).map((article, idx) => (
+                                <div key={article.id} className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-lg animate-fade-in relative group">
+                                    <div className="bg-gray-700/80 px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-600/60 transition-colors" onClick={(e) => toggleCollapse(article.id, e)}>
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className="flex flex-col">
+                                                <button onClick={(e) => { e.stopPropagation(); setFormData(prev => ({...prev, content: {...prev.content, news: {...prev.content.news!, articles: moveArrayItem(prev.content.news?.articles || [], idx, 'up')}}})); }} disabled={idx === 0} className={`p-0.5 ${idx === 0 ? 'text-gray-600 pointer-events-none' : 'text-gray-400 hover:text-white'}`}><ChevronUp size={16}/></button>
+                                                <button onClick={(e) => { e.stopPropagation(); setFormData(prev => ({...prev, content: {...prev.content, news: {...prev.content.news!, articles: moveArrayItem(prev.content.news?.articles || [], idx, 'down')}}})); }} disabled={idx === (formData.content.news?.articles || []).length - 1} className={`p-0.5 ${idx === (formData.content.news?.articles || []).length - 1 ? 'text-gray-600 pointer-events-none' : 'text-gray-400 hover:text-white'}`}><ChevronDown size={16}/></button>
+                                            </div>
+                                            {article.image && (
+                                                <img src={article.image} alt={article.title} className="w-10 h-10 rounded-lg object-cover bg-gray-900 border border-gray-600 flex-shrink-0" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
+                                            )}
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2 mb-0.5">
+                                                    <span className="bg-primary/80 text-white text-[10px] font-bold px-2 py-0.5 rounded">Noticia #{formData.content.news!.articles.length - idx}</span>
+                                                    {article.category && (
+                                                        <span className="bg-gray-800 text-gray-300 text-[10px] px-2 py-0.5 rounded border border-gray-600 font-medium">{article.category}</span>
+                                                    )}
+                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${article.isPublished ? 'bg-green-900/60 text-green-300 border border-green-700/50' : 'bg-yellow-900/60 text-yellow-300 border border-yellow-700/50'}`}>
+                                                        {article.isPublished ? 'Publicado' : 'Borrador'}
+                                                    </span>
+                                                </div>
+                                                <h3 className="font-bold text-white text-sm truncate max-w-[200px] sm:max-w-md md:max-w-xl">
+                                                    {(article.title && article.title.length > 0) ? article.title : "Sin título"}
+                                                </h3>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center space-x-3 flex-shrink-0">
+                                            <label className="relative inline-flex items-center cursor-pointer" title={article.isPublished ? 'Publicado' : 'Borrador'} onClick={(e) => e.stopPropagation()}>
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={!!article.isPublished} 
+                                                    onChange={(e) => updateNewsArticle(article.id, 'isPublished', e.target.checked)}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
+                                            </label>
+                                            <span className="text-gray-400">
+                                                {collapsedItems[article.id] ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+                                            </span>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); removeNewsArticle(article.id); }}
+                                                className="text-red-400 hover:text-red-300 p-1.5 transition-colors bg-red-900/20 rounded-lg border border-red-900/50"
+                                                title="Eliminar Noticia"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    </div>
 
-                <div className="mt-12">
-                    <SectionHeader 
-                        title="Fuentes RSS Automáticas" 
-                        subtitle="Agrega URLs de RSS (XML) para mostrar noticias automáticamente de otros portales en vivo." 
-                        action={
-                            <button onClick={addRssFeed} className="bg-secondary text-white px-4 py-2 rounded-lg font-bold hover:bg-orange-600 flex items-center text-sm shadow-md transition-all active:scale-95">
-                                <Plus size={18} className="mr-1"/> Agregar RSS
-                            </button>
-                        }
-                    />
-                    
-                    <div className="space-y-4">
-                        {(formData.content.news?.rssFeeds || []).map((feed, idx) => (
-                            <div key={feed.id} className="bg-gray-800 p-6 rounded-xl border border-gray-700 relative flex items-center gap-6">
-                                <div className="flex-1 space-y-4">
-                                    <div className="flex gap-4">
-                                        <div className="w-1/3">
-                                            <InputGroup label="Nombre del Diario / Portal">
+                                    {!collapsedItems[article.id] && (
+                                    <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8 border-t border-gray-700/50">
+                                        <div className="space-y-4">
+                                            <InputGroup label="Título de la Noticia">
                                                 <input 
                                                     type="text" 
-                                                    value={feed.name || ''} 
-                                                    onChange={e => updateRssFeed(feed.id, 'name', e.target.value)}
-                                                    className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-secondary outline-none" 
-                                                    placeholder="Ej. Diario Libre"
+                                                    value={article.title || ''} 
+                                                    onChange={e => updateNewsArticle(article.id, 'title', e.target.value)}
+                                                    className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-primary outline-none font-bold" 
+                                                    placeholder="Ej: Gran Concierto de Aniversario"
                                                 />
                                             </InputGroup>
-                                        </div>
-                                        <div className="w-2/3">
-                                            <InputGroup label="Enlace del feed RSS (.xml)">
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <InputGroup label="Categoría">
+                                                    <input 
+                                                        type="text" 
+                                                        value={article.category || ''} 
+                                                        onChange={e => updateNewsArticle(article.id, 'category', e.target.value)}
+                                                        className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-primary outline-none" 
+                                                        placeholder="Ej. Música, Farándula..."
+                                                    />
+                                                </InputGroup>
+                                                <InputGroup label="Fecha">
+                                                    <input 
+                                                        type="text" 
+                                                        value={article.date || ''} 
+                                                        onChange={e => updateNewsArticle(article.id, 'date', e.target.value)}
+                                                        className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-primary outline-none" 
+                                                    />
+                                                </InputGroup>
+                                            </div>
+
+                                            <InputGroup label="Autor o Redacción">
                                                 <input 
                                                     type="text" 
-                                                    value={feed.url || ''} 
-                                                    onChange={e => updateRssFeed(feed.id, 'url', e.target.value)}
-                                                    className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-secondary outline-none font-mono text-sm" 
-                                                    placeholder="https://www.dominio.com/rss/portada.xml"
+                                                    value={article.author || ''} 
+                                                    onChange={e => updateNewsArticle(article.id, 'author', e.target.value)}
+                                                    className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-primary outline-none" 
+                                                    placeholder="Ej: Redacción BUENÍSIMA"
+                                                />
+                                            </InputGroup>
+
+                                            <MediaUploader 
+                                                label="Imagen de la Noticia" 
+                                                value={article.image || ''} 
+                                                onChange={val => updateNewsArticle(article.id, 'image', val)} 
+                                            />
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <InputGroup label="Resumen (Breve)">
+                                                <textarea 
+                                                    value={article.summary || ''} 
+                                                    onChange={e => updateNewsArticle(article.id, 'summary', e.target.value)}
+                                                    className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg h-24 resize-none" 
+                                                    placeholder="Un breve resumen que aparece en la tarjeta pública..."
+                                                />
+                                            </InputGroup>
+
+                                            <InputGroup label="Contenido Completo">
+                                                <textarea 
+                                                    value={article.content || ''} 
+                                                    onChange={e => updateNewsArticle(article.id, 'content', e.target.value)}
+                                                    className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg h-56 font-sans text-sm" 
+                                                    placeholder="Escribe todo el texto de la noticia aquí..."
                                                 />
                                             </InputGroup>
                                         </div>
                                     </div>
+                                    )}
                                 </div>
+                            ))}
+
+                            {(formData.content.news?.articles || []).length === 0 && (
+                                <div className="text-center py-16 bg-gray-800/60 rounded-2xl border border-dashed border-gray-700 p-8 space-y-4">
+                                    <Newspaper size={48} className="mx-auto text-primary opacity-60" />
+                                    <h4 className="text-lg font-bold text-white">No hay noticias redactadas</h4>
+                                    <p className="text-gray-400 max-w-md mx-auto text-sm">Crea tu primera noticia o carga los artículos de ejemplo con un solo clic.</p>
+                                    <div className="flex justify-center gap-3 pt-2">
+                                        <button onClick={loadDefaultNewsArticles} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center">
+                                            <Sparkles size={16} className="mr-1.5 text-secondary" /> Cargar Ejemplos
+                                        </button>
+                                        <button onClick={addNewsArticle} className="bg-primary hover:bg-purple-900 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center">
+                                            <Plus size={16} className="mr-1.5" /> Crear Noticia
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {newsSubTab === 'rss' && (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                    <Rss size={20} className="text-secondary"/> Fuentes RSS Configuradas
+                                </h3>
+                                <p className="text-sm text-gray-400">Las noticias de estos canales XML se obtienen en tiempo real en la web pública.</p>
+                            </div>
+                            <div className="flex gap-2">
                                 <button 
-                                    onClick={() => removeRssFeed(feed.id)} 
-                                    className="text-gray-500 hover:text-red-500 transition-colors p-3 bg-gray-900 rounded-xl"
-                                    title="Eliminar RSS"
+                                    onClick={fetchAdminRss} 
+                                    disabled={loadingAdminRss || (formData.content.news?.rssFeeds || []).length === 0}
+                                    className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center disabled:opacity-50"
                                 >
-                                    <Trash2 size={24} />
+                                    <RefreshCw size={14} className={`mr-1.5 ${loadingAdminRss ? 'animate-spin' : ''}`}/> Probar y Cargar RSS
+                                </button>
+                                <button onClick={addRssFeed} className="bg-secondary text-white px-4 py-2 rounded-lg font-bold hover:bg-orange-600 flex items-center text-sm shadow-md transition-all active:scale-95">
+                                    <Plus size={18} className="mr-1"/> Agregar RSS
                                 </button>
                             </div>
-                        ))}
+                        </div>
                         
-                        {(formData.content.news?.rssFeeds || []).length === 0 && (
-                            <div className="text-center py-8 bg-gray-800/50 rounded-xl border border-dashed border-gray-700">
-                                <p className="text-gray-400 text-sm">No hay fuentes RSS configuradas.</p>
+                        <div className="space-y-4">
+                            {(formData.content.news?.rssFeeds || []).map((feed) => (
+                                <div key={feed.id} className="bg-gray-800 p-5 rounded-xl border border-gray-700 relative flex flex-col md:flex-row items-start md:items-center gap-4">
+                                    <div className="w-full md:w-1/3">
+                                        <InputGroup label="Nombre del Diario / Portal">
+                                            <input 
+                                                type="text" 
+                                                value={feed.name || ''} 
+                                                onChange={e => updateRssFeed(feed.id, 'name', e.target.value)}
+                                                className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-secondary outline-none font-bold text-sm" 
+                                                placeholder="Ej. Billboard Español"
+                                            />
+                                        </InputGroup>
+                                    </div>
+                                    <div className="w-full md:w-2/3">
+                                        <InputGroup label="Enlace del feed RSS (.xml)">
+                                            <input 
+                                                type="text" 
+                                                value={feed.url || ''} 
+                                                onChange={e => updateRssFeed(feed.id, 'url', e.target.value)}
+                                                className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-secondary outline-none font-mono text-xs" 
+                                                placeholder="https://billboard.com/feed/"
+                                            />
+                                        </InputGroup>
+                                    </div>
+                                    <button 
+                                        onClick={() => removeRssFeed(feed.id)} 
+                                        className="text-gray-500 hover:text-red-400 transition-colors p-2.5 bg-gray-900 hover:bg-red-900/20 rounded-xl border border-gray-700 self-end md:self-center"
+                                        title="Eliminar RSS"
+                                    >
+                                        <Trash2 size={18} />
+                                    </button>
+                                </div>
+                            ))}
+                            
+                            {(formData.content.news?.rssFeeds || []).length === 0 && (
+                                <div className="text-center py-12 bg-gray-800/50 rounded-xl border border-dashed border-gray-700">
+                                    <Rss size={36} className="mx-auto text-secondary opacity-50 mb-2" />
+                                    <p className="text-gray-400 text-sm">No hay fuentes RSS configuradas.</p>
+                                    <button onClick={addRssFeed} className="mt-3 text-secondary hover:underline font-bold text-sm">Agregar Fuente RSS</button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Live RSS Feed Preview Panel */}
+                        <div className="mt-8 pt-6 border-t border-gray-700">
+                            <div className="flex justify-between items-center mb-4">
+                                <h4 className="text-sm font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+                                    <Eye size={16} className="text-secondary" /> Vista Previa de Noticias en Vivo (RSS)
+                                </h4>
+                                {adminRssArticles.length > 0 && (
+                                    <span className="text-xs text-green-400 bg-green-950/60 border border-green-800/60 px-2.5 py-0.5 rounded-full font-bold">
+                                        {adminRssArticles.length} noticias activas
+                                    </span>
+                                )}
                             </div>
-                        )}
+
+                            {loadingAdminRss ? (
+                                <div className="flex justify-center items-center py-10 bg-gray-900/50 rounded-xl border border-gray-800">
+                                    <Loader2 size={24} className="animate-spin text-secondary mr-2" />
+                                    <span className="text-gray-400 text-sm">Cargando feeds RSS...</span>
+                                </div>
+                            ) : adminRssArticles.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {adminRssArticles.slice(0, 6).map((art, i) => (
+                                        <div key={art.id || i} className="bg-gray-900 p-4 rounded-xl border border-gray-800 flex flex-col justify-between hover:border-gray-700 transition-colors">
+                                            {art.image && (
+                                                <img src={art.image} alt={art.title} className="w-full h-32 object-cover rounded-lg mb-3 bg-black" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
+                                            )}
+                                            <div>
+                                                <div className="flex items-center justify-between text-[11px] text-gray-500 mb-1">
+                                                    <span className="text-secondary font-bold">{art.author || 'RSS Feed'}</span>
+                                                    <span>{art.date}</span>
+                                                </div>
+                                                <h5 className="font-bold text-white text-xs line-clamp-2 mb-2">{art.title}</h5>
+                                                <p className="text-gray-400 text-[11px] line-clamp-2">{art.summary}</p>
+                                            </div>
+                                            {art.link && (
+                                                <a href={art.link} target="_blank" rel="noopener noreferrer" className="text-xs text-secondary hover:underline flex items-center mt-3 pt-2 border-t border-gray-800">
+                                                    <ExternalLink size={12} className="mr-1" /> Leer en fuente original
+                                                </a>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 bg-gray-900/40 rounded-xl border border-gray-800 text-gray-500 text-xs">
+                                    Haz clic en "Probar y Cargar RSS" para visualizar las noticias obtenidas en vivo.
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
+                )}
 
                 <SaveAction />
               </div>
@@ -3417,13 +3707,32 @@ export const AdminPanel: React.FC = () => {
 
             {activeTab === 'topvideos' && (
               <div className="space-y-6 animate-fade-in">
-                  <SectionHeader title="Top 5 más viral y comentado del momento" subtitle="Añade los videos más virales y comentados de YouTube." />
+                  <SectionHeader 
+                      title="Top 5 más viral y comentado del momento" 
+                      subtitle="Administra los videos más virales de YouTube con miniaturas y reproducción en vivo." 
+                      action={
+                          <div className="flex items-center gap-2">
+                              <button 
+                                  onClick={loadDefaultTopVideos} 
+                                  className="bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-2 rounded-lg font-bold flex items-center text-xs shadow-md transition-all"
+                                  title="Cargar 5 videos musicales virales recomendados"
+                              >
+                                  <Sparkles size={15} className="mr-1 text-secondary"/> Cargar Top 5 Virales
+                              </button>
+                              {(formData.content.topVideos?.videos || []).length < 5 && (
+                                  <button onClick={addTopVideo} className="bg-primary text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-900 flex items-center text-sm shadow-md transition-all active:scale-95">
+                                      <Plus size={18} className="mr-1"/> Añadir Video {((formData.content.topVideos?.videos || []).length)}/5
+                                  </button>
+                              )}
+                          </div>
+                      }
+                  />
                   
-                  <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 mb-6">
+                  <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 space-y-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h3 className="text-lg font-bold text-white">Habilitar Sección</h3>
-                            <p className="text-sm text-gray-400">Mostrar o esconder esta sección del sitio de forma global.</p>
+                            <h3 className="text-lg font-bold text-white">Habilitar Sección en el Sitio</h3>
+                            <p className="text-sm text-gray-400">Mostrar o esconder el carrusel de Top 5 en la portada principal.</p>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
                             <input 
@@ -3435,86 +3744,174 @@ export const AdminPanel: React.FC = () => {
                             <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
                         </label>
                     </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-700">
+                        <InputGroup label="Título de la Sección">
+                            <input type="text" value={formData.content.topVideos?.title || ''} onChange={e => setFormData(prev => ({...prev, content: {...prev.content, topVideos: {...prev.content.topVideos!, title: e.target.value}}}))} className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg focus:border-primary outline-none" />
+                        </InputGroup>
+                        <InputGroup label="Descripción">
+                            <input type="text" value={formData.content.topVideos?.description || ''} onChange={e => setFormData(prev => ({...prev, content: {...prev.content, topVideos: {...prev.content.topVideos!, description: e.target.value}}}))} className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg focus:border-primary outline-none" />
+                        </InputGroup>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <InputGroup label="Título de la Sección">
-                          <input type="text" value={formData.content.topVideos?.title || ''} onChange={e => setFormData(prev => ({...prev, content: {...prev.content, topVideos: {...prev.content.topVideos!, title: e.target.value}}}))} className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg" />
-                      </InputGroup>
-                      <InputGroup label="Descripción">
-                          <input type="text" value={formData.content.topVideos?.description || ''} onChange={e => setFormData(prev => ({...prev, content: {...prev.content, topVideos: {...prev.content.topVideos!, description: e.target.value}}}))} className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg" />
-                      </InputGroup>
-                  </div>
-
-                  <div className="mt-8 border-t border-gray-700 pt-8">
-                      <div className="flex justify-between items-center mb-6">
-                          <h3 className="text-xl font-bold text-white">Videos de YouTube</h3>
-                          {(formData.content.topVideos?.videos || []).length < 5 && (
-                              <button onClick={addTopVideo} className="bg-primary text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-900 flex items-center text-sm shadow-md transition-all active:scale-95">
-                                  <Plus size={18} className="mr-1"/> Añadir Video {((formData.content.topVideos?.videos || []).length)}/5
-                              </button>
-                          )}
+                  <div className="mt-8">
+                      <div className="flex justify-between items-center mb-4">
+                          <div>
+                              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                  <Youtube size={24} className="text-red-500" /> Videos Activos en Portada
+                              </h3>
+                              <p className="text-xs text-gray-400">Puedes ingresar enlaces directos de YouTube (ej. <code>https://www.youtube.com/watch?v=...</code>, enlaces cortos <code>youtu.be/...</code> o Shorts).</p>
+                          </div>
                       </div>
 
                       <div className="space-y-4">
-                          {(formData.content.topVideos?.videos || []).map((video, idx) => (
-                              <div key={video.id} className="bg-gray-800 rounded-xl border border-gray-700 flex flex-col justify-between overflow-hidden">
-                                  <div className="bg-gray-700 px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-600/50 transition-colors" onClick={(e) => toggleCollapse(video.id, e)}>
-                                      <div className="flex items-center gap-3">
-                                          <div className="flex flex-col">
-                                              <button onClick={(e) => { e.stopPropagation(); setFormData(prev => ({...prev, content: {...prev.content, topVideos: {...prev.content.topVideos!, videos: moveArrayItem(prev.content.topVideos?.videos || [], idx, 'up')}}})); }} disabled={idx === 0} className={`p-0.5 ${idx === 0 ? 'text-gray-600 pointer-events-none' : 'text-gray-400 hover:text-white'}`}><ChevronUp size={16}/></button>
-                                              <button onClick={(e) => { e.stopPropagation(); setFormData(prev => ({...prev, content: {...prev.content, topVideos: {...prev.content.topVideos!, videos: moveArrayItem(prev.content.topVideos?.videos || [], idx, 'down')}}})); }} disabled={idx === (formData.content.topVideos?.videos || []).length - 1} className={`p-0.5 ${idx === (formData.content.topVideos?.videos || []).length - 1 ? 'text-gray-600 pointer-events-none' : 'text-gray-400 hover:text-white'}`}><ChevronDown size={16}/></button>
+                          {(formData.content.topVideos?.videos || []).map((video, idx) => {
+                              const yt = getYouTubeIdAndThumb(video.url);
+                              return (
+                                  <div key={video.id} className="bg-gray-800 rounded-xl border border-gray-700 flex flex-col justify-between overflow-hidden shadow-lg animate-fade-in">
+                                      <div className="bg-gray-700/80 px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-600/60 transition-colors" onClick={(e) => toggleCollapse(video.id, e)}>
+                                          <div className="flex items-center gap-3 min-w-0">
+                                              <div className="flex flex-col">
+                                                  <button onClick={(e) => { e.stopPropagation(); setFormData(prev => ({...prev, content: {...prev.content, topVideos: {...prev.content.topVideos!, videos: moveArrayItem(prev.content.topVideos?.videos || [], idx, 'up')}}})); }} disabled={idx === 0} className={`p-0.5 ${idx === 0 ? 'text-gray-600 pointer-events-none' : 'text-gray-400 hover:text-white'}`}><ChevronUp size={16}/></button>
+                                                  <button onClick={(e) => { e.stopPropagation(); setFormData(prev => ({...prev, content: {...prev.content, topVideos: {...prev.content.topVideos!, videos: moveArrayItem(prev.content.topVideos?.videos || [], idx, 'down')}}})); }} disabled={idx === (formData.content.topVideos?.videos || []).length - 1} className={`p-0.5 ${idx === (formData.content.topVideos?.videos || []).length - 1 ? 'text-gray-600 pointer-events-none' : 'text-gray-400 hover:text-white'}`}><ChevronDown size={16}/></button>
+                                              </div>
+                                              <div className="w-8 h-8 flex-shrink-0 bg-primary text-white rounded-lg flex items-center justify-center font-black text-sm shadow">
+                                                  #{idx + 1}
+                                              </div>
+                                              {yt.thumb ? (
+                                                  <div className="relative w-14 h-9 rounded bg-black overflow-hidden flex-shrink-0 border border-gray-600 group/thumb">
+                                                      <img src={yt.thumb} alt={video.title} className="w-full h-full object-cover" />
+                                                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                                          <Play size={12} className="text-white fill-white" />
+                                                      </div>
+                                                  </div>
+                                              ) : (
+                                                  <div className="w-14 h-9 rounded bg-gray-900 flex-shrink-0 border border-gray-700 flex items-center justify-center text-gray-500">
+                                                      <Youtube size={16} />
+                                                  </div>
+                                              )}
+                                              <div className="min-w-0">
+                                                  <h3 className="font-bold text-white text-sm truncate max-w-[200px] sm:max-w-sm md:max-w-md">
+                                                      {video.title || "Video sin título"}
+                                                  </h3>
+                                                  <p className="text-[11px] text-gray-400 truncate max-w-[200px] sm:max-w-xs font-mono">
+                                                      {video.url || "Sin URL asignada"}
+                                                  </p>
+                                              </div>
                                           </div>
-                                          <div className="w-8 h-8 flex-shrink-0 bg-gray-900 rounded-lg flex items-center justify-center font-bold text-gray-500 text-sm border border-gray-700">
-                                              {idx + 1}
+                                          <div className="flex items-center gap-3 flex-shrink-0">
+                                              {yt.embedUrl && (
+                                                  <button
+                                                      type="button"
+                                                      onClick={(e) => { e.stopPropagation(); setPreviewVideo({ url: video.url, title: video.title }); }}
+                                                      className="bg-red-600/20 hover:bg-red-600/40 text-red-300 border border-red-500/40 text-xs px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 transition-all"
+                                                      title="Probar reproducción"
+                                                  >
+                                                      <Play size={12} className="fill-current" /> Probar
+                                                  </button>
+                                              )}
+                                              <span className="text-gray-400">
+                                                  {collapsedItems[video.id] ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+                                              </span>
+                                              <button onClick={(e) => { e.stopPropagation(); removeTopVideo(video.id); }} className="text-red-400 hover:text-red-300 p-1.5 transition-colors bg-red-900/20 rounded-lg border border-red-900/50" title="Eliminar Video">
+                                                  <Trash2 size={16} />
+                                              </button>
                                           </div>
-                                          <h3 className="font-bold text-white flex items-center text-sm">
-                                              {video.title || "Video sin título"}
-                                          </h3>
                                       </div>
-                                      <div className="flex items-center gap-4">
-                                          <span className="text-gray-400">
-                                              {collapsedItems[video.id] ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-                                          </span>
-                                          <button onClick={(e) => { e.stopPropagation(); removeTopVideo(video.id); }} className="text-red-400 hover:text-red-300 p-1.5 transition-colors bg-red-900/20 rounded-lg border border-red-900/50" title="Eliminar Video">
-                                              <Trash2 size={16} />
-                                          </button>
-                                      </div>
-                                  </div>
-                                  {!collapsedItems[video.id] && (
-                                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 w-full border-t border-gray-700/50">
-                                      <InputGroup label="Artista / Título">
-                                          <input 
-                                              type="text" 
-                                              value={video.title || ''} 
-                                              onChange={e => updateTopVideo(video.id, 'title', e.target.value)}
-                                              className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-primary outline-none" 
-                                              placeholder="Ej: Reynaldo Armas - El Indio"
-                                          />
-                                      </InputGroup>
-                                      <InputGroup label="URL de YouTube">
-                                          <div className="flex relative">
-                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                <Youtube size={16} className="text-gray-500" />
-                                            </div>
-                                            <input 
-                                                type="text" 
-                                                value={video.url || ''} 
-                                                onChange={e => updateTopVideo(video.id, 'url', e.target.value)}
-                                                className="w-full pl-10 bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-primary outline-none" 
-                                                placeholder="https://www.youtube.com/watch?v=..."
-                                            />
+
+                                      {!collapsedItems[video.id] && (
+                                      <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-6 w-full border-t border-gray-700/50 bg-gray-800/50">
+                                          <div className="space-y-4">
+                                              <InputGroup label="Artista / Título del Tema">
+                                                  <input 
+                                                      type="text" 
+                                                      value={video.title || ''} 
+                                                      onChange={e => updateTopVideo(video.id, 'title', e.target.value)}
+                                                      className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-lg focus:border-primary outline-none font-bold" 
+                                                      placeholder="Ej: Karol G - Si Antes Te Hubiera Conocido"
+                                                  />
+                                              </InputGroup>
+
+                                              <InputGroup label="URL de YouTube">
+                                                  <div className="flex relative">
+                                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                        <Youtube size={18} className={yt.id ? "text-red-500" : "text-gray-500"} />
+                                                    </div>
+                                                    <input 
+                                                        type="text" 
+                                                        value={video.url || ''} 
+                                                        onChange={e => updateTopVideo(video.id, 'url', e.target.value)}
+                                                        className={`w-full pl-10 pr-10 bg-gray-900 border ${yt.id ? 'border-green-500/70' : 'border-gray-700'} text-white p-2.5 rounded-lg focus:border-primary outline-none font-mono text-sm`} 
+                                                        placeholder="https://www.youtube.com/watch?v=..."
+                                                    />
+                                                    {yt.id && (
+                                                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-green-400">
+                                                            <CheckCircle2 size={16} />
+                                                        </div>
+                                                    )}
+                                                  </div>
+                                              </InputGroup>
                                           </div>
-                                      </InputGroup>
+
+                                          <div className="flex flex-col justify-between p-4 bg-gray-900 rounded-xl border border-gray-700">
+                                              <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+                                                  <span>Miniatura Detectada</span>
+                                                  {yt.id && <span className="text-green-400 font-mono text-[10px]">ID: {yt.id}</span>}
+                                              </div>
+                                              {yt.thumb ? (
+                                                  <div className="relative aspect-video rounded-lg overflow-hidden border border-gray-700 group">
+                                                      <img src={yt.thumb} alt={video.title} className="w-full h-full object-cover" />
+                                                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                          <button
+                                                              type="button"
+                                                              onClick={() => setPreviewVideo({ url: video.url, title: video.title })}
+                                                              className="bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-lg"
+                                                          >
+                                                              <Play size={14} className="fill-white" /> Probar Video
+                                                          </button>
+                                                      </div>
+                                                  </div>
+                                              ) : (
+                                                  <div className="aspect-video bg-gray-950 rounded-lg flex flex-col items-center justify-center text-gray-500 text-xs border border-dashed border-gray-800">
+                                                      <Youtube size={28} className="opacity-40 mb-1" />
+                                                      <span>Pega un enlace válido de YouTube</span>
+                                                  </div>
+                                              )}
+                                              {video.url && (
+                                                  <div className="flex items-center justify-between pt-3 mt-2 border-t border-gray-800 text-xs">
+                                                      <a href={video.url} target="_blank" rel="noopener noreferrer" className="text-red-400 hover:underline flex items-center gap-1">
+                                                          <ExternalLink size={12} /> Ver en YouTube
+                                                      </a>
+                                                      <button
+                                                          type="button"
+                                                          onClick={() => setPreviewVideo({ url: video.url, title: video.title })}
+                                                          className="text-gray-300 hover:text-white font-bold"
+                                                      >
+                                                          Reproducir aquí
+                                                      </button>
+                                                  </div>
+                                              )}
+                                          </div>
+                                      </div>
+                                      )}
                                   </div>
-                                  )}
-                              </div>
-                          ))}
+                              );
+                          })}
                           
                           {(formData.content.topVideos?.videos || []).length === 0 && (
-                              <div className="text-center py-10 bg-gray-800/50 rounded-xl border border-dashed border-gray-700">
-                                  <Youtube size={32} className="mx-auto text-gray-600 mb-3" />
-                                  <p className="text-gray-400">No hay videos añadidos.</p>
+                              <div className="text-center py-16 bg-gray-800/60 rounded-2xl border border-dashed border-gray-700 p-8 space-y-4">
+                                  <Youtube size={48} className="mx-auto text-red-500 opacity-60" />
+                                  <h4 className="text-lg font-bold text-white">No hay videos en el Top 5</h4>
+                                  <p className="text-gray-400 max-w-md mx-auto text-sm">Añade los videos virales de YouTube o carga una lista recomendada con un clic.</p>
+                                  <div className="flex justify-center gap-3 pt-2">
+                                      <button onClick={loadDefaultTopVideos} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center">
+                                          <Sparkles size={16} className="mr-1.5 text-secondary" /> Cargar Top 5 Virales
+                                      </button>
+                                      <button onClick={addTopVideo} className="bg-primary hover:bg-purple-900 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center">
+                                          <Plus size={16} className="mr-1.5" /> Añadir Video
+                                      </button>
+                                  </div>
                               </div>
                           )}
                       </div>
@@ -3910,6 +4307,56 @@ export const AdminPanel: React.FC = () => {
             
         </div>
       </main>
+
+      {/* Video Preview Modal */}
+      {previewVideo && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl animate-fade-in">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-800/60">
+                    <div className="flex items-center gap-2">
+                        <Youtube className="text-red-500" size={20} />
+                        <h3 className="font-bold text-white text-base truncate max-w-md">
+                            {previewVideo.title || 'Vista Previa de Video'}
+                        </h3>
+                    </div>
+                    <button 
+                        onClick={() => setPreviewVideo(null)}
+                        className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-700 transition"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+                <div className="p-6">
+                    <div className="relative aspect-video rounded-xl overflow-hidden bg-black border border-gray-800 shadow-inner">
+                        {getYouTubeIdAndThumb(previewVideo.url).embedUrl ? (
+                            <iframe 
+                                src={getYouTubeIdAndThumb(previewVideo.url).embedUrl!} 
+                                title={previewVideo.title || 'Video Player'}
+                                className="w-full h-full border-0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                            />
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-gray-500">
+                                <p>No se pudo cargar el reproductor para este enlace.</p>
+                            </div>
+                        )}
+                    </div>
+                    <div className="mt-4 flex items-center justify-between text-xs text-gray-400">
+                        <span className="truncate max-w-md font-mono">{previewVideo.url}</span>
+                        <a 
+                            href={previewVideo.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-red-400 hover:underline flex items-center gap-1 font-bold"
+                        >
+                            <ExternalLink size={14} /> Abrir en YouTube
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 };

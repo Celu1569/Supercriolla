@@ -70,7 +70,7 @@ const getYoutubeEmbedUrl = (url: string) => {
     const match = cleanUrl.match(regExp);
 
     if (match && match[1] && match[1].length === 11) {
-        return `https://www.youtube.com/embed/${match[1]}?autoplay=0&rel=0&mute=1`;
+        return `https://www.youtube-nocookie.com/embed/${match[1]}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
     }
     
     return cleanUrl;
@@ -78,7 +78,7 @@ const getYoutubeEmbedUrl = (url: string) => {
 
 const VideoPlayer: React.FC<{ url: string; title: string }> = ({ url, title }) => {
     const embedUrl = getYoutubeEmbedUrl(url);
-    const isYoutube = embedUrl.includes('youtube.com/embed');
+    const isYoutube = embedUrl.includes('youtube.com/embed') || embedUrl.includes('youtube-nocookie.com/embed');
 
     // Simple check if it's a direct video file
     const isDirectVideo = url.match(/\.(mp4|webm|ogg)$/i);
@@ -103,8 +103,9 @@ const VideoPlayer: React.FC<{ url: string; title: string }> = ({ url, title }) =
                     className="absolute top-0 left-0 w-full h-full"
                     src={embedUrl}
                     title={title}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
+                    loading="lazy"
                 ></iframe>
             </div>
         );
@@ -708,29 +709,49 @@ const PublicView: React.FC = () => {
                         const match = v.url.match(/^.*(?:(?:youtu\.be\/|v\/|vi\/|u\/\w\/|embed\/|live\/|shorts\/)|(?:(?:watch)?\?v(?:i)?=|\&v(?:i)?=))([^#\&\?]*).*/);
                         const videoId = (match && match[1] && match[1].length === 11) ? match[1] : null;
                         const thumb = videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : '';
+                        const rawYoutubeUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : v.url;
 
                         return (
-                        <div key={v.id} onClick={() => setPlayingVideo({url: v.url, title: v.title})} className="bg-surface rounded-xl overflow-hidden shadow-lg border border-white/5 group hover:-translate-y-2 transition-transform duration-300 cursor-pointer flex flex-col">
-                            <div className="relative pb-[56.25%] overflow-hidden bg-black/10">
+                        <div key={v.id} onClick={() => setPlayingVideo({url: v.url, title: v.title})} className="bg-surface rounded-2xl overflow-hidden shadow-lg border border-white/5 group hover:-translate-y-2 hover:shadow-2xl transition-all duration-300 cursor-pointer flex flex-col relative">
+                            <div className="relative pb-[56.25%] overflow-hidden bg-black/40">
                                 {videoId ? (
                                     <>
-                                      <img src={thumb} alt={v.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90" />
-                                      <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors duration-300"></div>
-                                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                         <PlayCircle size={64} className="text-white drop-shadow-md transform scale-90 group-hover:scale-100 transition-transform" />
+                                      <img src={thumb} alt={v.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90" onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=1000&auto=format&fit=crop'; }} />
+                                      <div className="absolute inset-0 bg-black/30 group-hover:bg-black/50 transition-colors duration-300"></div>
+                                      <div className="absolute inset-0 flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity">
+                                         <div className="bg-secondary text-primary p-3 rounded-full shadow-xl transform group-hover:scale-110 transition-transform">
+                                            <Play size={24} className="ml-0.5" fill="currentColor" />
+                                         </div>
                                       </div>
                                     </>
                                 ) : (
                                     <VideoPlayer url={v.url} title={v.title} />
                                 )}
-                                <div className="absolute top-2 left-2 bg-secondary text-primary font-black uppercase text-xs px-2 py-1 rounded shadow-md z-10 flex items-center">
-                                    <span className="mr-1">#{i + 1}</span> 
+                                <div className="absolute top-2 left-2 bg-secondary text-primary font-black uppercase text-xs px-2.5 py-1 rounded-lg shadow-md z-10 flex items-center tracking-wider">
+                                    <span className="mr-0.5">#{i + 1}</span> VIRAL
                                 </div>
                             </div>
-                            <div className="p-4 bg-surface text-center flex-1 flex items-center justify-center">
-                                <h3 className="font-bold text-sm text-on-surface line-clamp-2 leading-tight group-hover:text-secondary transition-colors">
+                            <div className="p-4 bg-surface text-center flex-1 flex flex-col justify-between">
+                                <h3 className="font-bold text-sm text-on-surface line-clamp-2 leading-snug group-hover:text-secondary transition-colors mb-3">
                                     {v.title}
                                 </h3>
+                                <div className="flex items-center justify-center gap-2 mt-auto pt-2 border-t border-white/5">
+                                    <span className="text-xs font-bold text-secondary flex items-center hover:underline">
+                                        <Play size={12} className="mr-1" /> Reproducir
+                                    </span>
+                                    {videoId && (
+                                        <a 
+                                            href={rawYoutubeUrl} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer" 
+                                            onClick={(e) => e.stopPropagation()} 
+                                            className="text-[11px] text-gray-400 hover:text-red-400 flex items-center ml-2 transition-colors bg-white/5 hover:bg-white/10 px-2 py-0.5 rounded"
+                                            title="Abrir en YouTube"
+                                        >
+                                            <Youtube size={12} className="mr-1 text-red-500" /> YouTube
+                                        </a>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )})}
@@ -1243,21 +1264,35 @@ const PublicView: React.FC = () => {
 
       {/* Video Modal */}
       {playingVideo && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-fade-in" onClick={() => setPlayingVideo(null)}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fade-in" onClick={() => setPlayingVideo(null)}>
               <div 
-                  className="bg-surface w-full max-w-5xl rounded-2xl overflow-hidden shadow-2xl relative border border-white/10"
+                  className="bg-surface w-full max-w-5xl rounded-2xl overflow-hidden shadow-2xl relative border border-white/10 flex flex-col"
                   onClick={e => e.stopPropagation()}
               >
-                  <div className="flex justify-between items-center p-4 bg-surface-alt border-b border-white/5">
-                      <h3 className="font-bold text-lg text-on-surface line-clamp-1 pr-4">{playingVideo.title}</h3>
-                      <button 
-                          onClick={() => setPlayingVideo(null)}
-                          className="text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-2"
-                      >
-                          <X size={20} />
-                      </button>
+                  <div className="flex justify-between items-center p-4 bg-surface-alt border-b border-white/5 gap-4">
+                      <h3 className="font-bold text-lg text-on-surface line-clamp-1 flex-1">{playingVideo.title}</h3>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                          {playingVideo.url && (
+                              <a
+                                  href={playingVideo.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs font-bold bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white px-3 py-1.5 rounded-lg border border-red-500/30 flex items-center transition-all"
+                                  title="Abrir en YouTube"
+                              >
+                                  <Youtube size={16} className="mr-1.5 text-red-500" /> Ver en YouTube
+                              </a>
+                          )}
+                          <button 
+                              onClick={() => setPlayingVideo(null)}
+                              className="text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-2"
+                              title="Cerrar"
+                          >
+                              <X size={20} />
+                          </button>
+                      </div>
                   </div>
-                  <div className="w-full">
+                  <div className="w-full bg-black">
                       <VideoPlayer url={playingVideo.url} title={playingVideo.title} />
                   </div>
               </div>
