@@ -155,8 +155,8 @@ export const DEFAULT_CONFIG: SiteConfig = {
     },
     topVideos: {
         enabled: true,
-        title: "Top Vídeos",
-        description: "Los vídeos y temas con la mejor vibra.",
+        title: "Top 5 más viral y comentado del momento",
+        description: "Los vídeos y temas más virales y comentados del momento.",
         videos: []
     }
   },

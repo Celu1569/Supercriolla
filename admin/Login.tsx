@@ -41,8 +41,9 @@ export const Login: React.FC = () => {
         
         <form onSubmit={handleSubmit} className="space-y-5">
           {error && (
-            <div className="p-3 bg-red-900/30 border border-red-800 rounded-lg">
-                <p className="text-red-400 text-sm text-center font-medium">Usuario o clave incorrectos.</p>
+            <div className="p-4 bg-red-900/30 border border-red-800 rounded-lg">
+                <p className="text-red-400 text-sm text-center font-medium mb-2">Usuario o clave incorrectos.</p>
+                <p className="text-gray-400 text-xs text-center">Si es tu primera vez, intenta con:<br/><span className="text-white font-bold">admin</span> / <span className="text-white font-bold">buenisima123</span></p>
             </div>
           )}
 

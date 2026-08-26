@@ -1688,15 +1688,15 @@ export const AdminPanel: React.FC = () => {
   };
 
   const addTopVideo = () => {
-    const newVideo = { id: uuidv4(), title: "Nuevo Latigazo", url: "" };
+    const newVideo = { id: uuidv4(), title: "Nuevo Video", url: "" };
     setFormData(prev => ({
         ...prev,
         content: {
             ...prev.content,
             topVideos: {
                 enabled: prev.content.topVideos?.enabled ?? true,
-                title: prev.content.topVideos?.title || "Los 5 Latigazos de la semana",
-                description: prev.content.topVideos?.description || "",
+                title: prev.content.topVideos?.title || "Top 5 más viral y comentado del momento",
+                description: prev.content.topVideos?.description || "Los vídeos y temas más virales y comentados del momento.",
                 videos: [...(prev.content.topVideos?.videos || []), newVideo],
                 history: prev.content.topVideos?.history || [],
                 monthlySummaries: prev.content.topVideos?.monthlySummaries || []
@@ -2599,7 +2599,7 @@ export const AdminPanel: React.FC = () => {
                             const getSectionName = (id: string) => {
                                 const names: Record<string, string> = {
                                     hero: "Banner / Carrusel",
-                                    topvideos: "Top Videos (Latigazos)",
+                                    topvideos: "Top 5 Más Virales y Comentados",
                                     ribbons: "Cintillos Animados",
                                     podcast: "Podcast / En Vivo",
                                     program: "Programación",
@@ -3417,7 +3417,7 @@ export const AdminPanel: React.FC = () => {
 
             {activeTab === 'topvideos' && (
               <div className="space-y-6 animate-fade-in">
-                  <SectionHeader title="Los 5 Latigazos de la Semana" subtitle="Añade los estrenos y videos más sonados de YouTube." />
+                  <SectionHeader title="Top 5 más viral y comentado del momento" subtitle="Añade los videos más virales y comentados de YouTube." />
                   
                   <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 mb-6">
                     <div className="flex items-center justify-between">
@@ -3525,7 +3525,7 @@ export const AdminPanel: React.FC = () => {
                       <div className="flex justify-between items-center mb-6">
                           <div>
                               <h3 className="text-xl font-bold text-white">Historial Semanal</h3>
-                              <p className="text-sm text-gray-400">Guarda las listas anteriores de los 5 latigazos.</p>
+                              <p className="text-sm text-gray-400">Guarda las listas anteriores del Top 5 más viral y comentado.</p>
                           </div>
                           <button onClick={addWeeklyList} className="bg-secondary text-white px-4 py-2 rounded-lg font-bold hover:bg-orange-600 flex items-center text-sm shadow-md transition-all active:scale-95">
                               <Plus size={18} className="mr-1"/> Añadir Semana Histórica

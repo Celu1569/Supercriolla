@@ -165,6 +165,17 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
     updated = true;
   }
 
+  if (c.content?.topVideos) {
+    const currentTitle = c.content.topVideos.title || '';
+    if (!currentTitle || currentTitle.toLowerCase().includes('latigazo') || currentTitle === 'Top Vídeos' || currentTitle === 'Top Videos') {
+      c.content.topVideos.title = 'Top 5 más viral y comentado del momento';
+      if (!c.content.topVideos.description || c.content.topVideos.description.includes('vibra')) {
+        c.content.topVideos.description = 'Los vídeos y temas más virales y comentados del momento.';
+      }
+      updated = true;
+    }
+  }
+
   // Auto-sync sanitized config back to Firestore if updated
   if (updated && hasFirebaseKeys && db) {
     try {
@@ -347,6 +358,7 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
     const isAdminUser = cleanUser === 'admin' || 
                         cleanUser === 'buenisima' || 
                         cleanUser === 'buenisimaradio' || 
+                        cleanUser === 'uncionradio87.7fm' || 
                         cleanUser === 'uncionradio87.7fm@gmail.com';
 
     if (!hasFirebaseKeys) {
