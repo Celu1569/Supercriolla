@@ -2928,12 +2928,24 @@ export const AdminPanel: React.FC = () => {
                 />
                 
                 <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <InputGroup label="Título de la Sección">
                             <input type="text" value={formData.content.program.title || ''} onChange={e => setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, title: e.target.value}}}))} className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg" />
                         </InputGroup>
                         <InputGroup label="Descripción General">
                             <input type="text" value={formData.content.program.description || ''} onChange={e => setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, description: e.target.value}}}))} className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg" />
+                        </InputGroup>
+                        <InputGroup label="Estilo de Plantilla">
+                            <select 
+                                value={formData.content.program.layoutStyle || 'grid'} 
+                                onChange={e => setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, layoutStyle: e.target.value as any}}}))} 
+                                className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg"
+                            >
+                                <option value="grid">Cuadrícula Estándar</option>
+                                <option value="list">Lista Vertical</option>
+                                <option value="cards">Tarjetas Elegantes</option>
+                                <option value="modern">Diseño Moderno</option>
+                            </select>
                         </InputGroup>
                     </div>
 

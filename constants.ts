@@ -99,6 +99,7 @@ export const DEFAULT_CONFIG: SiteConfig = {
     program: {
       title: "Nuestra Programación",
       description: "La mejor selección musical y entretenimiento para llenar tu día de buena vibra.",
+      layoutStyle: 'grid',
       programs: [
         {
           id: 'prog-1',

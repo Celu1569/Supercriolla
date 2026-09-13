@@ -36,6 +36,7 @@ export interface ProgramConfig {
   description: string;
   programs: ProgramItem[];
   weekendPrograms?: ProgramItem[]; // New: Programming for weekends
+  layoutStyle?: 'grid' | 'list' | 'cards' | 'modern'; // New: Template selection
 }
 
 export interface PodcastConfig {

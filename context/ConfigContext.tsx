@@ -191,6 +191,15 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
     if (!c.content.news.rssFeeds) c.content.news.rssFeeds = [];
   }
 
+  // Program section
+  if (!c.content.program) {
+    c.content.program = { ...DEFAULT_CONFIG.content.program };
+  } else {
+    if (!c.content.program.layoutStyle) c.content.program.layoutStyle = 'grid';
+    if (!c.content.program.programs) c.content.program.programs = [];
+    if (!c.content.program.weekendPrograms) c.content.program.weekendPrograms = [];
+  }
+
   // Ensure layout sections are present
   const defaultSectionIds = ['hero', 'topvideos', 'ribbons', 'podcast', 'program', 'gallery', 'news', 'clients', 'chat', 'contact'];
   if (!c.layout.sections || c.layout.sections.length === 0) {
