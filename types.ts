@@ -310,7 +310,7 @@ export interface SiteConfig {
     ribbons: RibbonConfig[]; // New: Multiple text ribbons below hero
     clients?: Client[]; // New: Client gallery
     news?: NewsConfig; // New: News section
-    topVideos?: TopVideosConfig; // Top 5 más viral y comentado del momento
+    topVideos?: TopVideosConfig; // Más viral y comentado
   };
   layout?: {
     sections: {

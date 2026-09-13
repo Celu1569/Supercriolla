@@ -91,15 +91,27 @@ const compressImage = (file: File, maxWidth = 800, quality = 0.6): Promise<Blob>
     });
 };
 
+const blobToDataUrl = (blob: Blob | File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = (err) => reject(err);
+        reader.readAsDataURL(blob);
+    });
+};
+
 const uploadFileToStorage = async (file: File, path: string): Promise<string> => {
   try {
     let finalFile: Blob | File = file;
     let contentType = file.type;
 
-    // We only compress images, if it's audio/video it uploads raw
+    // Compress images to keep file sizes lightweight (~20-80KB)
     if (file.type.startsWith('image/') && file.type !== 'image/gif') {
-        finalFile = await compressImage(file);
-        // Determine the content type returned by compressImage
+        try {
+            finalFile = await compressImage(file, 1200, 0.75);
+        } catch (compErr) {
+            console.warn("Image compression fallback to raw file:", compErr);
+        }
         if (file.type === 'image/png' || file.type === 'image/webp') {
             contentType = file.type;
         } else {
@@ -107,27 +119,28 @@ const uploadFileToStorage = async (file: File, path: string): Promise<string> =>
         }
     }
     
-    // Generate unique name
-    const ext = file.name.split('.').pop();
-    const fileName = `${uuidv4()}.${ext}`;
-    const storageRef = ref(storage, `${path}/${fileName}`);
-    
-    // Pass metadata
-    const metadata = {
-      contentType: contentType,
-    };
-    
-    const snapshot = await uploadBytesResumable(storageRef, finalFile, metadata);
-    const downloadURL = await getDownloadURL(snapshot.ref);
-    return downloadURL;
-  } catch (err: any) {
-    console.error("Upload error completely:", err);
-    
-    if (err?.code === 'storage/unauthorized') {
-        throw new Error("storage/unauthorized");
+    // If Firebase Storage is available, attempt cloud upload
+    if (storage) {
+        try {
+            const ext = file.name.split('.').pop() || 'jpg';
+            const fileName = `${uuidv4()}.${ext}`;
+            const storageRef = ref(storage, `${path}/${fileName}`);
+            
+            const metadata = { contentType };
+            const snapshot = await uploadBytesResumable(storageRef, finalFile, metadata);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            return downloadURL;
+        } catch (storageErr) {
+            console.warn("Storage upload failed, falling back to compressed Data URL:", storageErr);
+        }
     }
     
-    throw err;
+    // Fallback: Return compressed base64 data URL
+    const dataUrl = await blobToDataUrl(finalFile);
+    return dataUrl;
+  } catch (err: any) {
+    console.error("Upload fallback to file data URL:", err);
+    return await blobToDataUrl(file);
   }
 };
 
@@ -1156,7 +1169,7 @@ const LeadsView: React.FC = () => {
 };
 
 export const AdminPanel: React.FC = () => {
-  const { config, updateConfig, logout, isAuthenticated } = useConfig();
+  const { config, updateConfig, logout, isAuthenticated, isConfigLoaded } = useConfig();
   const [formData, setFormData] = useState<SiteConfig>(config);
   
   const [activeTab, setActiveTab] = useState<string>('appearance');
@@ -1243,7 +1256,7 @@ export const AdminPanel: React.FC = () => {
             ...prev.content,
             topVideos: {
                 enabled: true,
-                title: prev.content.topVideos?.title || "Top 5 más viral y comentado del momento",
+                title: prev.content.topVideos?.title || "Más viral y comentado",
                 description: prev.content.topVideos?.description || "Los vídeos y temas más virales y comentados del momento.",
                 videos: defaultVideos,
                 history: prev.content.topVideos?.history || [],
@@ -1321,28 +1334,43 @@ export const AdminPanel: React.FC = () => {
   };
 
   // Sync state if config changes externally (e.g. reset)
+  // We use a ref to prevent overwriting unsaved changes if we receive a stale snapshot
+  const lastSavedConfigRef = React.useRef<string>(JSON.stringify(config));
+  
   useEffect(() => {
-    setFormData(config);
-  }, [config]);
+    const configStr = JSON.stringify(config);
+    const currentDataStr = JSON.stringify(formData);
+    
+    if (configStr !== lastSavedConfigRef.current) {
+        if (currentDataStr === lastSavedConfigRef.current || !isConfigLoaded) {
+            setFormData(config);
+            lastSavedConfigRef.current = configStr;
+        }
+    }
+  }, [config, isConfigLoaded]);
 
   if (!isAuthenticated) {
     window.location.hash = '#/login';
     return null;
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaveStatus('saving');
-    setTimeout(() => {
-        try {
-            updateConfig(formData);
+    try {
+        const success = await updateConfig(formData);
+        if (success) {
+            lastSavedConfigRef.current = JSON.stringify(formData);
             setSaveStatus('saved');
-            setTimeout(() => setSaveStatus('idle'), 2000);
-        } catch (e) {
-            console.error(e);
+            setTimeout(() => setSaveStatus('idle'), 2500);
+        } else {
             setSaveStatus('error');
-            alert("Error: No se pudieron guardar los cambios. Es posible que las imágenes sean demasiado pesadas.");
+            setTimeout(() => setSaveStatus('idle'), 3000);
         }
-    }, 500);
+    } catch (e) {
+        console.error(e);
+        setSaveStatus('error');
+        setTimeout(() => setSaveStatus('idle'), 3000);
+    }
   };
 
   const handleLogout = () => {
@@ -1836,7 +1864,7 @@ export const AdminPanel: React.FC = () => {
             ...prev.content,
             topVideos: {
                 enabled: prev.content.topVideos?.enabled ?? true,
-                title: prev.content.topVideos?.title || "Top 5 más viral y comentado del momento",
+                title: prev.content.topVideos?.title || "Más viral y comentado",
                 description: prev.content.topVideos?.description || "Los vídeos y temas más virales y comentados del momento.",
                 videos: [...(prev.content.topVideos?.videos || []), newVideo],
                 history: prev.content.topVideos?.history || [],
@@ -2164,7 +2192,7 @@ export const AdminPanel: React.FC = () => {
           <TabButton id="sections" activeTab={activeTab} onClick={setActiveTab} icon={Grid} label="Estructura Menú" />
           <TabButton id="hero" activeTab={activeTab} onClick={setActiveTab} icon={Home} label="Banner" />
           <TabButton id="ribbon" activeTab={activeTab} onClick={setActiveTab} icon={Type} label="Cintillos" />
-          <TabButton id="topvideos" activeTab={activeTab} onClick={setActiveTab} icon={PlayCircle} label="Top Videos" />
+          <TabButton id="topvideos" activeTab={activeTab} onClick={setActiveTab} icon={PlayCircle} label="Más Viral y Comentado" />
           <TabButton id="podcast" activeTab={activeTab} onClick={setActiveTab} icon={Mic2} label="Podcast" />
           <TabButton id="program" activeTab={activeTab} onClick={setActiveTab} icon={Calendar} label="Program" />
           <TabButton id="gallery" activeTab={activeTab} onClick={setActiveTab} icon={Grid} label="Galería" />
@@ -2740,7 +2768,7 @@ export const AdminPanel: React.FC = () => {
                             const getSectionName = (id: string) => {
                                 const names: Record<string, string> = {
                                     hero: "Banner / Carrusel",
-                                    topvideos: "Top 5 Más Virales y Comentados",
+                                    topvideos: "Más Viral y Comentado",
                                     ribbons: "Cintillos Animados",
                                     podcast: "Podcast / En Vivo",
                                     program: "Programación",
@@ -3708,22 +3736,20 @@ export const AdminPanel: React.FC = () => {
             {activeTab === 'topvideos' && (
               <div className="space-y-6 animate-fade-in">
                   <SectionHeader 
-                      title="Top 5 más viral y comentado del momento" 
+                      title="Más viral y comentado" 
                       subtitle="Administra los videos más virales de YouTube con miniaturas y reproducción en vivo." 
                       action={
                           <div className="flex items-center gap-2">
                               <button 
                                   onClick={loadDefaultTopVideos} 
                                   className="bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-2 rounded-lg font-bold flex items-center text-xs shadow-md transition-all"
-                                  title="Cargar 5 videos musicales virales recomendados"
+                                  title="Cargar videos musicales virales recomendados"
                               >
-                                  <Sparkles size={15} className="mr-1 text-secondary"/> Cargar Top 5 Virales
+                                  <Sparkles size={15} className="mr-1 text-secondary"/> Cargar Videos Virales
                               </button>
-                              {(formData.content.topVideos?.videos || []).length < 5 && (
-                                  <button onClick={addTopVideo} className="bg-primary text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-900 flex items-center text-sm shadow-md transition-all active:scale-95">
-                                      <Plus size={18} className="mr-1"/> Añadir Video {((formData.content.topVideos?.videos || []).length)}/5
-                                  </button>
-                              )}
+                              <button onClick={addTopVideo} className="bg-primary text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-900 flex items-center text-sm shadow-md transition-all active:scale-95">
+                                  <Plus size={18} className="mr-1"/> Añadir Video ({(formData.content.topVideos?.videos || []).length})
+                              </button>
                           </div>
                       }
                   />
@@ -3732,7 +3758,7 @@ export const AdminPanel: React.FC = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <h3 className="text-lg font-bold text-white">Habilitar Sección en el Sitio</h3>
-                            <p className="text-sm text-gray-400">Mostrar o esconder el carrusel de Top 5 en la portada principal.</p>
+                            <p className="text-sm text-gray-400">Mostrar o esconder la sección de videos más virales en la portada principal.</p>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
                             <input 
@@ -3902,11 +3928,11 @@ export const AdminPanel: React.FC = () => {
                           {(formData.content.topVideos?.videos || []).length === 0 && (
                               <div className="text-center py-16 bg-gray-800/60 rounded-2xl border border-dashed border-gray-700 p-8 space-y-4">
                                   <Youtube size={48} className="mx-auto text-red-500 opacity-60" />
-                                  <h4 className="text-lg font-bold text-white">No hay videos en el Top 5</h4>
+                                  <h4 className="text-lg font-bold text-white">No hay videos virales agregados</h4>
                                   <p className="text-gray-400 max-w-md mx-auto text-sm">Añade los videos virales de YouTube o carga una lista recomendada con un clic.</p>
                                   <div className="flex justify-center gap-3 pt-2">
                                       <button onClick={loadDefaultTopVideos} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center">
-                                          <Sparkles size={16} className="mr-1.5 text-secondary" /> Cargar Top 5 Virales
+                                          <Sparkles size={16} className="mr-1.5 text-secondary" /> Cargar Videos Virales
                                       </button>
                                       <button onClick={addTopVideo} className="bg-primary hover:bg-purple-900 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center">
                                           <Plus size={16} className="mr-1.5" /> Añadir Video
@@ -3922,7 +3948,7 @@ export const AdminPanel: React.FC = () => {
                       <div className="flex justify-between items-center mb-6">
                           <div>
                               <h3 className="text-xl font-bold text-white">Historial Semanal</h3>
-                              <p className="text-sm text-gray-400">Guarda las listas anteriores del Top 5 más viral y comentado.</p>
+                              <p className="text-sm text-gray-400">Guarda las listas anteriores de videos más virales y comentados.</p>
                           </div>
                           <button onClick={addWeeklyList} className="bg-secondary text-white px-4 py-2 rounded-lg font-bold hover:bg-orange-600 flex items-center text-sm shadow-md transition-all active:scale-95">
                               <Plus size={18} className="mr-1"/> Añadir Semana Histórica

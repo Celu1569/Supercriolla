@@ -704,8 +704,8 @@ const PublicView: React.FC = () => {
                     </p>
                 </div>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 max-w-7xl mx-auto mb-16">
-                    {config.content.topVideos.videos.slice(0, 5).map((v, i) => {
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 max-w-7xl mx-auto mb-16">
+                    {(config.content.topVideos.videos || []).map((v, i) => {
                         const match = v.url.match(/^.*(?:(?:youtu\.be\/|v\/|vi\/|u\/\w\/|embed\/|live\/|shorts\/)|(?:(?:watch)?\?v(?:i)?=|\&v(?:i)?=))([^#\&\?]*).*/);
                         const videoId = (match && match[1] && match[1].length === 11) ? match[1] : null;
                         const thumb = videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : '';

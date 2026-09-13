@@ -7,7 +7,7 @@ import { signOut } from 'firebase/auth';
 
 interface ConfigContextType {
   config: SiteConfig;
-  updateConfig: (newConfig: SiteConfig) => void;
+  updateConfig: (newConfig: SiteConfig) => Promise<boolean>;
   resetConfig: () => void;
   isAuthenticated: boolean;
   isConfigLoaded: boolean;
@@ -28,22 +28,19 @@ const deepClean = (obj: any, seen = new WeakSet()): any => {
   // Primitives
   if (obj === null || typeof obj !== 'object') return obj;
 
-  // Prevent Circular References within the object graph we are traversing
+  // Prevent Circular References
   if (seen.has(obj)) return undefined;
   
   // FILTER OUT DANGEROUS OBJECTS (DOM Nodes, Windows, Events)
-  // 1. Strict Instance Checks
   if (typeof Node !== 'undefined' && obj instanceof Node) return undefined;
   if (typeof Window !== 'undefined' && obj instanceof Window) return undefined;
   if (typeof Event !== 'undefined' && obj instanceof Event) return undefined;
   
-  // 2. Object toString check (catches HTMLAudioElement etc even if instance check fails)
   const typeStr = Object.prototype.toString.call(obj);
   if (typeStr.includes('Element') || typeStr.includes('Window') || typeStr.includes('Event') || typeStr.includes('Audio')) {
       return undefined;
   }
 
-  // 3. Duck Typing & Constructor Name (safest for cross-frame)
   if (obj.constructor && obj.constructor.name) {
       const name = obj.constructor.name;
       if (
@@ -51,24 +48,17 @@ const deepClean = (obj: any, seen = new WeakSet()): any => {
         name === 'Window' || 
         name === 'HTMLAudioElement' || 
         name.includes('Event') ||
-        name.includes('Fiber') ||
-        name.includes('Node')
+        name.includes('Fiber')
       ) return undefined;
   }
   
-  // 4. Standard DOM properties
   if (typeof obj.nodeType === 'number' && typeof obj.nodeName === 'string') return undefined;
-  
-  // 5. React Elements & Fiber Nodes
   if (obj.$$typeof || obj._reactInternals || obj._reactFiber) return undefined;
 
-  // Now that we know it's a safe object to traverse, add to seen
   seen.add(obj);
 
-  // Handle Date
   if (obj instanceof Date) return obj.toISOString();
 
-  // Handle Arrays
   if (Array.isArray(obj)) {
     const arr = [];
     for (const item of obj) {
@@ -78,20 +68,15 @@ const deepClean = (obj: any, seen = new WeakSet()): any => {
     return arr;
   }
 
-  // Handle Objects
   const res: any = {};
   for (const key in obj) {
     if (Object.prototype.hasOwnProperty.call(obj, key)) {
-      // Filter out React internals and potentially dangerous keys by name
+      // ONLY filter out React/DOM specific keys, NOT user data
       if (
-        key.startsWith('_') || 
         key.startsWith('__react') ||
-        key === 'children' || 
-        key === 'ref' || 
-        key === 'current' || 
-        key === 'target' || 
-        key === 'nativeEvent' ||
-        key === 'stateNode'
+        key === 'stateNode' ||
+        key === '_reactInternals' ||
+        key === '_reactFiber'
       ) continue;
       
       const cleaned = deepClean(obj[key], seen);
@@ -136,116 +121,101 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   return errInfo;
 }
 
+const STORAGE_KEY = 'buenisima_radio_site_config_v3';
+
+const getInitialCachedConfig = (): SiteConfig => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const cached = localStorage.getItem(STORAGE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed === 'object' && parsed.general) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load cached config from localStorage", e);
+    }
+  }
+  return DEFAULT_CONFIG;
+};
+
 const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
-  let updated = false;
+  if (!cfg || typeof cfg !== 'object') return DEFAULT_CONFIG;
+  
+  // Deep copy to avoid mutating original
   const c = JSON.parse(JSON.stringify(cfg)) as SiteConfig;
 
-  // Ensure required fields exist, but don't force specific branding
-  if (!c.general) {
-    c.general = { ...DEFAULT_CONFIG.general };
-    updated = true;
-  }
+  // Helper to ensure path exists and merge with default values ONLY if missing
+  const ensure = (target: any, path: string, defaultValue: any) => {
+    const parts = path.split('.');
+    let curr = target;
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (!curr[parts[i]]) curr[parts[i]] = {};
+      curr = curr[parts[i]];
+    }
+    const lastPart = parts[parts.length - 1];
+    if (curr[lastPart] === undefined || curr[lastPart] === null) {
+      curr[lastPart] = defaultValue;
+      return true;
+    }
+    return false;
+  };
+
+  // Ensure root sections exist
+  if (!c.general) c.general = { ...DEFAULT_CONFIG.general };
+  if (!c.appearance) c.appearance = { ...DEFAULT_CONFIG.appearance };
+  if (!c.navigation) c.navigation = { ...DEFAULT_CONFIG.navigation };
+  if (!c.content) c.content = { ...DEFAULT_CONFIG.content };
+  if (!c.layout) c.layout = { ...DEFAULT_CONFIG.layout };
+  if (!c.social) c.social = { ...DEFAULT_CONFIG.social };
+
+  // Specific critical fields
+  ensure(c, 'general.stationName', DEFAULT_CONFIG.general.stationName);
+  ensure(c, 'appearance.primaryColor', DEFAULT_CONFIG.appearance.primaryColor);
   
-  if (!c.general.stationName) {
-    c.general.stationName = DEFAULT_CONFIG.general.stationName;
-    updated = true;
-  }
-
-  if (!c.general.logoUrl) {
-    c.general.logoUrl = DEFAULT_CONFIG.general.logoUrl;
-    updated = true;
-  }
-
-  if (!c.navigation) {
-    c.navigation = { ...DEFAULT_CONFIG.navigation };
-    updated = true;
-  }
-
-  if (!c.navigation.logoUrl) {
-    c.navigation.logoUrl = DEFAULT_CONFIG.navigation.logoUrl || c.general.logoUrl;
-    updated = true;
-  }
-
-  if (!c.content) {
-    c.content = { ...DEFAULT_CONFIG.content };
-    updated = true;
-  }
-
+  // Top Videos section - ensure structure but DON'T overwrite arrays if they exist
   if (!c.content.topVideos) {
     c.content.topVideos = { ...DEFAULT_CONFIG.content.topVideos };
-    updated = true;
   } else {
-    const currentTitle = c.content.topVideos.title || '';
-    if (!currentTitle || currentTitle.toLowerCase().includes('latigazo') || currentTitle === 'Top Vídeos' || currentTitle === 'Top Videos') {
-      c.content.topVideos.title = 'Top 5 más viral y comentado del momento';
-      if (!c.content.topVideos.description || c.content.topVideos.description.includes('vibra')) {
-        c.content.topVideos.description = 'Los vídeos y temas más virales y comentados del momento.';
-      }
-      updated = true;
-    }
-    if (c.content.topVideos.enabled === undefined) {
-      c.content.topVideos.enabled = true;
-      updated = true;
-    }
-    if (!c.content.topVideos.videos || c.content.topVideos.videos.length === 0) {
-      c.content.topVideos.videos = [...DEFAULT_CONFIG.content.topVideos.videos];
-      updated = true;
-    }
+    if (c.content.topVideos.enabled === undefined) c.content.topVideos.enabled = true;
+    if (!c.content.topVideos.title) c.content.topVideos.title = "Más viral y comentado";
+    if (!c.content.topVideos.videos) c.content.topVideos.videos = [];
   }
 
+  // News section
   if (!c.content.news) {
     c.content.news = { ...DEFAULT_CONFIG.content.news };
-    updated = true;
   } else {
-    if (!c.content.news.articles || c.content.news.articles.length === 0) {
-      c.content.news.articles = [...(DEFAULT_CONFIG.content.news?.articles || [])];
-      updated = true;
-    }
-    if (!c.content.news.rssFeeds || c.content.news.rssFeeds.length === 0) {
-      c.content.news.rssFeeds = [...(DEFAULT_CONFIG.content.news?.rssFeeds || [])];
-      updated = true;
-    }
+    if (!c.content.news.articles) c.content.news.articles = [];
+    if (!c.content.news.rssFeeds) c.content.news.rssFeeds = [];
   }
 
-  // Ensure all layout sections exist so topvideos and news are never omitted
+  // Ensure layout sections are present
   const defaultSectionIds = ['hero', 'topvideos', 'ribbons', 'podcast', 'program', 'gallery', 'news', 'clients', 'chat', 'contact'];
-  if (!c.layout || !c.layout.sections || c.layout.sections.length === 0) {
-    c.layout = {
-      sections: defaultSectionIds.map(id => ({ id, visible: true }))
-    };
-    updated = true;
+  if (!c.layout.sections || c.layout.sections.length === 0) {
+    c.layout.sections = defaultSectionIds.map(id => ({ id, visible: true }));
   } else {
     const existingIds = new Set(c.layout.sections.map(s => s.id));
     defaultSectionIds.forEach(id => {
       if (!existingIds.has(id)) {
-        c.layout!.sections.push({ id, visible: true });
-        updated = true;
+        c.layout.sections.push({ id, visible: true });
       }
     });
-  }
-
-  // Auto-sync sanitized config back to Firestore if updated
-  if (updated && hasFirebaseKeys && db) {
-    try {
-      const configDocRef = doc(db, 'settings', 'config');
-      setDoc(configDocRef, deepClean(c));
-    } catch (e) {
-      console.warn("Could not auto-update sanitized brand to Firestore", e);
-    }
   }
 
   return c;
 };
 
 export const ConfigProvider = ({ children }: ConfigProviderProps) => {
-  const [config, setConfig] = useState<SiteConfig>(DEFAULT_CONFIG);
+  const [config, setConfig] = useState<SiteConfig>(getInitialCachedConfig);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isConfigLoaded, setIsConfigLoaded] = useState(false);
 
   // Sync config with Firestore
   useEffect(() => {
-    if (!hasFirebaseKeys) {
-        console.log("Firebase keys missing. Operating in standalone mode with default config.");
+    if (!hasFirebaseKeys || !db) {
+        console.log("Firebase keys missing. Operating in standalone mode with cached/default config.");
         setIsConfigLoaded(true);
         return;
     }
@@ -256,89 +226,25 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
     const unsubscribe = onSnapshot(configDocRef, (snapshot) => {
       if (snapshot.exists()) {
         const firestoreConfig = snapshot.data() as SiteConfig;
+        const sanitized = sanitizeBrandConfig(firestoreConfig);
         
-        let parsed = firestoreConfig;
-        // DATA MIGRATION & VALIDATION
-        const needsMigration = 
-            !parsed.content || 
-            !parsed.content.podcast || 
-            !parsed.content.chat || 
-            !parsed.content.gallery ||
-            !parsed.content.ribbons ||
-            !parsed.content.clients ||
-            !parsed.navigation ||
-            !parsed.navigation.items ||
-            parsed.navigation.logoHeight === undefined ||
-            parsed.navigation.navActiveColor === undefined ||
-            parsed.content.heroInterval === undefined; 
-        
-        if (parsed.appearance) {
-            if (parsed.appearance.primaryColor === "#4c007d") {
-                parsed.appearance.primaryColor = DEFAULT_CONFIG.appearance.primaryColor;
-            }
-            if (!parsed.appearance.radioPlayer) {
-                parsed.appearance.radioPlayer = DEFAULT_CONFIG.appearance.radioPlayer;
-            }
+        setConfig(sanitized);
+        try {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
+          }
+        } catch (lsErr) {
+          console.warn("Could not cache Firestore config locally", lsErr);
         }
-
-        if (!parsed.general?.streamUrl || parsed.general?.streamUrl.includes("listen2myradio.com")) {
-            if(!parsed.general) parsed.general = DEFAULT_CONFIG.general;
-            parsed.general.streamUrl = DEFAULT_CONFIG.general.streamUrl;
-        }
-
-        let finalConfig: SiteConfig;
-        if (needsMigration) {
-          console.warn("Detected old config schema in Firestore. Merging with defaults.");
-          finalConfig = {
-            ...DEFAULT_CONFIG,
-            ...parsed,
-            navigation: { 
-                ...DEFAULT_CONFIG.navigation, 
-                ...parsed.navigation,
-                items: parsed.navigation?.items || DEFAULT_CONFIG.navigation.items
-            },
-            content: { 
-                ...DEFAULT_CONFIG.content, 
-                ...parsed.content,
-                heroInterval: parsed.content?.heroInterval ?? DEFAULT_CONFIG.content.heroInterval,
-                clients: parsed.content?.clients ?? DEFAULT_CONFIG.content.clients,
-                program: {
-                    ...DEFAULT_CONFIG.content.program,
-                    ...parsed.content?.program,
-                    weekendPrograms: parsed.content?.program?.weekendPrograms ?? DEFAULT_CONFIG.content.program.weekendPrograms ?? []
-                },
-                hero: (parsed.content?.hero || DEFAULT_CONFIG.content.hero).map((slide: any) => ({
-                    ...slide,
-                    titleColor: slide.titleColor || slide.textColor || '#ffffff',
-                    titleSize: slide.titleSize || 48,
-                    titleShadow: slide.titleShadow || slide.textShadow || 'strong',
-                    titleOutline: slide.titleOutline || slide.textOutline || 'none',
-                    subtitleColor: slide.subtitleColor || slide.textColor || '#ffffff',
-                    subtitleSize: slide.subtitleSize || 18,
-                    subtitleShadow: slide.subtitleShadow || slide.textShadow || 'soft',
-                    subtitleOutline: slide.subtitleOutline || slide.textOutline || 'none'
-                }))
-            },
-            appearance: { 
-                ...DEFAULT_CONFIG.appearance, 
-                ...parsed.appearance,
-                radioPlayer: parsed.appearance?.radioPlayer || DEFAULT_CONFIG.appearance.radioPlayer
-            }
-          };
-        } else {
-          finalConfig = parsed;
-        }
-
-        setConfig(sanitizeBrandConfig(finalConfig));
       } else {
-        // If doc doesn't exist, use default and attempt to initialize it in Firestore
+        // If doc doesn't exist, use cached/default and attempt to initialize it in Firestore
         console.log("Config document missing in Firestore. Initializing with defaults.");
-        setConfig(DEFAULT_CONFIG);
+        const initial = getInitialCachedConfig();
+        setConfig(initial);
         
-        if (hasFirebaseKeys) {
+        if (hasFirebaseKeys && db) {
             try {
-                const configDocRef = doc(db, 'settings', 'config');
-                setDoc(configDocRef, DEFAULT_CONFIG);
+                setDoc(configDocRef, deepClean(initial));
             } catch (initErr) {
                 console.error("Failed to initialize config in Firestore", initErr);
             }
@@ -353,33 +259,49 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
     return () => unsubscribe();
   }, []);
 
-  const updateConfig = async (newConfig: SiteConfig) => {
+  const updateConfig = async (newConfig: SiteConfig): Promise<boolean> => {
     const cleaned = deepClean(newConfig);
-    if (!cleaned) return; 
+    if (!cleaned) return false; 
     
-    // Always update locally immediately for snappy UI
+    // 1. Always update locally immediately for snappy UI
     setConfig(cleaned);
 
-    if (!hasFirebaseKeys) {
+    // 2. Persist to localStorage immediately
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
+      }
+    } catch (lsErr) {
+      console.warn("LocalStorage save error:", lsErr);
+    }
+
+    if (!hasFirebaseKeys || !db) {
         console.warn("Cannot sync to Firestore: Firebase keys missing.");
-        return;
+        return true;
     }
     
+    // 3. Sync to Firestore in Cloud
     try {
-      // Sync to Firestore
       const configDocRef = doc(db, 'settings', 'config');
       await setDoc(configDocRef, cleaned);
+      return true;
     } catch (e: any) {
       handleFirestoreError(e, OperationType.WRITE, 'settings/config');
-      console.warn("Could not sync config changes to Firestore; changes stored locally in app state.");
+      console.warn("Could not sync config changes to Firestore; changes stored locally in app state & localStorage.");
+      return false;
     }
   };
 
   const resetConfig = async () => {
     if (confirm("¿Estás seguro de restablecer toda la configuración por defecto?")) {
         setConfig(DEFAULT_CONFIG);
+        try {
+            if (typeof window !== 'undefined') {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_CONFIG));
+            }
+        } catch (e) {}
 
-        if (!hasFirebaseKeys) return;
+        if (!hasFirebaseKeys || !db) return;
 
         try {
             const configDocRef = doc(db, 'settings', 'config');

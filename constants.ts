@@ -195,7 +195,7 @@ export const DEFAULT_CONFIG: SiteConfig = {
     },
     topVideos: {
         enabled: true,
-        title: "Top 5 más viral y comentado del momento",
+        title: "Más viral y comentado",
         description: "Los vídeos y temas más virales y comentados del momento.",
         videos: [
           {
