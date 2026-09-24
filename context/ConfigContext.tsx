@@ -122,15 +122,38 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 }
 
 const STORAGE_KEY = 'buenisima_radio_site_config_v3';
+const BACKUP_STORAGE_KEY = 'buenisima_radio_site_config_backup';
+const ALL_STORAGE_KEYS = [
+  'buenisima_radio_site_config_v3',
+  'buenisima_radio_site_config_backup',
+  'buenisima_radio_site_config_v2',
+  'buenisima_radio_site_config_v1',
+  'buenisima_radio_site_config',
+  'radio_site_config'
+];
 
 const getInitialCachedConfig = (): SiteConfig => {
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
-      const cached = localStorage.getItem(STORAGE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed && typeof parsed === 'object' && parsed.general) {
-          return parsed;
+      // Check current and all previous/backup keys to never lose customized content
+      for (const key of ALL_STORAGE_KEYS) {
+        const cached = localStorage.getItem(key);
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (parsed && typeof parsed === 'object' && parsed.general) {
+              // Ensure we maintain a synced backup
+              if (key !== STORAGE_KEY) {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+              }
+              if (key !== BACKUP_STORAGE_KEY) {
+                localStorage.setItem(BACKUP_STORAGE_KEY, JSON.stringify(parsed));
+              }
+              return parsed;
+            }
+          } catch (pe) {
+            // Ignore invalid JSON in an older key and keep trying
+          }
         }
       }
     } catch (e) {
@@ -146,7 +169,7 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
   // Deep copy to avoid mutating original
   const c = JSON.parse(JSON.stringify(cfg)) as SiteConfig;
 
-  // Helper to ensure path exists and merge with default values ONLY if missing
+  // Helper to ensure path exists without overwriting user data
   const ensure = (target: any, path: string, defaultValue: any) => {
     const parts = path.split('.');
     let curr = target;
@@ -155,14 +178,14 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
       curr = curr[parts[i]];
     }
     const lastPart = parts[parts.length - 1];
-    if (curr[lastPart] === undefined || curr[lastPart] === null) {
+    if (curr[lastPart] === undefined || curr[lastPart] === null || curr[lastPart] === '') {
       curr[lastPart] = defaultValue;
       return true;
     }
     return false;
   };
 
-  // Ensure root sections exist
+  // Ensure root sections exist without overwriting sub-properties
   if (!c.general) c.general = { ...DEFAULT_CONFIG.general };
   if (!c.appearance) c.appearance = { ...DEFAULT_CONFIG.appearance };
   if (!c.navigation) c.navigation = { ...DEFAULT_CONFIG.navigation };
@@ -170,11 +193,16 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
   if (!c.layout) c.layout = { ...DEFAULT_CONFIG.layout };
   if (!c.social) c.social = { ...DEFAULT_CONFIG.social };
 
-  // Specific critical fields
-  ensure(c, 'general.stationName', DEFAULT_CONFIG.general.stationName);
-  ensure(c, 'appearance.primaryColor', DEFAULT_CONFIG.appearance.primaryColor);
+  // Safeguard: Only set default if user has never specified a station name or colors
+  if (!c.general.stationName) c.general.stationName = DEFAULT_CONFIG.general.stationName;
+  if (!c.appearance.primaryColor) c.appearance.primaryColor = DEFAULT_CONFIG.appearance.primaryColor;
   
-  // Top Videos section - ensure structure but DON'T overwrite arrays if they exist
+  // Hero slides - PRESERVE user uploaded images and slides completely
+  if (!c.content.hero || !Array.isArray(c.content.hero) || c.content.hero.length === 0) {
+    c.content.hero = [...DEFAULT_CONFIG.content.hero];
+  }
+
+  // Top Videos section - ensure structure but NEVER overwrite user videos
   if (!c.content.topVideos) {
     c.content.topVideos = { ...DEFAULT_CONFIG.content.topVideos };
   } else {
@@ -183,12 +211,24 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
     if (!c.content.topVideos.videos) c.content.topVideos.videos = [];
   }
 
-  // News section
+  // News section - ensure structure but NEVER overwrite user articles
   if (!c.content.news) {
     c.content.news = { ...DEFAULT_CONFIG.content.news };
   } else {
     if (!c.content.news.articles) c.content.news.articles = [];
     if (!c.content.news.rssFeeds) c.content.news.rssFeeds = [];
+  }
+
+  // Gallery section - ensure structure and preserve user images
+  if (!c.content.gallery) {
+    c.content.gallery = { ...DEFAULT_CONFIG.content.gallery };
+  } else {
+    if (!c.content.gallery.images) c.content.gallery.images = [];
+  }
+
+  // Clients / Partners - ensure array exists without wiping items
+  if (!c.content.clients) {
+    c.content.clients = DEFAULT_CONFIG.content.clients ? [...DEFAULT_CONFIG.content.clients] : [];
   }
 
   // Radio Player appearance
@@ -203,8 +243,13 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
     if (c.appearance.radioPlayer.videoMode === undefined) c.appearance.radioPlayer.videoMode = false;
     if (!c.appearance.radioPlayer.videoUrl) c.appearance.radioPlayer.videoUrl = '';
     if (!c.appearance.radioPlayer.videoLayout) c.appearance.radioPlayer.videoLayout = 'compact';
-    if (c.appearance.radioPlayer.videoWidth === undefined) c.appearance.radioPlayer.videoWidth = 256;
-    if (c.appearance.radioPlayer.videoHeight === undefined) c.appearance.radioPlayer.videoHeight = 144;
+    if (!c.appearance.radioPlayer.playerStyle) c.appearance.radioPlayer.playerStyle = 'modern';
+    if (c.appearance.radioPlayer.customCoverUrl === undefined) c.appearance.radioPlayer.customCoverUrl = '';
+    if (c.appearance.radioPlayer.videoWidth === undefined) c.appearance.radioPlayer.videoWidth = 200;
+    if (c.appearance.radioPlayer.videoHeight === undefined) c.appearance.radioPlayer.videoHeight = 112;
+  }
+  if (!c.general.defaultCoverUrl) {
+    c.general.defaultCoverUrl = '/images/default-cover.svg';
   }
 
   // Program section
@@ -216,7 +261,7 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
     if (!c.content.program.weekendPrograms) c.content.program.weekendPrograms = [];
   }
 
-  // Ensure layout sections are present
+  // Ensure layout sections are present without altering user visibility order
   const defaultSectionIds = ['hero', 'topvideos', 'ribbons', 'podcast', 'program', 'gallery', 'news', 'clients', 'chat', 'contact'];
   if (!c.layout.sections || c.layout.sections.length === 0) {
     c.layout.sections = defaultSectionIds.map(id => ({ id, visible: true }));
@@ -256,14 +301,16 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
         setConfig(sanitized);
         try {
           if (typeof window !== 'undefined') {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
+            const jsonStr = JSON.stringify(sanitized);
+            localStorage.setItem(STORAGE_KEY, jsonStr);
+            localStorage.setItem(BACKUP_STORAGE_KEY, jsonStr);
           }
         } catch (lsErr) {
           console.warn("Could not cache Firestore config locally", lsErr);
         }
       } else {
-        // If doc doesn't exist, use cached/default and attempt to initialize it in Firestore
-        console.log("Config document missing in Firestore. Initializing with defaults.");
+        // If doc doesn't exist, use cached/default and initialize it in Firestore with user's customized data
+        console.log("Config document missing in Firestore. Preserving cached configuration.");
         const initial = getInitialCachedConfig();
         setConfig(initial);
         
@@ -291,10 +338,12 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
     // 1. Always update locally immediately for snappy UI
     setConfig(cleaned);
 
-    // 2. Persist to localStorage immediately
+    // 2. Persist to localStorage immediately (both primary and backup keys)
     try {
       if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
+        const jsonStr = JSON.stringify(cleaned);
+        localStorage.setItem(STORAGE_KEY, jsonStr);
+        localStorage.setItem(BACKUP_STORAGE_KEY, jsonStr);
       }
     } catch (lsErr) {
       console.warn("LocalStorage save error:", lsErr);

@@ -15,7 +15,7 @@ export const DEFAULT_CONFIG: SiteConfig = {
     country: "Venezuela",
     enableAutoMetadata: true,
     defaultSlogan: "La Radio de la Buena Vibra",
-    defaultCoverUrl: ""
+    defaultCoverUrl: "/images/default-cover.svg"
   },
   navigation: {
     logoUrl: "https://i.ibb.co/ZptWRz8G/LOGO-2.png",
@@ -53,9 +53,11 @@ export const DEFAULT_CONFIG: SiteConfig = {
       showCover: true,
       videoMode: false,
       videoUrl: "",
-      videoWidth: 100,
-      videoHeight: 315,
+      videoWidth: 320,
+      videoHeight: 180,
       videoLayout: 'compact',
+      playerStyle: 'modern',
+      customCoverUrl: "",
     }
   },
   content: {

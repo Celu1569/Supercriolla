@@ -278,6 +278,8 @@ export interface RadioPlayerConfig {
   videoWidth?: number;
   videoHeight?: number;
   videoLayout?: 'compact' | 'full';
+  playerStyle?: 'modern' | 'card' | 'retro' | 'compact' | 'sticky';
+  customCoverUrl?: string;
 }
 
 export interface SiteConfig {

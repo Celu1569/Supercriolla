@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useConfig } from '../context/ConfigContext';
 import { SiteConfig, HeroSlide, PodcastEpisode, GalleryItem, NavItemConfig, FontFamily, Client, AutoDJTrack } from '../types';
-import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2, ListOrdered, Sparkles, Play, CheckCircle2, ExternalLink, Rss, FileText, X } from 'lucide-react';
+import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2, ListOrdered, Sparkles, Play, CheckCircle2, ExternalLink, Rss, FileText, X, Disc } from 'lucide-react';
 
 // --- CONSTANTS ---
 const FONT_OPTIONS: { value: FontFamily; label: string }[] = [
@@ -1180,6 +1180,24 @@ export const AdminPanel: React.FC = () => {
   const [previewVideo, setPreviewVideo] = useState<{ url: string; title: string } | null>(null);
   const [adminRssArticles, setAdminRssArticles] = useState<any[]>([]);
   const [loadingAdminRss, setLoadingAdminRss] = useState(false);
+  const [playerTestMetadata, setPlayerTestMetadata] = useState<{ title: string; artist: string; cover: string } | null>(null);
+  const [isTestingMetadata, setIsTestingMetadata] = useState(false);
+
+  const handleTestMetadata = async () => {
+    setIsTestingMetadata(true);
+    try {
+      const streamUrl = formData.general.streamUrl || config.general.streamUrl;
+      const res = await fetch(`/api/metadata?url=${encodeURIComponent(streamUrl)}&_t=${Date.now()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPlayerTestMetadata(data);
+      }
+    } catch (err) {
+      console.warn("Failed to test metadata:", err);
+    } finally {
+      setIsTestingMetadata(false);
+    }
+  };
 
   const getYouTubeIdAndThumb = (url: string) => {
     if (!url) return { id: null, thumb: null, embedUrl: null };
@@ -1376,6 +1394,44 @@ export const AdminPanel: React.FC = () => {
   const handleLogout = () => {
     logout();
     window.location.hash = ''; // Clear hash to go to root
+  };
+
+  const handleExportBackup = () => {
+    try {
+      const jsonStr = JSON.stringify(formData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', url);
+      downloadAnchor.setAttribute('download', `buenisima_backup_${new Date().toISOString().split('T')[0]}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error al exportar backup:', err);
+    }
+  };
+
+  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileReader = new FileReader();
+    if (e.target.files && e.target.files[0]) {
+      fileReader.readAsText(e.target.files[0], 'UTF-8');
+      fileReader.onload = async (event) => {
+        try {
+          const parsed = JSON.parse(event.target?.result as string);
+          if (parsed && typeof parsed === 'object' && (parsed.general || parsed.appearance || parsed.content)) {
+            setFormData(parsed);
+            await updateConfig(parsed);
+            alert('¡Copia de seguridad restaurada correctamente! Tus imágenes y cambios han sido aplicados.');
+          } else {
+            alert('El archivo seleccionado no contiene un formato de configuración válido.');
+          }
+        } catch (parseError) {
+          alert('Error al leer el archivo JSON de copia de seguridad.');
+        }
+      };
+    }
   };
 
   const handleViewSite = () => {
@@ -2156,9 +2212,17 @@ export const AdminPanel: React.FC = () => {
             </div>
         </div>
         
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3 sm:space-x-4">
              <button onClick={handleViewSite} className="hidden md:block text-sm font-bold text-gray-400 hover:text-white transition-colors">
                 Ver Sitio Público &rarr;
+             </button>
+             <button 
+                onClick={handleExportBackup}
+                className="hidden sm:flex items-center space-x-2 bg-gray-800 hover:bg-gray-700 text-gray-200 hover:text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all border border-gray-700 hover:border-gray-600 shadow-sm"
+                title="Descargar copia de seguridad con todos tus cambios e imágenes"
+             >
+                <Download size={16} className="text-secondary" />
+                <span>Descargar Copia JSON</span>
              </button>
              <button onClick={handleLogout} className="flex items-center space-x-2 text-red-400 hover:text-red-300 hover:bg-red-900/30 px-3 py-2 rounded-lg transition-colors" title="Cerrar Sesión">
                 <LogOut size={20} />
@@ -2201,6 +2265,7 @@ export const AdminPanel: React.FC = () => {
           <TabButton id="chat" activeTab={activeTab} onClick={setActiveTab} icon={MessageSquare} label="Chat" />
           <TabButton id="leads" activeTab={activeTab} onClick={setActiveTab} icon={Users} label="Oyentes" />
           <TabButton id="general" activeTab={activeTab} onClick={setActiveTab} icon={Radio} label="Footer" />
+          <TabButton id="database" activeTab={activeTab} onClick={setActiveTab} icon={Database} label="Copias y Respaldo" />
           <TabButton id="auth" activeTab={activeTab} onClick={setActiveTab} icon={Lock} label="Acceso" />
       </nav>
 
@@ -2256,12 +2321,122 @@ export const AdminPanel: React.FC = () => {
 
              {activeTab === 'player' && (
               <div className="space-y-6 animate-fade-in">
-                 <SectionHeader title="Ajustes del Reproductor" subtitle="Configura el analizador, metadatos y el modo de video para el reproductor." />
+                 <SectionHeader title="Ajustes del Reproductor" subtitle="Configura el diseño del reproductor, analizador de audio, títulos de canciones, carátulas en tiempo real y transmisión." />
                  
+                 {/* Selector de Estilo del Reproductor */}
+                 <div className="bg-gray-800 border border-gray-700 p-6 rounded-xl space-y-4">
+                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                     <h3 className="text-white font-bold flex items-center gap-2">
+                       <Radio size={18} className="text-secondary" /> Cambio de Estilo del Reproductor
+                     </h3>
+                     <span className="text-xs text-gray-400">
+                       Selecciona el diseño visual activo para tus oyentes
+                     </span>
+                   </div>
+
+                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                     {[
+                       { id: 'modern', name: 'Studio Moderno', desc: 'Barra ancha con ecualizador animado en el fondo y portada destacada.' },
+                       { id: 'card', name: 'Tarjeta Glass', desc: 'Tarjeta flotante con cristal esmerilado translúcido y resplandor.' },
+                       { id: 'retro', name: 'Vinilo Neón', desc: 'Disco de vinilo giratorio con estilo retro clásico al reproducir.' },
+                       { id: 'compact', name: 'Minimalista', desc: 'Línea compacta ultra ligera que ahorra espacio en pantalla.' },
+                       { id: 'sticky', name: 'Barra Fija (Dock)', desc: 'Fijada en la parte inferior mientras los oyentes bajan en la web.' }
+                     ].map((styleOpt) => {
+                       const isSelected = (formData.appearance.radioPlayer?.playerStyle || 'modern') === styleOpt.id;
+                       return (
+                         <button
+                           key={styleOpt.id}
+                           type="button"
+                           onClick={() => {
+                             setFormData(prev => ({
+                               ...prev,
+                               appearance: {
+                                 ...prev.appearance,
+                                 radioPlayer: {
+                                   ...prev.appearance.radioPlayer,
+                                   playerStyle: styleOpt.id as any
+                                 }
+                               }
+                             }));
+                           }}
+                           className={`p-4 rounded-xl border text-left transition-all ${
+                             isSelected
+                               ? 'bg-secondary/10 border-secondary text-white shadow-lg shadow-secondary/10 ring-2 ring-secondary/40'
+                               : 'bg-gray-900/60 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'
+                           }`}
+                         >
+                           <div className="flex items-center justify-between mb-1.5">
+                             <span className="font-bold text-sm text-white">{styleOpt.name}</span>
+                             {isSelected && <span className="w-2.5 h-2.5 rounded-full bg-secondary animate-pulse"></span>}
+                           </div>
+                           <p className="text-[11px] text-gray-400 leading-snug">{styleOpt.desc}</p>
+                         </button>
+                       );
+                     })}
+                   </div>
+                 </div>
+
+                 {/* Configuración de Streaming y Portada */}
+                 <div className="bg-gray-800 border border-gray-700 p-6 rounded-xl space-y-4">
+                   <h3 className="text-white font-bold flex items-center gap-2">
+                     <Radio size={18} className="text-secondary" /> Streaming de Audio y Carátula de Respaldo
+                   </h3>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div>
+                       <label className="block text-xs font-bold text-gray-300 uppercase mb-2">URL del Streaming Principal (Icecast / Shoutcast)</label>
+                       <input
+                         type="text"
+                         value={formData.general.streamUrl}
+                         onChange={(e) => setFormData(prev => ({ ...prev, general: { ...prev.general, streamUrl: e.target.value } }))}
+                         placeholder="https://redradioypc.com:8010/live"
+                         className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:border-secondary outline-none text-sm font-mono"
+                       />
+                     </div>
+                     <div>
+                       <label className="block text-xs font-bold text-gray-300 uppercase mb-2">Carátula de Radio por Defecto (Cuando no haya tema)</label>
+                       <div className="flex gap-2">
+                         <input
+                           type="text"
+                           value={formData.appearance.radioPlayer?.customCoverUrl || formData.general.defaultCoverUrl || ''}
+                           onChange={(e) => {
+                             const val = e.target.value;
+                             setFormData(prev => ({
+                               ...prev,
+                               appearance: {
+                                 ...prev.appearance,
+                                 radioPlayer: { ...prev.appearance.radioPlayer, customCoverUrl: val }
+                               },
+                               general: { ...prev.general, defaultCoverUrl: val }
+                             }));
+                           }}
+                           placeholder="/images/default-cover.svg"
+                           className="flex-1 bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:border-secondary outline-none text-sm"
+                         />
+                         <button
+                           type="button"
+                           onClick={() => {
+                             setFormData(prev => ({
+                               ...prev,
+                               appearance: {
+                                 ...prev.appearance,
+                                 radioPlayer: { ...prev.appearance.radioPlayer, customCoverUrl: '/images/default-cover.svg' }
+                               },
+                               general: { ...prev.general, defaultCoverUrl: '/images/default-cover.svg' }
+                             }));
+                           }}
+                           className="px-3 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold rounded-xl transition-colors whitespace-nowrap"
+                         >
+                           Restaurar Oficial
+                         </button>
+                       </div>
+                     </div>
+                   </div>
+                 </div>
+
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="bg-gray-800 border border-gray-700 p-6 rounded-xl space-y-4">
                         <h3 className="text-white font-bold mb-4 flex items-center gap-2">
-                            <Monitor size={18} className="text-primary" /> Metadatos y Visualización
+                            <Monitor size={18} className="text-primary" /> Metadatos y Visualización en Vivo
                         </h3>
                         
                         <label className="flex items-center space-x-3 cursor-pointer">
@@ -2279,7 +2454,10 @@ export const AdminPanel: React.FC = () => {
                                 }}
                                 className="form-checkbox h-5 w-5 text-primary rounded border-gray-600 bg-gray-700" 
                             />
-                            <span className="text-white font-medium">Mostrar Analizador Musical</span>
+                            <div className="flex flex-col">
+                                <span className="text-white font-medium">Mostrar Analizador Musical</span>
+                                <span className="text-[11px] text-gray-400">Ecualizador de audio visual animado en el fondo del reproductor.</span>
+                            </div>
                         </label>
 
                         <label className="flex items-center space-x-3 cursor-pointer">
@@ -2297,7 +2475,10 @@ export const AdminPanel: React.FC = () => {
                                 }}
                                 className="form-checkbox h-5 w-5 text-primary rounded border-gray-600 bg-gray-700" 
                             />
-                            <span className="text-white font-medium">Habilitar Títulos Automáticos (Canción/Artista)</span>
+                            <div className="flex flex-col">
+                                <span className="text-white font-medium">Habilitar Títulos Dinámicos</span>
+                                <span className="text-[11px] text-gray-400 leading-tight">Muestra el nombre del artista y la canción que está sonando en tiempo real.</span>
+                            </div>
                         </label>
 
                         <label className="flex items-center space-x-3 cursor-pointer">
@@ -2315,12 +2496,54 @@ export const AdminPanel: React.FC = () => {
                                 }}
                                 className="form-checkbox h-5 w-5 text-primary rounded border-gray-600 bg-gray-700" 
                             />
-                            <span className="text-white font-medium">Mostrar Cover/Portada de Álbum</span>
+                            <div className="flex flex-col">
+                                <span className="text-white font-medium">Habilitar Portadas Automáticas</span>
+                                <span className="text-[11px] text-gray-400 leading-tight">Busca y muestra la carátula oficial del disco o single que está al aire.</span>
+                            </div>
                         </label>
 
-                        <div className="mt-4 p-3 bg-gray-900/50 rounded-lg border border-dashed border-gray-600">
+                        {/* Live Metadata Diagnostic Box */}
+                        <div className="mt-4 p-4 bg-gray-900/80 rounded-xl border border-gray-700 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+                                    <Radio size={14} className="text-secondary" /> Prueba de Metadatos del Streaming
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={handleTestMetadata}
+                                    disabled={isTestingMetadata}
+                                    className="px-3 py-1.5 bg-secondary text-primary font-bold text-xs rounded-lg hover:bg-yellow-400 transition-all active:scale-95 disabled:opacity-50"
+                                >
+                                    {isTestingMetadata ? 'Consultando...' : 'Comprobar en Vivo'}
+                                </button>
+                            </div>
+
+                            {playerTestMetadata && (
+                                <div className="p-3 bg-black/60 rounded-lg border border-secondary/30 flex items-center gap-3 animate-fade-in">
+                                    {playerTestMetadata.cover ? (
+                                        <img 
+                                            src={playerTestMetadata.cover} 
+                                            alt="Cover" 
+                                            className="w-14 h-14 rounded-lg object-cover border border-white/20 shadow-md flex-shrink-0"
+                                            referrerPolicy="no-referrer"
+                                        />
+                                    ) : (
+                                        <div className="w-14 h-14 rounded-lg bg-gray-800 flex items-center justify-center text-gray-500 flex-shrink-0">
+                                            <Disc size={24} />
+                                        </div>
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-bold text-secondary truncate uppercase">{playerTestMetadata.artist || 'Artista Detectado'}</p>
+                                        <p className="text-sm font-black text-white truncate">{playerTestMetadata.title || 'Título Detectado'}</p>
+                                        <span className="inline-block mt-1 text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                                            ✓ Metadatos y carátula sincronizados
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
                             <p className="text-[11px] text-gray-400 italic">
-                                * Los metadatos se extraen directamente del streaming cada 20 segundos y se buscan en iTunes para obtener la portada.
+                                * Los títulos y portadas se consultan del streaming de audio y de Apple Music en alta resolución.
                             </p>
                         </div>
                     </div>
@@ -2366,8 +2589,8 @@ export const AdminPanel: React.FC = () => {
                                     />
                                 </InputGroup>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <InputGroup label="Diseño" className="mb-0">
+                                <div>
+                                    <InputGroup label="Modo de Visualización" className="mb-2">
                                         <select 
                                             value={formData.appearance.radioPlayer?.videoLayout || 'compact'}
                                             onChange={e => setFormData(prev => ({
@@ -2379,45 +2602,89 @@ export const AdminPanel: React.FC = () => {
                                             }))}
                                             className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg text-sm focus:border-secondary outline-none"
                                         >
-                                            <option value="compact">Compacto</option>
-                                            <option value="full">Expandido</option>
+                                            <option value="compact">Compacto (En la barra del reproductor)</option>
+                                            <option value="full">Expandido (Banner Widescreen completo)</option>
                                         </select>
                                     </InputGroup>
-                                    <InputGroup label="Tamaño (px)" className="mb-0">
-                                        <div className="flex gap-2">
-                                            <input 
-                                                type="number"
-                                                value={formData.appearance.radioPlayer?.videoWidth || 100}
-                                                onChange={e => setFormData(prev => ({
-                                                    ...prev,
-                                                    appearance: {
-                                                        ...prev.appearance,
-                                                        radioPlayer: { ...prev.appearance.radioPlayer, videoWidth: parseInt(e.target.value) }
-                                                    }
-                                                }))}
-                                                className="w-full bg-gray-900 border border-gray-600 text-white p-2 rounded-lg text-xs"
-                                                placeholder="Ancho"
-                                            />
-                                            <input 
-                                                type="number"
-                                                value={formData.appearance.radioPlayer?.videoHeight || 315}
-                                                onChange={e => setFormData(prev => ({
-                                                    ...prev,
-                                                    appearance: {
-                                                        ...prev.appearance,
-                                                        radioPlayer: { ...prev.appearance.radioPlayer, videoHeight: parseInt(e.target.value) }
-                                                    }
-                                                }))}
-                                                className="w-full bg-gray-900 border border-gray-600 text-white p-2 rounded-lg text-xs"
-                                                placeholder="Alto"
-                                            />
+
+                                    {/* Size presets for compact mode */}
+                                    {formData.appearance.radioPlayer?.videoLayout !== 'full' && (
+                                        <div className="space-y-2 mt-3">
+                                            <label className="text-xs font-semibold text-gray-300">Tamaño Rápido Preconfigurado (16:9):</label>
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                                {[
+                                                    { label: 'Pequeño', w: 240, h: 135 },
+                                                    { label: 'Mediano', w: 320, h: 180 },
+                                                    { label: 'Grande', w: 400, h: 225 },
+                                                    { label: 'HD', w: 480, h: 270 }
+                                                ].map(preset => {
+                                                    const isSelected = (formData.appearance.radioPlayer?.videoWidth === preset.w) && 
+                                                                       (formData.appearance.radioPlayer?.videoHeight === preset.h);
+                                                    return (
+                                                        <button
+                                                            key={preset.label}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setFormData(prev => ({
+                                                                    ...prev,
+                                                                    appearance: {
+                                                                        ...prev.appearance,
+                                                                        radioPlayer: {
+                                                                            ...prev.appearance.radioPlayer,
+                                                                            videoWidth: preset.w,
+                                                                            videoHeight: preset.h
+                                                                        }
+                                                                    }
+                                                                }));
+                                                            }}
+                                                            className={`px-2.5 py-1.5 text-xs rounded-lg font-medium border transition-all text-center ${isSelected ? 'bg-secondary text-primary font-bold border-secondary shadow-md' : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-500'}`}
+                                                        >
+                                                            {preset.label}
+                                                            <span className="block text-[10px] opacity-75 font-mono">{preset.w}×{preset.h}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
-                                    </InputGroup>
+                                    )}
+
+                                    <div className="mt-3">
+                                        <InputGroup label="Dimensiones Personalizadas (Ancho × Alto en px)" className="mb-0">
+                                            <div className="flex gap-2">
+                                                <input 
+                                                    type="number"
+                                                    value={formData.appearance.radioPlayer?.videoWidth || 320}
+                                                    onChange={e => setFormData(prev => ({
+                                                        ...prev,
+                                                        appearance: {
+                                                            ...prev.appearance,
+                                                            radioPlayer: { ...prev.appearance.radioPlayer, videoWidth: parseInt(e.target.value) || 320 }
+                                                        }
+                                                    }))}
+                                                    className="w-full bg-gray-900 border border-gray-600 text-white p-2 rounded-lg text-xs"
+                                                    placeholder="Ancho (px)"
+                                                />
+                                                <input 
+                                                    type="number"
+                                                    value={formData.appearance.radioPlayer?.videoHeight || 180}
+                                                    onChange={e => setFormData(prev => ({
+                                                        ...prev,
+                                                        appearance: {
+                                                            ...prev.appearance,
+                                                            radioPlayer: { ...prev.appearance.radioPlayer, videoHeight: parseInt(e.target.value) || 180 }
+                                                        }
+                                                    }))}
+                                                    className="w-full bg-gray-900 border border-gray-600 text-white p-2 rounded-lg text-xs"
+                                                    placeholder="Alto (px)"
+                                                />
+                                            </div>
+                                        </InputGroup>
+                                    </div>
                                 </div>
 
                                 <div className="p-3 bg-secondary/10 rounded-lg border border-secondary/20">
                                     <p className="text-[11px] text-secondary/80 flex items-center gap-2">
-                                        <Sparkles size={12} /> Ideal para transmisiones simultáneas de video.
+                                        <Sparkles size={12} /> Ideal para transmisiones simultáneas de video en vivo (YouTube Live).
                                     </p>
                                 </div>
                             </div>
@@ -4476,6 +4743,121 @@ export const AdminPanel: React.FC = () => {
                         </InputGroup>
                      ))}
                 </div>
+                <SaveAction />
+              </div>
+            )}
+
+            {activeTab === 'database' && (
+              <div className="space-y-6 animate-fade-in">
+                <SectionHeader 
+                  title="Copias de Seguridad y Respaldo de Datos" 
+                  subtitle="Descarga copias de seguridad de tu web para proteger tus imágenes, contenidos y configuraciones." 
+                />
+
+                {/* Information banner */}
+                <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-2xl p-5 flex items-start gap-4">
+                  <div className="p-3 bg-emerald-500/20 rounded-xl text-emerald-400 flex-shrink-0">
+                    <CheckCircle2 size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-bold text-base mb-1">Protección Total de Contenido Activada</h3>
+                    <p className="text-gray-300 text-xs sm:text-sm leading-relaxed">
+                      Todas tus imágenes, textos, colores y enlaces se guardan automáticamente en tu base de datos Firestore y en copias de seguridad locales.
+                      El sistema está protegido para <strong>nunca reemplazar por defecto las imágenes ni cambios ya hechos</strong>.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Action Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Export Backup Card */}
+                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 flex flex-col justify-between shadow-xl">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 text-secondary">
+                        <div className="p-2.5 bg-secondary/10 rounded-xl">
+                          <Download size={24} />
+                        </div>
+                        <h4 className="text-lg font-bold text-white">Descargar Copia de Seguridad (JSON)</h4>
+                      </div>
+                      <p className="text-xs sm:text-sm text-gray-400 leading-relaxed">
+                        Exporta un archivo completo con todas tus imágenes, textos, diapositivas del banner, lista de aliados, noticias y diseño. Puedes guardar este archivo en tu computador como respaldo seguro.
+                      </p>
+                    </div>
+
+                    <div className="mt-6">
+                      <button
+                        onClick={handleExportBackup}
+                        className="w-full flex items-center justify-center gap-2 bg-secondary hover:bg-secondary/90 text-primary px-6 py-3.5 rounded-xl font-bold transition-all shadow-lg hover:scale-[1.02] active:scale-95 text-sm"
+                      >
+                        <Download size={18} />
+                        <span>Descargar Archivo JSON de Respaldo</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Import Backup Card */}
+                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 flex flex-col justify-between shadow-xl">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 text-primary">
+                        <div className="p-2.5 bg-primary/20 rounded-xl text-purple-300">
+                          <Upload size={24} />
+                        </div>
+                        <h4 className="text-lg font-bold text-white">Restaurar desde Copia de Seguridad</h4>
+                      </div>
+                      <p className="text-xs sm:text-sm text-gray-400 leading-relaxed">
+                        Si alguna vez necesitas recuperar tu trabajo en otro navegador o volver a un estado anterior, selecciona un archivo de respaldo JSON descargado previamente.
+                      </p>
+                    </div>
+
+                    <div className="mt-6">
+                      <label className="w-full flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 text-white border border-gray-700 hover:border-gray-600 px-6 py-3.5 rounded-xl font-bold cursor-pointer transition-all shadow-lg hover:scale-[1.02] active:scale-95 text-sm">
+                        <Upload size={18} className="text-purple-300" />
+                        <span>Restaurar Archivo JSON</span>
+                        <input
+                          type="file"
+                          accept=".json"
+                          onChange={handleImportBackup}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* State Diagnostic Card */}
+                <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-6">
+                  <h4 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <Database size={16} className="text-secondary" />
+                    Resumen del Contenido Guardado
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                    <div className="bg-gray-950 p-4 rounded-xl border border-gray-800/80 text-center">
+                      <span className="block text-2xl font-black text-white">{formData.content.hero?.length || 0}</span>
+                      <span className="text-[11px] text-gray-400 font-medium">Diapositivas Banner</span>
+                    </div>
+                    <div className="bg-gray-950 p-4 rounded-xl border border-gray-800/80 text-center">
+                      <span className="block text-2xl font-black text-white">{formData.content.gallery?.images?.length || 0}</span>
+                      <span className="text-[11px] text-gray-400 font-medium">Fotos en Galería</span>
+                    </div>
+                    <div className="bg-gray-950 p-4 rounded-xl border border-gray-800/80 text-center">
+                      <span className="block text-2xl font-black text-white">{formData.content.clients?.length || 0}</span>
+                      <span className="text-[11px] text-gray-400 font-medium">Aliados / Clientes</span>
+                    </div>
+                    <div className="bg-gray-950 p-4 rounded-xl border border-gray-800/80 text-center">
+                      <span className="block text-2xl font-black text-white">{formData.content.news?.articles?.length || 0}</span>
+                      <span className="text-[11px] text-gray-400 font-medium">Noticias Guardadas</span>
+                    </div>
+                    <div className="bg-gray-950 p-4 rounded-xl border border-gray-800/80 text-center">
+                      <span className="block text-2xl font-black text-white">{formData.content.podcast?.episodes?.length || 0}</span>
+                      <span className="text-[11px] text-gray-400 font-medium">Episodios Podcast</span>
+                    </div>
+                    <div className="bg-gray-950 p-4 rounded-xl border border-gray-800/80 text-center">
+                      <span className="block text-2xl font-black text-white">{formData.content.topVideos?.videos?.length || 0}</span>
+                      <span className="text-[11px] text-gray-400 font-medium">Videos Virales</span>
+                    </div>
+                  </div>
+                </div>
+
                 <SaveAction />
               </div>
             )}

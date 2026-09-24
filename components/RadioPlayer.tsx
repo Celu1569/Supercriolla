@@ -1,7 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Play, Pause, Volume2, VolumeX, Volume1, Radio, X } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Volume1, Radio, Disc, RefreshCw, Maximize2, Minimize2, Tv, Sparkles } from 'lucide-react';
 import { useConfig } from '../context/ConfigContext';
 import { motion, AnimatePresence } from 'motion/react';
+
+const DEFAULT_COVER = "/images/default-cover.svg";
 
 export const RadioPlayer: React.FC = () => {
   const { config } = useConfig();
@@ -13,64 +15,86 @@ export const RadioPlayer: React.FC = () => {
   const animationRef = useRef<number>();
   
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.8);
+  const [volume, setVolume] = useState(0.85);
   const [isMuted, setIsMuted] = useState(false);
-  const [prevVolume, setPrevVolume] = useState(0.8);
-  const [isVisible, setIsVisible] = useState(() => {
-      if (typeof window !== 'undefined') {
-          return localStorage.getItem('radio_player_visible') === 'true';
-      }
-      return true;
-  });
-  
-  useEffect(() => {
-      localStorage.setItem('radio_player_visible', isVisible.toString());
-  }, [isVisible]);
+  const [prevVolume, setPrevVolume] = useState(0.85);
+  const [isVisible, setIsVisible] = useState(true);
+  const [isStickyMinimized, setIsStickyMinimized] = useState(false);
 
   const [hasError, setHasError] = useState(false);
-  const [metadata, setMetadata] = useState({ title: '', artist: '', cover: '' });
-
-  // Fetch metadata periodically
-  useEffect(() => {
-    const showMetadata = config.appearance.radioPlayer?.showMetadata !== false;
-    
-    if (!isPlaying || !showMetadata) {
-        if (!isPlaying) setMetadata({ title: '', artist: '', cover: '' });
-        return;
-    }
-
-    const fetchMetadata = async () => {
+  const [metadata, setMetadata] = useState<{ title: string; artist: string; cover: string }>(() => {
+    if (typeof window !== 'undefined') {
       try {
-        const streamUrl = config.general.streamUrl;
-        if (!streamUrl) return;
-        
-        const response = await fetch(`/api/metadata?url=${encodeURIComponent(streamUrl)}`);
+        const cached = localStorage.getItem('last_radio_metadata');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && (parsed.title || parsed.artist)) {
+            return {
+              title: parsed.title || '',
+              artist: parsed.artist || '',
+              cover: parsed.cover || DEFAULT_COVER
+            };
+          }
+        }
+      } catch (_) {}
+    }
+    return { title: '', artist: '', cover: DEFAULT_COVER };
+  });
+  const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
+
+  // Fetch metadata immediately and periodically
+  const fetchMetadata = async () => {
+    const showMeta = config.appearance.radioPlayer?.showMetadata !== false;
+    if (!showMeta) return;
+
+    setIsFetchingMetadata(true);
+    try {
+      const streamUrl = config.general.streamUrl || 'https://redradioypc.com:8010/live';
+      const response = await fetch(`/api/metadata?url=${encodeURIComponent(streamUrl)}&_t=${Date.now()}`);
+      if (response.ok) {
         const data = await response.json();
         if (data && (data.title || data.artist)) {
-          setMetadata(data);
+          const sanitized = {
+            title: data.title || '',
+            artist: data.artist || '',
+            cover: data.cover || DEFAULT_COVER
+          };
+          setMetadata(sanitized);
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('last_radio_metadata', JSON.stringify(sanitized));
+            }
+          } catch (_) {}
         }
-      } catch (err) {
-        console.warn("Could not fetch metadata:", err);
       }
-    };
+    } catch (err) {
+      console.warn("Could not fetch metadata:", err);
+    } finally {
+      setIsFetchingMetadata(false);
+    }
+  };
 
+  useEffect(() => {
     fetchMetadata();
-    const interval = setInterval(fetchMetadata, 20000);
+    const interval = setInterval(fetchMetadata, 12000);
     return () => clearInterval(interval);
-  }, [isPlaying, config.general.enableAutoMetadata, config.general.streamUrl]);
+  }, [config.general.enableAutoMetadata, config.general.streamUrl, config.appearance.radioPlayer?.showMetadata]);
 
   // Fallback values from config
-  const stationName = config.general.stationName || 'Radio en Vivo';
+  const stationName = config.general.stationName || 'BUENÍSIMA 87.7 FM';
   const defaultSlogan = config.general.defaultSlogan || 'La Radio de la Buena Vibra';
   const displayTitle = metadata.title || stationName;
-  const displayArtist = metadata.artist || (isPlaying ? 'Transmitiendo en Vivo' : defaultSlogan);
-  const displayCover = metadata.cover || config.general.defaultCoverUrl || config.navigation.logoUrl;
+  const displayArtist = metadata.artist || defaultSlogan;
+
+  // Selected player style
+  const playerStyle = config.appearance.radioPlayer?.playerStyle || 'modern';
+  const customCover = config.appearance.radioPlayer?.customCoverUrl;
+  const displayCover = metadata.cover || customCover || config.general.defaultCoverUrl || DEFAULT_COVER;
 
   const videoUrl = config.appearance.radioPlayer?.videoUrl || '';
   const isVideoMode = config.appearance.radioPlayer?.videoMode && videoUrl;
   const videoLayout = config.appearance.radioPlayer?.videoLayout || 'compact';
 
-  // Helper to extract YouTube ID
   const getYouTubeId = (url: string) => {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
     const match = url.match(regExp);
@@ -80,7 +104,6 @@ export const RadioPlayer: React.FC = () => {
   const youtubeId = videoUrl ? getYouTubeId(videoUrl) : null;
   const embedUrl = youtubeId ? `https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1` : videoUrl;
 
-  // Synchronize audio element with state changes
   useEffect(() => {
     if (audioRef.current) {
         audioRef.current.volume = isMuted ? 0 : volume;
@@ -107,7 +130,7 @@ export const RadioPlayer: React.FC = () => {
                       sourceRef.current.connect(analyzerRef.current);
                       analyzerRef.current.connect(audioCtxRef.current.destination);
                   } catch (e) {
-                      console.error("Audio context error:", e);
+                      // Audio context already initialized or cross-origin
                   }
               }
           }
@@ -167,15 +190,8 @@ export const RadioPlayer: React.FC = () => {
       } else {
           setHasError(false);
           setIsPlaying(true);
-          let finalUrl = config.general.streamUrl || '';
+          let finalUrl = config.general.streamUrl || 'https://redradioypc.com:8010/live';
           
-          if (!finalUrl) {
-              setHasError(true);
-              setIsPlaying(false);
-              return;
-          }
-
-          // Anti-cache / shoutcast hacks
           if (/^https?:\/\/[^/]+\/?$/.test(finalUrl) && !finalUrl.includes('?')) {
               finalUrl = `${finalUrl}${finalUrl.endsWith('/') ? '' : '/'};`;
           }
@@ -184,6 +200,8 @@ export const RadioPlayer: React.FC = () => {
           audioRef.current.src = finalUrl;
           try {
               await audioRef.current.play();
+              // Re-fetch metadata once playing starts
+              fetchMetadata();
           } catch (e: any) {
               if (e.name !== 'AbortError') {
                   setHasError(true);
@@ -194,15 +212,15 @@ export const RadioPlayer: React.FC = () => {
   };
 
   const getVolumeIcon = () => {
-      if (isMuted || volume === 0) return <VolumeX size={20} />;
-      if (volume < 0.4) return <Volume1 size={20} />;
-      return <Volume2 size={20} />;
+      if (isMuted || volume === 0) return <VolumeX size={18} />;
+      if (volume < 0.4) return <Volume1 size={18} />;
+      return <Volume2 size={18} />;
   };
 
   const toggleMute = () => {
       if (isMuted) {
           setIsMuted(false);
-          setVolume(prevVolume > 0 ? prevVolume : 0.8);
+          setVolume(prevVolume > 0 ? prevVolume : 0.85);
       } else {
           setPrevVolume(volume);
           setIsMuted(true);
@@ -210,6 +228,295 @@ export const RadioPlayer: React.FC = () => {
       }
   };
 
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    const target = e.currentTarget;
+    if (target.src !== DEFAULT_COVER) {
+      target.src = DEFAULT_COVER;
+    }
+  };
+
+  // -------------------------------------------------------------
+  // RENDER PLAYER BASED ON SELECTED STYLE
+  // -------------------------------------------------------------
+
+  // Hidden Audio Element (always active in background)
+  const audioElement = (
+    <audio 
+      ref={audioRef} 
+      crossOrigin="anonymous" 
+      onEnded={() => setIsPlaying(false)} 
+      onError={() => { setHasError(true); setIsPlaying(false); }} 
+      preload="none" 
+    />
+  );
+
+  // STYLE 1: RETRO VINYL / NEON
+  if (playerStyle === 'retro') {
+    return (
+      <div className="w-full relative z-30 bg-[#08080d] border-b border-white/10 text-white overflow-hidden shadow-2xl">
+        {audioElement}
+        <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col md:flex-row items-center justify-between gap-6">
+          {/* Vinyl Disc Animation */}
+          <div className="flex items-center gap-6">
+            <div className="relative flex-shrink-0 group">
+              <div className={`w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-tr from-gray-900 via-gray-800 to-black p-1 shadow-2xl border border-yellow-500/30 flex items-center justify-center ${isPlaying ? 'animate-[spin_4s_linear_infinite]' : ''}`}>
+                <div className="w-full h-full rounded-full border-4 border-dashed border-white/20 p-2 flex items-center justify-center">
+                  <img 
+                    src={displayCover} 
+                    alt={displayTitle} 
+                    onError={handleImageError}
+                    className="w-14 h-14 rounded-full object-cover shadow-inner"
+                  />
+                </div>
+              </div>
+              <div className="absolute -bottom-1 -right-1 bg-yellow-500 text-black p-1 rounded-full text-xs font-black shadow-lg">
+                <Disc size={16} className={isPlaying ? 'animate-spin' : ''} />
+              </div>
+            </div>
+
+            <div className="space-y-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${isPlaying ? 'bg-red-500 text-white animate-pulse' : 'bg-white/10 text-gray-400'}`}>
+                  {isPlaying ? 'EN VIVO' : 'PAUSADO'}
+                </span>
+                <span className="text-[11px] font-bold text-yellow-400 tracking-widest uppercase">
+                  {displayArtist}
+                </span>
+                <button onClick={fetchMetadata} title="Actualizar título" className="p-1 hover:text-yellow-400 text-gray-500 transition-colors">
+                  <RefreshCw size={12} className={isFetchingMetadata ? 'animate-spin text-yellow-400' : ''} />
+                </button>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight truncate max-w-md" title={displayTitle}>
+                {displayTitle}
+              </h3>
+              <p className="text-xs text-gray-400 font-mono">
+                {stationName} • 87.7 FM
+              </p>
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center gap-6">
+            <button
+              onClick={togglePlay}
+              className="w-16 h-16 rounded-full bg-yellow-400 hover:bg-yellow-300 text-black flex items-center justify-center shadow-lg shadow-yellow-500/20 transition-transform active:scale-95 flex-shrink-0"
+              title={isPlaying ? "Pausar" : "Reproducir"}
+            >
+              {isPlaying ? <Pause size={30} fill="currentColor" /> : <Play size={30} fill="currentColor" className="ml-1" />}
+            </button>
+
+            <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-full px-4 py-2 w-44">
+              <button onClick={toggleMute} className="text-gray-400 hover:text-white transition-colors">
+                {getVolumeIcon()}
+              </button>
+              <input
+                type="range" min="0" max="1" step="0.01" value={volume}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  setVolume(val);
+                  setIsMuted(val === 0);
+                }}
+                className="w-full h-1 bg-white/20 rounded-full accent-yellow-400 cursor-pointer"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // STYLE 2: GLASSMORPHISM CARD
+  if (playerStyle === 'card') {
+    return (
+      <div className="w-full py-6 px-4 relative z-30 flex justify-center">
+        {audioElement}
+        <motion.div 
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-4xl bg-black/60 backdrop-blur-2xl border border-white/15 rounded-3xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex flex-col md:flex-row items-center justify-between gap-6"
+        >
+          {/* Cover & Title */}
+          <div className="flex items-center gap-5 flex-1 min-w-0 w-full md:w-auto">
+            {config.appearance.radioPlayer?.showCover !== false && (
+              <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden shadow-2xl border border-white/20 flex-shrink-0 group">
+                <img 
+                  src={displayCover} 
+                  alt={displayTitle} 
+                  onError={handleImageError}
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                <div className="absolute bottom-1 right-1 text-yellow-400">
+                  <Radio size={14} className={isPlaying ? 'animate-pulse' : ''} />
+                </div>
+              </div>
+            )}
+
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${isPlaying ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-white/10 text-gray-400'}`}>
+                  {isPlaying ? '● Al Aire' : '○ Pausado'}
+                </span>
+                <p className="text-xs font-bold text-yellow-400 uppercase tracking-widest truncate">{displayArtist}</p>
+                <button onClick={fetchMetadata} title="Actualizar canción" className="text-gray-500 hover:text-white transition-colors">
+                  <RefreshCw size={12} className={isFetchingMetadata ? 'animate-spin text-yellow-400' : ''} />
+                </button>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-black text-white truncate drop-shadow-md" title={displayTitle}>
+                {displayTitle}
+              </h2>
+              <p className="text-xs text-gray-400">{stationName}</p>
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+            <button
+              onClick={togglePlay}
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-yellow-500 to-amber-300 hover:from-yellow-400 hover:to-amber-200 text-black flex items-center justify-center shadow-xl shadow-yellow-500/20 transition-transform active:scale-95 flex-shrink-0"
+              title={isPlaying ? "Pausar" : "Reproducir"}
+            >
+              {isPlaying ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" className="ml-1" />}
+            </button>
+
+            <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 w-40 sm:w-48">
+              <button onClick={toggleMute} className="text-gray-400 hover:text-white transition-colors">
+                {getVolumeIcon()}
+              </button>
+              <input
+                type="range" min="0" max="1" step="0.01" value={volume}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  setVolume(val);
+                  setIsMuted(val === 0);
+                }}
+                className="w-full h-1.5 bg-white/20 rounded-full accent-yellow-400 cursor-pointer"
+              />
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // STYLE 3: COMPACT MINIMALIST
+  if (playerStyle === 'compact') {
+    return (
+      <div className="w-full bg-[#0a0a0f] border-b border-white/10 px-4 py-3 relative z-30 shadow-md">
+        {audioElement}
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={togglePlay}
+              className="w-10 h-10 rounded-full bg-yellow-400 hover:bg-yellow-300 text-black flex items-center justify-center flex-shrink-0 shadow transition-transform active:scale-95"
+            >
+              {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
+            </button>
+
+            {config.appearance.radioPlayer?.showCover !== false && (
+              <img 
+                src={displayCover} 
+                alt={displayTitle} 
+                onError={handleImageError}
+                className="w-10 h-10 rounded-lg object-cover border border-white/10 flex-shrink-0"
+              />
+            )}
+
+            <div className="min-w-0 truncate">
+              <span className="text-xs font-black text-white truncate block">{displayTitle}</span>
+              <span className="text-[10px] text-yellow-400 truncate block uppercase tracking-wider">{displayArtist}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button onClick={fetchMetadata} className="text-gray-500 hover:text-white p-1">
+              <RefreshCw size={14} className={isFetchingMetadata ? 'animate-spin text-yellow-400' : ''} />
+            </button>
+            <div className="hidden sm:flex items-center gap-2 bg-white/5 rounded-full px-3 py-1.5 border border-white/10">
+              <button onClick={toggleMute} className="text-gray-400 hover:text-white">
+                {getVolumeIcon()}
+              </button>
+              <input
+                type="range" min="0" max="1" step="0.01" value={volume}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  setVolume(val);
+                  setIsMuted(val === 0);
+                }}
+                className="w-24 h-1 bg-white/20 rounded-full accent-yellow-400"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // STYLE 4: STICKY DOCK (Pinned to Bottom of viewport)
+  if (playerStyle === 'sticky') {
+    return (
+      <>
+        {audioElement}
+        <motion.div 
+          initial={{ y: 100 }}
+          animate={{ y: 0 }}
+          className="fixed bottom-0 left-0 right-0 z-50 bg-[#06060a]/95 backdrop-blur-2xl border-t border-white/15 shadow-[0_-10px_30px_rgba(0,0,0,0.8)]"
+        >
+          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
+              {config.appearance.radioPlayer?.showCover !== false && (
+                <div className="relative w-12 h-12 rounded-xl overflow-hidden border border-white/20 flex-shrink-0">
+                  <img 
+                    src={displayCover} 
+                    alt={displayTitle} 
+                    onError={handleImageError}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-red-500 animate-ping' : 'bg-gray-500'}`}></span>
+                  <span className="text-[10px] font-bold text-yellow-400 uppercase tracking-widest truncate">{displayArtist}</span>
+                </div>
+                <h4 className="text-sm font-black text-white truncate max-w-sm sm:max-w-md">{displayTitle}</h4>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <button
+                onClick={togglePlay}
+                className="w-12 h-12 rounded-full bg-yellow-400 hover:bg-yellow-300 text-black flex items-center justify-center shadow-lg shadow-yellow-500/20 active:scale-95 flex-shrink-0"
+              >
+                {isPlaying ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" className="ml-0.5" />}
+              </button>
+
+              <div className="hidden md:flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-3 py-1.5 w-36">
+                <button onClick={toggleMute} className="text-gray-400 hover:text-white">
+                  {getVolumeIcon()}
+                </button>
+                <input
+                  type="range" min="0" max="1" step="0.01" value={volume}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setVolume(val);
+                    setIsMuted(val === 0);
+                  }}
+                  className="w-full h-1 bg-white/20 rounded-full accent-yellow-400"
+                />
+              </div>
+
+              <button onClick={fetchMetadata} className="text-gray-400 hover:text-white p-2">
+                <RefreshCw size={16} className={isFetchingMetadata ? 'animate-spin text-yellow-400' : ''} />
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      </>
+    );
+  }
+
+  // DEFAULT STYLE: MODERN STUDIO
   return (
     <div className="w-full animate-fade-in shadow-2xl z-30 relative">
       <motion.div 
@@ -218,7 +525,7 @@ export const RadioPlayer: React.FC = () => {
           className="relative bg-[#060608] border-b border-white/10 transition-all duration-700 ease-out origin-top overflow-hidden"
           style={{ display: isVisible ? 'flex' : 'none' }}
       >
-          <audio ref={audioRef} crossOrigin="anonymous" onEnded={() => setIsPlaying(false)} onError={() => { setHasError(true); setIsPlaying(false); }} preload="none" />
+          {audioElement}
 
           {/* Background Spectrum Analyzer */}
           <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-black/40">
@@ -232,69 +539,89 @@ export const RadioPlayer: React.FC = () => {
               )}
           </div>
 
-          {/* Player Inner Layout - Enhanced Version */}
-          <div className={`relative z-20 flex flex-col ${videoLayout === 'full' ? 'lg:flex-row' : 'md:flex-row'} items-center justify-between gap-4 p-4 lg:px-8 w-full max-w-[1400px] mx-auto min-h-[100px]`}>
+          {/* Player Inner Layout */}
+          <div className={`relative z-20 flex flex-col ${videoLayout === 'full' ? 'lg:flex-row' : 'md:flex-row'} items-center justify-between gap-6 p-4 lg:px-8 w-full max-w-[1500px] mx-auto min-h-[110px]`}>
               
-              {/* Cover & Station Info */}
-              <div className="flex items-center gap-4 flex-1 min-w-0 w-full md:w-auto">
-                  {config.appearance.radioPlayer?.showCover !== false && !isVideoMode && (
-                      <div className="relative w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 group">
+              {/* Cover & Station Info Area */}
+              <div className="flex items-center gap-4 sm:gap-6 flex-1 min-w-0 w-full md:w-auto">
+                  {/* Integrated Video (Compact Mode) */}
+                  {isVideoMode && videoLayout === 'compact' && (
+                      <div 
+                          className="relative overflow-hidden rounded-2xl shadow-2xl border border-white/20 bg-black aspect-video ring-2 ring-secondary/20 flex-shrink-0"
+                          style={{ 
+                              width: config.appearance.radioPlayer?.videoWidth ? `${config.appearance.radioPlayer.videoWidth}px` : '240px',
+                              height: config.appearance.radioPlayer?.videoHeight ? `${config.appearance.radioPlayer.videoHeight}px` : '135px'
+                          }}
+                      >
+                          <iframe 
+                              src={embedUrl}
+                              className="w-full h-full"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                          />
+                      </div>
+                  )}
+
+                  {/* Album Cover Art */}
+                  {config.appearance.radioPlayer?.showCover !== false && (
+                      <div className="relative w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 flex-shrink-0 group">
                           <AnimatePresence mode="wait">
                               <motion.img 
                                   key={displayCover}
-                                  initial={{ opacity: 0, scale: 0.9 }}
+                                  initial={{ opacity: 0, scale: 0.85 }}
                                   animate={{ opacity: 1, scale: 1 }}
-                                  exit={{ opacity: 0, scale: 1.1 }}
+                                  exit={{ opacity: 0, scale: 1.05 }}
+                                  transition={{ duration: 0.3 }}
                                   src={displayCover} 
                                   alt={displayTitle}
-                                  className="w-full h-full object-cover rounded-xl shadow-2xl border border-white/10"
-                                  referrerPolicy="no-referrer"
-                                  onError={(e) => {
-                                      (e.target as HTMLImageElement).src = config.navigation.logoUrl;
-                                  }}
+                                  onError={handleImageError}
+                                  className="w-full h-full object-cover rounded-2xl shadow-2xl border-2 border-white/10 group-hover:border-secondary/50 transition-colors bg-black/40"
                               />
                           </AnimatePresence>
-                          <div className="absolute inset-0 bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <Radio className="text-secondary animate-pulse" size={24} />
+                          <div className="absolute -bottom-1 -right-1 bg-secondary text-primary p-1.5 rounded-lg shadow-lg">
+                              <Radio size={14} className={isPlaying ? 'animate-pulse' : ''} />
                           </div>
                       </div>
                   )}
 
-                  <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-0.5">
-                          {isPlaying && (
-                              <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
+                  <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-colors ${isPlaying ? 'bg-red-600 text-white shadow-red-500/50' : 'bg-white/10 text-white/80'}`}>
+                              <span className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-white animate-ping' : 'bg-secondary'}`}></span>
+                              {isPlaying ? 'Al Aire' : 'En Sintonía'}
+                          </span>
+                          {(config.appearance.radioPlayer?.showMetadata !== false) && (
+                              <motion.p 
+                                key={displayArtist}
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                className="text-xs sm:text-sm font-black text-secondary uppercase tracking-[0.2em] truncate drop-shadow-md flex items-center gap-1.5"
+                              >
+                                  <span>{hasError ? 'Error de Transmisión' : displayArtist}</span>
+                                  <button onClick={fetchMetadata} title="Comprobar título en vivo" className="text-gray-400 hover:text-white transition-colors">
+                                    <RefreshCw size={12} className={isFetchingMetadata ? 'animate-spin text-secondary' : ''} />
+                                  </button>
+                              </motion.p>
                           )}
-                          <motion.p 
-                            key={displayArtist}
-                            initial={{ opacity: 0, x: -5 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className="text-[10px] sm:text-xs font-black text-secondary uppercase tracking-[0.2em] truncate"
-                          >
-                              {hasError ? 'Error de Transmisión' : displayArtist}
-                          </motion.p>
                       </div>
                       <motion.h2 
                         key={displayTitle}
-                        initial={{ opacity: 0, y: 5 }}
+                        initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="text-xl sm:text-2xl lg:text-3xl font-black text-white truncate drop-shadow-lg leading-tight"
+                        className="text-xl sm:text-2xl lg:text-3xl font-black text-white truncate drop-shadow-2xl leading-tight tracking-tight"
+                        title={displayTitle}
                       >
-                          {displayTitle}
+                          {(config.appearance.radioPlayer?.showMetadata !== false) ? displayTitle : stationName}
                       </motion.h2>
                   </div>
               </div>
 
-              {/* Video Area (If Video Mode Active) */}
-              {isVideoMode && (
-                  <div 
-                    className={`relative overflow-hidden rounded-2xl shadow-2xl border border-white/10 bg-black ${videoLayout === 'full' ? 'w-full lg:max-w-2xl' : 'w-full md:w-64'} aspect-video`}
-                    style={videoLayout === 'compact' && config.appearance.radioPlayer?.videoWidth ? { width: `${config.appearance.radioPlayer.videoWidth}px` } : {}}
-                  >
+              {/* Expanded Video Area */}
+              {isVideoMode && videoLayout === 'full' && (
+                  <div className="relative w-full lg:max-w-2xl aspect-video overflow-hidden rounded-2xl shadow-2xl border border-white/10 bg-black my-2">
                       <iframe 
                         src={embedUrl}
                         className="w-full h-full"
-                        style={config.appearance.radioPlayer?.videoHeight ? { height: `${config.appearance.radioPlayer.videoHeight}px` } : {}}
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
                       />
@@ -302,19 +629,18 @@ export const RadioPlayer: React.FC = () => {
               )}
 
               {/* Controls */}
-              <div className={`flex items-center gap-4 sm:gap-6 w-full ${videoLayout === 'full' ? 'lg:w-auto' : 'md:w-auto'} justify-center md:justify-end`}>
-                  {/* Play Button */}
+              <div className={`flex items-center gap-4 sm:gap-6 w-full ${videoLayout === 'full' ? 'lg:w-auto' : 'md:w-auto'} justify-center md:justify-end flex-shrink-0`}>
                   <motion.button
                       whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                       onClick={togglePlay}
                       className="w-16 h-16 rounded-full bg-secondary text-primary flex items-center justify-center shadow-lg hover:shadow-secondary/20 transition-all flex-shrink-0 group"
+                      title={isPlaying ? "Pausar" : "Reproducir"}
                   >
                       {isPlaying ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
                   </motion.button>
 
-                  {/* Volume Slider */}
-                  <div className="flex-1 md:w-48 lg:w-64 flex items-center gap-3 bg-white/5 border border-white/10 rounded-full px-5 py-3 backdrop-blur-xl">
-                      <button onClick={toggleMute} className="text-white/50 hover:text-white transition-colors flex-shrink-0">
+                  <div className="flex-1 md:w-44 lg:w-56 flex items-center gap-3 bg-white/5 border border-white/10 rounded-full px-5 py-3 backdrop-blur-xl">
+                      <button onClick={toggleMute} className="text-white/60 hover:text-white transition-colors flex-shrink-0">
                           {getVolumeIcon()}
                       </button>
                       <input
@@ -330,14 +656,6 @@ export const RadioPlayer: React.FC = () => {
                           className="w-full h-1.5 bg-white/20 rounded-full appearance-none cursor-pointer accent-secondary"
                       />
                   </div>
-
-                  {/* Close Button */}
-                  <button 
-                      onClick={() => setIsVisible(false)}
-                      className="p-3 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all border border-white/10 hidden sm:flex"
-                  >
-                      <X size={20} strokeWidth={2.5} />
-                  </button>
               </div>
           </div>
       </motion.div>

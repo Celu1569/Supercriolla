@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0a14" />
+      <stop offset="50%" stop-color="#181829" />
+      <stop offset="100%" stop-color="#050508" />
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="50%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <radialGradient id="vinylGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.25" />
+      <stop offset="70%" stop-color="#fbbf24" stop-opacity="0.05" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="600" height="600" rx="36" fill="url(#bg)" />
+  <rect width="596" height="596" x="2" y="2" rx="34" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="2" />
+  
+  <!-- Outer Glow Circle -->
+  <circle cx="300" cy="270" r="210" fill="url(#vinylGlow)" />
+  
+  <!-- Vinyl Record -->
+  <circle cx="300" cy="270" r="180" fill="#111116" stroke="#22222c" stroke-width="3" />
+  <circle cx="300" cy="270" r="160" fill="none" stroke="#1d1d26" stroke-width="1.5" />
+  <circle cx="300" cy="270" r="140" fill="none" stroke="#262633" stroke-width="1.5" />
+  <circle cx="300" cy="270" r="120" fill="none" stroke="#1f1f2a" stroke-width="1.5" />
+  <circle cx="300" cy="270" r="100" fill="none" stroke="#2a2a38" stroke-width="1.5" />
+
+  <!-- Center Label -->
+  <circle cx="300" cy="270" r="70" fill="url(#gold)" filter="url(#glow)" />
+  <circle cx="300" cy="270" r="66" fill="#121218" />
+  <circle cx="300" cy="270" r="18" fill="url(#gold)" />
+  <circle cx="300" cy="270" r="6" fill="#060608" />
+
+  <!-- Radio Waves -->
+  <path d="M 230 270 A 70 70 0 0 1 245 235" fill="none" stroke="url(#gold)" stroke-width="3" stroke-linecap="round" />
+  <path d="M 370 270 A 70 70 0 0 0 355 235" fill="none" stroke="url(#gold)" stroke-width="3" stroke-linecap="round" />
+
+  <!-- Station Name Text -->
+  <text x="300" y="490" text-anchor="middle" font-family="'Montserrat', 'Inter', sans-serif" font-weight="900" font-size="34" fill="#ffffff" letter-spacing="4">
+    BUENÍSIMA
+  </text>
+  <text x="300" y="525" text-anchor="middle" font-family="'Inter', sans-serif" font-weight="700" font-size="16" fill="url(#gold)" letter-spacing="6">
+    RADIO EN VIVO • 87.7 FM
+  </text>
+  <text x="300" y="555" text-anchor="middle" font-family="'Inter', sans-serif" font-weight="500" font-size="12" fill="#94a3b8" letter-spacing="2">
+    LA RADIO DE LA BUENA VIBRA
+  </text>
+</svg>

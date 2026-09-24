@@ -108,84 +108,177 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
-  // Simplified metadata API
-  let cachedMetadata = { title: "BUENÍSIMA", artist: "La Radio de la Buena Vibra", cover: "" };
+  // Robust metadata API with Icecast JSON, ICY stream title & iTunes Cover Art lookup
+  const DEFAULT_COVER = "/images/default-cover.svg";
+  let cachedMetadata = { title: "BUENÍSIMA", artist: "La Radio de la Buena Vibra", cover: DEFAULT_COVER };
   let lastMetadataFetch = 0;
+  let activeStreamUrl = "https://redradioypc.com:8010/live";
+
+  // Helper to search iTunes with multiple fallbacks
+  const searchItunesCover = async (artist: string, title: string) => {
+    const cleanArtist = artist.replace(/\s*\([^)]*\)/g, '').trim();
+    const cleanTitle = title.replace(/\s*\([^)]*\)/g, '').trim();
+    const queries = [
+      cleanArtist && cleanTitle ? `${cleanArtist} ${cleanTitle}` : null,
+      cleanTitle && cleanTitle.length > 3 ? cleanTitle : null,
+      cleanArtist && cleanArtist.length > 2 ? cleanArtist : null,
+    ].filter(Boolean) as string[];
+
+    for (const q of queries) {
+      try {
+        const itunesRes = await axios.get(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&limit=1`, {
+          httpsAgent: httpsAgent,
+          timeout: 3000
+        });
+        if (itunesRes.data.results && itunesRes.data.results.length > 0) {
+          const item = itunesRes.data.results[0];
+          const cover = item.artworkUrl100 ? item.artworkUrl100.replace('100x100', '600x600') : '';
+          return {
+            cover: cover || DEFAULT_COVER,
+            title: item.trackName || title,
+            artist: item.artistName || artist
+          };
+        }
+      } catch (_) {}
+    }
+    return { cover: DEFAULT_COVER, title, artist };
+  };
+
+  const fetchLiveMetadata = async (streamUrl: string) => {
+    if (!streamUrl) return cachedMetadata;
+
+    let rawTitle = "";
+
+    // Method 1: Ultra-fast Icecast status-json.xsl check
+    try {
+      const urlModule = (await import('url')).default;
+      const parsed = urlModule.parse(streamUrl);
+      const jsonStatusUrl = `${parsed.protocol}//${parsed.host}/status-json.xsl`;
+      const statusRes = await axios.get(jsonStatusUrl, {
+        httpsAgent: httpsAgent,
+        timeout: 2500
+      });
+      if (statusRes.data && statusRes.data.icestats) {
+        const source = statusRes.data.icestats.source;
+        if (Array.isArray(source)) {
+          const matchSource = source.find((s: any) => s.listenurl && streamUrl.includes(s.listenurl.replace('http:', '').replace('https:', ''))) || source[0];
+          if (matchSource && matchSource.title) rawTitle = matchSource.title.trim();
+        } else if (source && source.title) {
+          rawTitle = source.title.trim();
+        }
+      }
+    } catch (_) {}
+
+    // Method 2: ICY Socket fallback if status-json didn't yield title
+    if (!rawTitle) {
+      try {
+        const icy = (await import('icy')).default;
+        const urlModule = (await import('url')).default;
+        const parsedUrl = urlModule.parse(streamUrl);
+        const isHttps = parsedUrl.protocol === 'https:';
+
+        const options = {
+          ...parsedUrl,
+          agent: isHttps ? httpsAgent : undefined,
+          rejectUnauthorized: false,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Icy-MetaData': '1'
+          }
+        };
+
+        rawTitle = await new Promise<string>((resolve) => {
+          let isDone = false;
+          const timer = setTimeout(() => {
+            if (!isDone) { isDone = true; resolve(""); }
+          }, 4500);
+
+          try {
+            const request = icy.get(options as any, (response: any) => {
+              response.on('metadata', (metadataBuffer: Buffer) => {
+                if (isDone) return;
+                isDone = true;
+                clearTimeout(timer);
+                try {
+                  const parsed = icy.parse(metadataBuffer);
+                  if (parsed && parsed.StreamTitle) {
+                    try { response.destroy(); } catch (_) {}
+                    resolve(parsed.StreamTitle.trim());
+                    return;
+                  }
+                } catch (_) {}
+                try { response.destroy(); } catch (_) {}
+                resolve("");
+              });
+              response.on('data', () => {});
+              response.on('error', () => { if (!isDone) { isDone = true; clearTimeout(timer); resolve(""); } });
+            });
+            request.on('error', () => { if (!isDone) { isDone = true; clearTimeout(timer); resolve(""); } });
+          } catch (_) {
+            if (!isDone) { isDone = true; clearTimeout(timer); resolve(""); }
+          }
+        });
+      } catch (_) {}
+    }
+
+    if (rawTitle) {
+      let artist = "";
+      let title = rawTitle;
+
+      if (rawTitle.includes(" - ")) {
+        const parts = rawTitle.split(" - ");
+        // Some streams use TRACK - ARTIST, others ARTIST - TRACK
+        // We will test iTunes with both to find the best match
+        artist = parts[0].trim();
+        title = parts.slice(1).join(" - ").trim();
+      } else if (rawTitle.includes("-")) {
+        const parts = rawTitle.split("-");
+        artist = parts[0].trim();
+        title = parts.slice(1).join("-").trim();
+      }
+
+      const itunesData = await searchItunesCover(artist, title);
+      const result = {
+        title: itunesData.title || title || "Buenísima en Vivo",
+        artist: itunesData.artist || artist || "La Radio de la Buena Vibra",
+        cover: itunesData.cover || DEFAULT_COVER
+      };
+      cachedMetadata = result;
+      lastMetadataFetch = Date.now();
+      return result;
+    }
+
+    return cachedMetadata;
+  };
+
+  // Periodic background refresh for stream metadata
+  setInterval(() => {
+    fetchLiveMetadata(activeStreamUrl).catch(() => {});
+  }, 12000);
+
+  // Initial fetch
+  setTimeout(() => {
+    fetchLiveMetadata(activeStreamUrl).catch(() => {});
+  }, 1000);
 
   app.get("/api/metadata", async (req, res) => {
-    const streamUrl = req.query.url as string;
-    if (!streamUrl) return res.json(cachedMetadata);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Access-Control-Allow-Origin', '*');
 
-    // Cache for 15 seconds to avoid over-requesting
-    if (Date.now() - lastMetadataFetch < 15000) {
+    const streamUrl = (req.query.url as string) || activeStreamUrl;
+    if (streamUrl) activeStreamUrl = streamUrl;
+
+    // Serve fresh cache if available within 8 seconds
+    if (Date.now() - lastMetadataFetch < 8000 && cachedMetadata.title) {
       return res.json(cachedMetadata);
     }
 
     try {
-      const icy = (await import('icy')).default;
-      
-      // We try to get the metadata by connecting to the stream for a brief moment
-      // We pass the httpsAgent in case the stream is HTTPS
-      const options = {
-        httpsAgent: httpsAgent,
-        agent: streamUrl.startsWith('https') ? httpsAgent : undefined
-      };
-
-      const request = icy.get(streamUrl, (response: any) => {
-        response.on('metadata', async (metadata: Buffer) => {
-          const parsed = icy.parse(metadata);
-          if (parsed && parsed.StreamTitle) {
-            const fullTitle = parsed.StreamTitle;
-            let artist = "";
-            let title = fullTitle;
-
-            if (fullTitle.includes(" - ")) {
-              [artist, title] = fullTitle.split(" - ");
-            } else if (fullTitle.includes("-")) {
-                [artist, title] = fullTitle.split("-");
-            }
-
-            artist = artist.trim();
-            title = title.trim();
-
-            let cover = "";
-            try {
-                // Fetch cover from iTunes
-                const searchQuery = `${artist} ${title}`.trim();
-                const itunesRes = await axios.get(`https://itunes.apple.com/search?term=${encodeURIComponent(searchQuery)}&media=music&limit=1`, {
-                    httpsAgent: httpsAgent
-                });
-                if (itunesRes.data.results && itunesRes.data.results.length > 0) {
-                    cover = itunesRes.data.results[0].artworkUrl100.replace('100x100', '600x600');
-                }
-            } catch (coverErr) {
-                console.error("Error fetching cover:", coverErr);
-            }
-
-            cachedMetadata = { title, artist, cover };
-            lastMetadataFetch = Date.now();
-          }
-          response.destroy(); // Close the connection after getting metadata
-        });
-
-        response.on('error', (err: any) => {
-          console.error('ICY Response Error:', err);
-        });
-
-        // Timeout if no metadata received in 3 seconds
-        setTimeout(() => {
-          if (!response.destroyed) response.destroy();
-        }, 3000);
-      });
-
-      request.on('error', (err: any) => {
-        console.error('ICY Request Error:', err);
-      });
-
-      // We return the "currently" cached metadata (might be one-step behind but avoids hanging)
-      res.json(cachedMetadata);
+      const data = await fetchLiveMetadata(streamUrl);
+      res.json(data);
     } catch (error) {
-      console.error("Metadata route error:", error);
       res.json(cachedMetadata);
     }
   });

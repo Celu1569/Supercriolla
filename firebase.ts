@@ -20,38 +20,43 @@ const getEnv = (key: string): string | undefined => {
   return undefined;
 };
 
-// Robustness: Detect if projectId was accidentally set to an API key
-const rawProjectId = getEnv('VITE_FIREBASE_PROJECT_ID');
-const isRawProjectIdValid = rawProjectId && !rawProjectId.startsWith('AIza') && rawProjectId !== "";
+// Validate that an env var doesn't contain an accidentally injected API key for non-key fields
+const isValidValue = (val: string | undefined, isKey = false): boolean => {
+  if (!val || typeof val !== 'string' || val.trim() === '') return false;
+  if (!isKey && val.startsWith('AIza')) return false; // Prevent API key from overwriting db/project/app IDs
+  return true;
+};
+
+const resolvedDatabaseId = 
+  isValidValue(getEnv('VITE_FIREBASE_DATABASE_ID')) 
+    ? getEnv('VITE_FIREBASE_DATABASE_ID')!
+    : firebaseConfigImport.firestoreDatabaseId;
 
 const selectedConfig = {
-  apiKey: getEnv('VITE_FIREBASE_API_KEY') || firebaseConfigImport.apiKey,
-  authDomain: getEnv('VITE_FIREBASE_AUTH_DOMAIN') || firebaseConfigImport.authDomain,
-  projectId: isRawProjectIdValid ? rawProjectId : firebaseConfigImport.projectId,
-  storageBucket: getEnv('VITE_FIREBASE_STORAGE_BUCKET') || firebaseConfigImport.storageBucket,
-  messagingSenderId: getEnv('VITE_FIREBASE_MESSAGING_SENDER_ID') || firebaseConfigImport.messagingSenderId,
-  appId: getEnv('VITE_FIREBASE_APP_ID') || firebaseConfigImport.appId,
-  firestoreDatabaseId: getEnv('VITE_FIREBASE_DATABASE_ID') || firebaseConfigImport.firestoreDatabaseId
+  apiKey: isValidValue(getEnv('VITE_FIREBASE_API_KEY'), true) ? getEnv('VITE_FIREBASE_API_KEY')! : firebaseConfigImport.apiKey,
+  authDomain: isValidValue(getEnv('VITE_FIREBASE_AUTH_DOMAIN')) ? getEnv('VITE_FIREBASE_AUTH_DOMAIN')! : firebaseConfigImport.authDomain,
+  projectId: isValidValue(getEnv('VITE_FIREBASE_PROJECT_ID')) ? getEnv('VITE_FIREBASE_PROJECT_ID')! : firebaseConfigImport.projectId,
+  storageBucket: isValidValue(getEnv('VITE_FIREBASE_STORAGE_BUCKET')) ? getEnv('VITE_FIREBASE_STORAGE_BUCKET')! : firebaseConfigImport.storageBucket,
+  messagingSenderId: isValidValue(getEnv('VITE_FIREBASE_MESSAGING_SENDER_ID')) ? getEnv('VITE_FIREBASE_MESSAGING_SENDER_ID')! : firebaseConfigImport.messagingSenderId,
+  appId: isValidValue(getEnv('VITE_FIREBASE_APP_ID')) ? getEnv('VITE_FIREBASE_APP_ID')! : firebaseConfigImport.appId,
+  firestoreDatabaseId: resolvedDatabaseId
 };
 
 const hasFirebaseKeys = !!(selectedConfig.apiKey && selectedConfig.projectId && selectedConfig.appId);
 
-// Initialize Firebase SDK safely
+// Initialize Firebase SDK safely with exact database ID
 export const app = hasFirebaseKeys 
   ? (getApps().length === 0 ? initializeApp(selectedConfig) : getApps()[0])
   : null;
 
-// Handle cases where databaseId might be missing or not found
 export const db = app 
-  ? (selectedConfig.firestoreDatabaseId && selectedConfig.firestoreDatabaseId !== "" && selectedConfig.firestoreDatabaseId !== "(default)"
-      ? getFirestore(app, selectedConfig.firestoreDatabaseId) 
+  ? (resolvedDatabaseId && resolvedDatabaseId !== "(default)"
+      ? getFirestore(app, resolvedDatabaseId) 
       : getFirestore(app)) 
   : (null as any); 
 
-// Special check: If we are getting NOT_FOUND errors, it might be better to try the default db
-// But we can't easily catch it here as it's an async connection.
-// For now, let's keep the logic but ensure it's not falling back to nothing.
 export const auth = app ? getAuth(app) : (null as any);
 export const storage = app ? getStorage(app) : (null as any);
 
 export { hasFirebaseKeys };
+
