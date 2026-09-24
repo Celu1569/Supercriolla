@@ -4,6 +4,7 @@ import { DEFAULT_CONFIG } from '../constants';
 import { doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db, auth, hasFirebaseKeys } from '../firebase';
 import { signOut } from 'firebase/auth';
+import { resolveDirectImageUrl } from '../utils/imageUrl';
 
 interface ConfigContextType {
   config: SiteConfig;
@@ -236,21 +237,27 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
     c.appearance.radioPlayer = { ...DEFAULT_CONFIG.appearance.radioPlayer };
   } else {
     if (c.appearance.radioPlayer.showAnalyzer === undefined) c.appearance.radioPlayer.showAnalyzer = true;
-    if (c.appearance.radioPlayer.showMetadata === undefined) {
-        c.appearance.radioPlayer.showMetadata = c.general.enableAutoMetadata !== false;
-    }
-    if (c.appearance.radioPlayer.showCover === undefined) c.appearance.radioPlayer.showCover = true;
+    // Always enable live metadata and cover art so listeners see song titles and covers
+    c.appearance.radioPlayer.showMetadata = true;
+    c.appearance.radioPlayer.showCover = true;
     if (c.appearance.radioPlayer.videoMode === undefined) c.appearance.radioPlayer.videoMode = false;
     if (!c.appearance.radioPlayer.videoUrl) c.appearance.radioPlayer.videoUrl = '';
     if (!c.appearance.radioPlayer.videoLayout) c.appearance.radioPlayer.videoLayout = 'compact';
-    if (!c.appearance.radioPlayer.playerStyle) c.appearance.radioPlayer.playerStyle = 'modern';
-    if (c.appearance.radioPlayer.customCoverUrl === undefined) c.appearance.radioPlayer.customCoverUrl = '';
+    if (!c.appearance.radioPlayer.playerStyle) c.appearance.radioPlayer.playerStyle = 'card';
+    if (c.appearance.radioPlayer.customCoverUrl) {
+      c.appearance.radioPlayer.customCoverUrl = resolveDirectImageUrl(c.appearance.radioPlayer.customCoverUrl);
+    } else {
+      c.appearance.radioPlayer.customCoverUrl = 'https://i.ibb.co/kVQLN1F1/Logo-Buenisima-esfera-512x256.png';
+    }
     if (c.appearance.radioPlayer.videoWidth === undefined) c.appearance.radioPlayer.videoWidth = 200;
     if (c.appearance.radioPlayer.videoHeight === undefined) c.appearance.radioPlayer.videoHeight = 112;
   }
-  if (!c.general.defaultCoverUrl) {
-    c.general.defaultCoverUrl = '/images/default-cover.svg';
+  if (!c.general.defaultCoverUrl || c.general.defaultCoverUrl.includes('ibb.co/V02Ffm8m')) {
+    c.general.defaultCoverUrl = 'https://i.ibb.co/kVQLN1F1/Logo-Buenisima-esfera-512x256.png';
+  } else {
+    c.general.defaultCoverUrl = resolveDirectImageUrl(c.general.defaultCoverUrl);
   }
+  c.general.enableAutoMetadata = true;
 
   // Program section
   if (!c.content.program) {

@@ -42,6 +42,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { storage, db } from '../firebase';
 import { v4 as uuidv4 } from 'uuid';
+import { resolveDirectImageUrl } from '../utils/imageUrl';
 
 // --- IMAGE COMPRESSION UTILITY ---
 const compressImage = (file: File, maxWidth = 800, quality = 0.6): Promise<Blob> => {
@@ -2399,7 +2400,7 @@ export const AdminPanel: React.FC = () => {
                            type="text"
                            value={formData.appearance.radioPlayer?.customCoverUrl || formData.general.defaultCoverUrl || ''}
                            onChange={(e) => {
-                             const val = e.target.value;
+                             const val = resolveDirectImageUrl(e.target.value);
                              setFormData(prev => ({
                                ...prev,
                                appearance: {
@@ -2409,7 +2410,7 @@ export const AdminPanel: React.FC = () => {
                                general: { ...prev.general, defaultCoverUrl: val }
                              }));
                            }}
-                           placeholder="/images/default-cover.svg"
+                           placeholder="https://i.ibb.co/kVQLN1F1/Logo-Buenisima-esfera-512x256.png"
                            className="flex-1 bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:border-secondary outline-none text-sm"
                          />
                          <button
@@ -2426,7 +2427,7 @@ export const AdminPanel: React.FC = () => {
                            }}
                            className="px-3 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold rounded-xl transition-colors whitespace-nowrap"
                          >
-                           Restaurar Oficial
+                           Logo Buenísima
                          </button>
                        </div>
                      </div>

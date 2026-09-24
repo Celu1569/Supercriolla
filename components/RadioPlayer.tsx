@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Play, Pause, Volume2, VolumeX, Volume1, Radio, Disc, RefreshCw, Maximize2, Minimize2, Tv, Sparkles } from 'lucide-react';
 import { useConfig } from '../context/ConfigContext';
 import { motion, AnimatePresence } from 'motion/react';
+import { resolveDirectImageUrl } from '../utils/imageUrl';
 
 const DEFAULT_COVER = "/images/default-cover.svg";
 
@@ -32,21 +33,18 @@ export const RadioPlayer: React.FC = () => {
             return {
               title: parsed.title || '',
               artist: parsed.artist || '',
-              cover: parsed.cover || DEFAULT_COVER
+              cover: parsed.cover || ''
             };
           }
         }
       } catch (_) {}
     }
-    return { title: '', artist: '', cover: DEFAULT_COVER };
+    return { title: '', artist: '', cover: '' };
   });
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
 
   // Fetch metadata immediately and periodically
   const fetchMetadata = async () => {
-    const showMeta = config.appearance.radioPlayer?.showMetadata !== false;
-    if (!showMeta) return;
-
     setIsFetchingMetadata(true);
     try {
       const streamUrl = config.general.streamUrl || 'https://redradioypc.com:8010/live';
@@ -57,7 +55,7 @@ export const RadioPlayer: React.FC = () => {
           const sanitized = {
             title: data.title || '',
             artist: data.artist || '',
-            cover: data.cover || DEFAULT_COVER
+            cover: data.cover || ''
           };
           setMetadata(sanitized);
           try {
@@ -76,7 +74,7 @@ export const RadioPlayer: React.FC = () => {
 
   useEffect(() => {
     fetchMetadata();
-    const interval = setInterval(fetchMetadata, 12000);
+    const interval = setInterval(fetchMetadata, 10000);
     return () => clearInterval(interval);
   }, [config.general.enableAutoMetadata, config.general.streamUrl, config.appearance.radioPlayer?.showMetadata]);
 
@@ -86,10 +84,16 @@ export const RadioPlayer: React.FC = () => {
   const displayTitle = metadata.title || stationName;
   const displayArtist = metadata.artist || defaultSlogan;
 
-  // Selected player style
+  // Selected player style and custom covers
   const playerStyle = config.appearance.radioPlayer?.playerStyle || 'modern';
-  const customCover = config.appearance.radioPlayer?.customCoverUrl;
-  const displayCover = metadata.cover || customCover || config.general.defaultCoverUrl || DEFAULT_COVER;
+  const customCover = resolveDirectImageUrl(config.appearance.radioPlayer?.customCoverUrl);
+  const defaultStationCover = resolveDirectImageUrl(config.general.defaultCoverUrl);
+  
+  // Smart cover selection: live song artwork from Apple/iTunes first; if none, station logo; fallback SVG
+  const isMusicCover = !!(metadata.cover && metadata.cover.startsWith('http') && !metadata.cover.includes('default-cover.svg'));
+  const displayCover = isMusicCover 
+    ? metadata.cover 
+    : (customCover || defaultStationCover || metadata.cover || DEFAULT_COVER);
 
   const videoUrl = config.appearance.radioPlayer?.videoUrl || '';
   const isVideoMode = config.appearance.radioPlayer?.videoMode && videoUrl;
@@ -230,7 +234,10 @@ export const RadioPlayer: React.FC = () => {
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     const target = e.currentTarget;
-    if (target.src !== DEFAULT_COVER) {
+    const fallback = customCover || defaultStationCover || DEFAULT_COVER;
+    if (target.src !== fallback && fallback) {
+      target.src = fallback;
+    } else if (target.src !== DEFAULT_COVER) {
       target.src = DEFAULT_COVER;
     }
   };
