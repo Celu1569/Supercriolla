@@ -5,6 +5,10 @@ import path from "path";
 import { fileURLToPath } from "url";
 import axios from "axios";
 import https from "https";
+import process from "process";
+
+// Globally ignore TLS unauthorized errors for 3P radio streams that often have bad certs
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -104,9 +108,86 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
-  // Simplified metadata API (No longer used by frontend)
-  app.get("/api/metadata", (req, res) => {
-    res.json({ title: "", artist: "", cover: "" });
+  // Simplified metadata API
+  let cachedMetadata = { title: "BUENÍSIMA", artist: "La Radio de la Buena Vibra", cover: "" };
+  let lastMetadataFetch = 0;
+
+  app.get("/api/metadata", async (req, res) => {
+    const streamUrl = req.query.url as string;
+    if (!streamUrl) return res.json(cachedMetadata);
+
+    // Cache for 15 seconds to avoid over-requesting
+    if (Date.now() - lastMetadataFetch < 15000) {
+      return res.json(cachedMetadata);
+    }
+
+    try {
+      const icy = (await import('icy')).default;
+      
+      // We try to get the metadata by connecting to the stream for a brief moment
+      // We pass the httpsAgent in case the stream is HTTPS
+      const options = {
+        httpsAgent: httpsAgent,
+        agent: streamUrl.startsWith('https') ? httpsAgent : undefined
+      };
+
+      const request = icy.get(streamUrl, (response: any) => {
+        response.on('metadata', async (metadata: Buffer) => {
+          const parsed = icy.parse(metadata);
+          if (parsed && parsed.StreamTitle) {
+            const fullTitle = parsed.StreamTitle;
+            let artist = "";
+            let title = fullTitle;
+
+            if (fullTitle.includes(" - ")) {
+              [artist, title] = fullTitle.split(" - ");
+            } else if (fullTitle.includes("-")) {
+                [artist, title] = fullTitle.split("-");
+            }
+
+            artist = artist.trim();
+            title = title.trim();
+
+            let cover = "";
+            try {
+                // Fetch cover from iTunes
+                const searchQuery = `${artist} ${title}`.trim();
+                const itunesRes = await axios.get(`https://itunes.apple.com/search?term=${encodeURIComponent(searchQuery)}&media=music&limit=1`, {
+                    httpsAgent: httpsAgent
+                });
+                if (itunesRes.data.results && itunesRes.data.results.length > 0) {
+                    cover = itunesRes.data.results[0].artworkUrl100.replace('100x100', '600x600');
+                }
+            } catch (coverErr) {
+                console.error("Error fetching cover:", coverErr);
+            }
+
+            cachedMetadata = { title, artist, cover };
+            lastMetadataFetch = Date.now();
+          }
+          response.destroy(); // Close the connection after getting metadata
+        });
+
+        response.on('error', (err: any) => {
+          console.error('ICY Response Error:', err);
+        });
+
+        // Timeout if no metadata received in 3 seconds
+        setTimeout(() => {
+          if (!response.destroyed) response.destroy();
+        }, 3000);
+      });
+
+      request.on('error', (err: any) => {
+        console.error('ICY Request Error:', err);
+      });
+
+      // We return the "currently" cached metadata (might be one-step behind but avoids hanging)
+      res.json(cachedMetadata);
+    } catch (error) {
+      console.error("Metadata route error:", error);
+      res.json(cachedMetadata);
+    }
   });
 
   app.get("/api/rss", async (req, res) => {
@@ -117,6 +198,9 @@ async function startServer() {
       const Parser = (await import('rss-parser')).default;
       const parser = new Parser({
           timeout: 10000,
+          requestOptions: {
+            agent: httpsAgent
+          },
           customFields: {
               item: [
                   ['media:content', 'media:content'],

@@ -28,10 +28,55 @@ export const RadioPlayer: React.FC = () => {
   }, [isVisible]);
 
   const [hasError, setHasError] = useState(false);
+  const [metadata, setMetadata] = useState({ title: '', artist: '', cover: '' });
+
+  // Fetch metadata periodically
+  useEffect(() => {
+    if (!isPlaying || config.general.enableAutoMetadata === false) {
+        if (!isPlaying) setMetadata({ title: '', artist: '', cover: '' });
+        return;
+    }
+
+    const fetchMetadata = async () => {
+      try {
+        const streamUrl = config.general.streamUrl;
+        if (!streamUrl) return;
+        
+        const response = await fetch(`/api/metadata?url=${encodeURIComponent(streamUrl)}`);
+        const data = await response.json();
+        if (data && (data.title || data.artist)) {
+          setMetadata(data);
+        }
+      } catch (err) {
+        console.warn("Could not fetch metadata:", err);
+      }
+    };
+
+    fetchMetadata();
+    const interval = setInterval(fetchMetadata, 20000);
+    return () => clearInterval(interval);
+  }, [isPlaying, config.general.enableAutoMetadata, config.general.streamUrl]);
 
   // Fallback values from config
   const stationName = config.general.stationName || 'Radio en Vivo';
   const defaultSlogan = config.general.defaultSlogan || 'La Radio de la Buena Vibra';
+  const displayTitle = metadata.title || stationName;
+  const displayArtist = metadata.artist || (isPlaying ? 'Transmitiendo en Vivo' : defaultSlogan);
+  const displayCover = metadata.cover || config.general.defaultCoverUrl || config.navigation.logoUrl;
+
+  const videoUrl = config.appearance.radioPlayer?.videoUrl || '';
+  const isVideoMode = config.appearance.radioPlayer?.videoMode && videoUrl;
+  const videoLayout = config.appearance.radioPlayer?.videoLayout || 'compact';
+
+  // Helper to extract YouTube ID
+  const getYouTubeId = (url: string) => {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
+  
+  const youtubeId = videoUrl ? getYouTubeId(videoUrl) : null;
+  const embedUrl = youtubeId ? `https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1` : videoUrl;
 
   // Synchronize audio element with state changes
   useEffect(() => {
@@ -185,37 +230,84 @@ export const RadioPlayer: React.FC = () => {
               )}
           </div>
 
-          {/* Player Inner Layout - Compact Mini Version */}
-          <div className="relative z-20 flex flex-col md:flex-row items-center justify-between gap-4 p-4 lg:px-8 w-full max-w-[1400px] mx-auto min-h-[100px]">
+          {/* Player Inner Layout - Enhanced Version */}
+          <div className={`relative z-20 flex flex-col ${videoLayout === 'full' ? 'lg:flex-row' : 'md:flex-row'} items-center justify-between gap-4 p-4 lg:px-8 w-full max-w-[1400px] mx-auto min-h-[100px]`}>
               
-              {/* Station Info */}
-              <div className="flex items-center gap-4 flex-1 min-w-0">
-                  <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center text-primary flex-shrink-0 shadow-lg">
-                      <Radio className={isPlaying ? 'animate-pulse' : ''} size={24} />
-                  </div>
-                  <div className="min-w-0">
-                      <h2 className="text-xl font-black text-white truncate drop-shadow-md">
-                          {stationName}
-                      </h2>
-                      <p className="text-sm font-medium text-white/50 truncate">
-                          {hasError ? 'Error de Transmisión' : isPlaying ? 'Transmitiendo en Vivo' : defaultSlogan}
-                      </p>
+              {/* Cover & Station Info */}
+              <div className="flex items-center gap-4 flex-1 min-w-0 w-full md:w-auto">
+                  {config.appearance.radioPlayer?.showCover !== false && !isVideoMode && (
+                      <div className="relative w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 group">
+                          <AnimatePresence mode="wait">
+                              <motion.img 
+                                  key={displayCover}
+                                  initial={{ opacity: 0, scale: 0.9 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 1.1 }}
+                                  src={displayCover} 
+                                  alt={displayTitle}
+                                  className="w-full h-full object-cover rounded-xl shadow-2xl border border-white/10"
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => {
+                                      (e.target as HTMLImageElement).src = config.navigation.logoUrl;
+                                  }}
+                              />
+                          </AnimatePresence>
+                          <div className="absolute inset-0 bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <Radio className="text-secondary animate-pulse" size={24} />
+                          </div>
+                      </div>
+                  )}
+
+                  <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-0.5">
+                          {isPlaying && (
+                              <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
+                          )}
+                          <motion.p 
+                            key={displayArtist}
+                            initial={{ opacity: 0, x: -5 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="text-[10px] sm:text-xs font-black text-secondary uppercase tracking-[0.2em] truncate"
+                          >
+                              {hasError ? 'Error de Transmisión' : displayArtist}
+                          </motion.p>
+                      </div>
+                      <motion.h2 
+                        key={displayTitle}
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-xl sm:text-2xl lg:text-3xl font-black text-white truncate drop-shadow-lg leading-tight"
+                      >
+                          {displayTitle}
+                      </motion.h2>
                   </div>
               </div>
 
+              {/* Video Area (If Video Mode Active) */}
+              {isVideoMode && (
+                  <div className={`relative overflow-hidden rounded-2xl shadow-2xl border border-white/10 bg-black ${videoLayout === 'full' ? 'w-full lg:max-w-2xl aspect-video' : 'w-full md:w-64 aspect-video'}`}>
+                      <iframe 
+                        src={embedUrl}
+                        className="w-full h-full"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                  </div>
+              )}
+
               {/* Controls */}
-              <div className="flex items-center gap-4 sm:gap-6 w-full md:w-auto">
+              <div className={`flex items-center gap-4 sm:gap-6 w-full ${videoLayout === 'full' ? 'lg:w-auto' : 'md:w-auto'} justify-center md:justify-end`}>
                   {/* Play Button */}
                   <motion.button
                       whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                       onClick={togglePlay}
-                      className="w-14 h-14 rounded-full bg-secondary text-primary flex items-center justify-center shadow-lg hover:shadow-secondary/20 transition-all flex-shrink-0"
+                      className="w-16 h-16 rounded-full bg-secondary text-primary flex items-center justify-center shadow-lg hover:shadow-secondary/20 transition-all flex-shrink-0 group"
                   >
-                      {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
+                      {isPlaying ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
                   </motion.button>
 
                   {/* Volume Slider */}
-                  <div className="flex-1 md:w-48 flex items-center gap-3 bg-white/5 border border-white/10 rounded-full px-4 py-2.5 backdrop-blur-md">
+                  <div className="flex-1 md:w-48 lg:w-64 flex items-center gap-3 bg-white/5 border border-white/10 rounded-full px-5 py-3 backdrop-blur-xl">
                       <button onClick={toggleMute} className="text-white/50 hover:text-white transition-colors flex-shrink-0">
                           {getVolumeIcon()}
                       </button>
@@ -229,16 +321,16 @@ export const RadioPlayer: React.FC = () => {
                               if (val > 0) setIsMuted(false);
                               else setIsMuted(true);
                           }}
-                          className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-secondary"
+                          className="w-full h-1.5 bg-white/20 rounded-full appearance-none cursor-pointer accent-secondary"
                       />
                   </div>
 
                   {/* Close Button */}
                   <button 
                       onClick={() => setIsVisible(false)}
-                      className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all border border-white/10 hidden sm:flex"
+                      className="p-3 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all border border-white/10 hidden sm:flex"
                   >
-                      <X size={18} strokeWidth={2.5} />
+                      <X size={20} strokeWidth={2.5} />
                   </button>
               </div>
           </div>

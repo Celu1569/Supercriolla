@@ -191,6 +191,18 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
     if (!c.content.news.rssFeeds) c.content.news.rssFeeds = [];
   }
 
+  // Radio Player appearance
+  if (!c.appearance.radioPlayer) {
+    c.appearance.radioPlayer = { ...DEFAULT_CONFIG.appearance.radioPlayer };
+  } else {
+    if (c.appearance.radioPlayer.showAnalyzer === undefined) c.appearance.radioPlayer.showAnalyzer = true;
+    if (c.appearance.radioPlayer.showMetadata === undefined) c.appearance.radioPlayer.showMetadata = true;
+    if (c.appearance.radioPlayer.showCover === undefined) c.appearance.radioPlayer.showCover = true;
+    if (c.appearance.radioPlayer.videoMode === undefined) c.appearance.radioPlayer.videoMode = false;
+    if (!c.appearance.radioPlayer.videoUrl) c.appearance.radioPlayer.videoUrl = '';
+    if (!c.appearance.radioPlayer.videoLayout) c.appearance.radioPlayer.videoLayout = 'compact';
+  }
+
   // Program section
   if (!c.content.program) {
     c.content.program = { ...DEFAULT_CONFIG.content.program };

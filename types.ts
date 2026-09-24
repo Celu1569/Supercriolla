@@ -271,6 +271,13 @@ export interface AutoDJTrack {
 
 export interface RadioPlayerConfig {
   showAnalyzer: boolean;
+  showMetadata: boolean;
+  showCover: boolean;
+  videoMode: boolean;
+  videoUrl: string;
+  videoWidth?: number;
+  videoHeight?: number;
+  videoLayout?: 'compact' | 'full';
 }
 
 export interface SiteConfig {

@@ -2256,10 +2256,14 @@ export const AdminPanel: React.FC = () => {
 
              {activeTab === 'player' && (
               <div className="space-y-6 animate-fade-in">
-                 <SectionHeader title="Ajustes del Reproductor" subtitle="Configura el analizador de música del reproductor." />
+                 <SectionHeader title="Ajustes del Reproductor" subtitle="Configura el analizador, metadatos y el modo de video para el reproductor." />
                  
-                 <div className="bg-gray-800 border border-gray-700 p-6 rounded-xl space-y-6">
-                    <div className="flex items-center">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-gray-800 border border-gray-700 p-6 rounded-xl space-y-4">
+                        <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+                            <Monitor size={18} className="text-primary" /> Metadatos y Visualización
+                        </h3>
+                        
                         <label className="flex items-center space-x-3 cursor-pointer">
                             <input 
                                 type="checkbox" 
@@ -2269,7 +2273,7 @@ export const AdminPanel: React.FC = () => {
                                         ...prev,
                                         appearance: { 
                                             ...prev.appearance, 
-                                            radioPlayer: { showAnalyzer: e.target.checked } 
+                                            radioPlayer: { ...prev.appearance.radioPlayer, showAnalyzer: e.target.checked } 
                                         }
                                     }));
                                 }}
@@ -2277,12 +2281,115 @@ export const AdminPanel: React.FC = () => {
                             />
                             <span className="text-white font-medium">Mostrar Analizador Musical</span>
                         </label>
+
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={formData.appearance.radioPlayer?.showMetadata !== false}
+                                onChange={(e) => {
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        appearance: { 
+                                            ...prev.appearance, 
+                                            radioPlayer: { ...prev.appearance.radioPlayer, showMetadata: e.target.checked } 
+                                        }
+                                    }));
+                                }}
+                                className="form-checkbox h-5 w-5 text-primary rounded border-gray-600 bg-gray-700" 
+                            />
+                            <span className="text-white font-medium">Habilitar Títulos Automáticos (Canción/Artista)</span>
+                        </label>
+
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={formData.appearance.radioPlayer?.showCover !== false}
+                                onChange={(e) => {
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        appearance: { 
+                                            ...prev.appearance, 
+                                            radioPlayer: { ...prev.appearance.radioPlayer, showCover: e.target.checked } 
+                                        }
+                                    }));
+                                }}
+                                className="form-checkbox h-5 w-5 text-primary rounded border-gray-600 bg-gray-700" 
+                            />
+                            <span className="text-white font-medium">Mostrar Cover/Portada de Álbum</span>
+                        </label>
+
+                        <div className="mt-4 p-3 bg-gray-900/50 rounded-lg border border-dashed border-gray-600">
+                            <p className="text-[11px] text-gray-400 italic">
+                                * Los metadatos se extraen directamente del streaming cada 20 segundos y se buscan en iTunes para obtener la portada.
+                            </p>
+                        </div>
                     </div>
 
-                    <div className="flex items-center justify-center p-4 bg-gray-900/50 rounded-lg border border-dashed border-gray-600">
-                        <p className="text-xs text-gray-400 text-center italic">
-                            El analizador de barras reacciona visualmente cuando la radio está reproduciendo música en vivo.
-                        </p>
+                    <div className="bg-gray-800 border border-gray-700 p-6 rounded-xl space-y-4">
+                        <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+                            <Video size={18} className="text-secondary" /> Transmisión de Video
+                        </h3>
+                        
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={formData.appearance.radioPlayer?.videoMode || false}
+                                onChange={(e) => {
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        appearance: { 
+                                            ...prev.appearance, 
+                                            radioPlayer: { ...prev.appearance.radioPlayer, videoMode: e.target.checked } 
+                                        }
+                                    }));
+                                }}
+                                className="form-checkbox h-5 w-5 text-secondary rounded border-gray-600 bg-gray-700" 
+                            />
+                            <span className="text-white font-medium">Activar Reproductor de Video en el Header</span>
+                        </label>
+
+                        {formData.appearance.radioPlayer?.videoMode && (
+                            <div className="space-y-4 pt-2 animate-fade-in">
+                                <InputGroup label="URL de YouTube Live / Video" className="mb-0">
+                                    <input 
+                                        type="text" 
+                                        value={formData.appearance.radioPlayer?.videoUrl || ''} 
+                                        onChange={e => setFormData(prev => ({
+                                            ...prev,
+                                            appearance: {
+                                                ...prev.appearance,
+                                                radioPlayer: { ...prev.appearance.radioPlayer, videoUrl: e.target.value }
+                                            }
+                                        }))}
+                                        className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg text-sm focus:border-secondary outline-none transition-all"
+                                        placeholder="Ej: https://www.youtube.com/watch?v=..."
+                                    />
+                                </InputGroup>
+
+                                <InputGroup label="Tamaño del Reproductor" className="mb-0">
+                                    <select 
+                                        value={formData.appearance.radioPlayer?.videoLayout || 'compact'}
+                                        onChange={e => setFormData(prev => ({
+                                            ...prev,
+                                            appearance: {
+                                                ...prev.appearance,
+                                                radioPlayer: { ...prev.appearance.radioPlayer, videoLayout: e.target.value as any }
+                                            }
+                                        }))}
+                                        className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg text-sm focus:border-secondary outline-none"
+                                    >
+                                        <option value="compact">Compacto (Mini al lado del título)</option>
+                                        <option value="full">Expandido (Ancho completo más grande)</option>
+                                    </select>
+                                </InputGroup>
+
+                                <div className="p-3 bg-secondary/10 rounded-lg border border-secondary/20">
+                                    <p className="text-[11px] text-secondary/80 flex items-center gap-2">
+                                        <Sparkles size={12} /> Ideal para transmisiones simultáneas de video.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
                     </div>
                  </div>
                  <SaveAction />

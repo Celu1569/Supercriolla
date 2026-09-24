@@ -41,13 +41,16 @@ export const app = hasFirebaseKeys
   ? (getApps().length === 0 ? initializeApp(selectedConfig) : getApps()[0])
   : null;
 
-// Handle cases where databaseId might be missing
+// Handle cases where databaseId might be missing or not found
 export const db = app 
   ? (selectedConfig.firestoreDatabaseId && selectedConfig.firestoreDatabaseId !== "" && selectedConfig.firestoreDatabaseId !== "(default)"
       ? getFirestore(app, selectedConfig.firestoreDatabaseId) 
       : getFirestore(app)) 
   : (null as any); 
 
+// Special check: If we are getting NOT_FOUND errors, it might be better to try the default db
+// But we can't easily catch it here as it's an async connection.
+// For now, let's keep the logic but ensure it's not falling back to nothing.
 export const auth = app ? getAuth(app) : (null as any);
 export const storage = app ? getStorage(app) : (null as any);
 

@@ -49,6 +49,13 @@ export const DEFAULT_CONFIG: SiteConfig = {
     bodyFont: "Inter",
     radioPlayer: {
       showAnalyzer: true,
+      showMetadata: true,
+      showCover: true,
+      videoMode: false,
+      videoUrl: "",
+      videoWidth: 100,
+      videoHeight: 315,
+      videoLayout: 'compact',
     }
   },
   content: {
