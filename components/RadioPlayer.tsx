@@ -1,8 +1,9 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { Play, Pause, Volume2, VolumeX, Volume1, Radio, Disc, RefreshCw, Maximize2, Minimize2, Tv, Sparkles } from 'lucide-react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { Play, Pause, Volume2, VolumeX, Volume1, Radio, Disc, RefreshCw, Maximize2, Minimize2, Tv, Sparkles, Wifi } from 'lucide-react';
 import { useConfig } from '../context/ConfigContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { resolveDirectImageUrl } from '../utils/imageUrl';
+import { io, Socket } from 'socket.io-client';
 
 const DEFAULT_COVER = "/images/default-cover.svg";
 
@@ -23,6 +24,7 @@ export const RadioPlayer: React.FC = () => {
   const [isStickyMinimized, setIsStickyMinimized] = useState(false);
 
   const [hasError, setHasError] = useState(false);
+  const [isLiveConnected, setIsLiveConnected] = useState(false);
   const [metadata, setMetadata] = useState<{ title: string; artist: string; cover: string }>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -43,40 +45,126 @@ export const RadioPlayer: React.FC = () => {
   });
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
 
-  // Fetch metadata immediately and periodically
-  const fetchMetadata = async () => {
+  // Apply new metadata smoothly
+  const applyMetadata = useCallback((data: { title?: string; artist?: string; cover?: string }) => {
+    if (!data || (!data.title && !data.artist)) return;
+    const sanitized = {
+      title: data.title || '',
+      artist: data.artist || '',
+      cover: data.cover || ''
+    };
+    setMetadata(prev => {
+      if (prev.title === sanitized.title && prev.artist === sanitized.artist && prev.cover === sanitized.cover) {
+        return prev;
+      }
+      try {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('last_radio_metadata', JSON.stringify(sanitized));
+        }
+      } catch (_) {}
+      return sanitized;
+    });
+  }, []);
+
+  // Fetch metadata via HTTP polling API
+  const fetchMetadata = useCallback(async () => {
     setIsFetchingMetadata(true);
     try {
       const streamUrl = config.general.streamUrl || 'https://redradioypc.com:8010/live';
       const response = await fetch(`/api/metadata?url=${encodeURIComponent(streamUrl)}&_t=${Date.now()}`);
       if (response.ok) {
         const data = await response.json();
-        if (data && (data.title || data.artist)) {
-          const sanitized = {
-            title: data.title || '',
-            artist: data.artist || '',
-            cover: data.cover || ''
-          };
-          setMetadata(sanitized);
-          try {
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('last_radio_metadata', JSON.stringify(sanitized));
-            }
-          } catch (_) {}
-        }
+        applyMetadata(data);
       }
     } catch (err) {
       console.warn("Could not fetch metadata:", err);
     } finally {
       setIsFetchingMetadata(false);
     }
-  };
+  }, [config.general.streamUrl, applyMetadata]);
 
+  // 1. WebSocket Real-Time Connection via Socket.IO
+  useEffect(() => {
+    let socket: Socket | null = null;
+    try {
+      socket = io({
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionDelay: 2000,
+        reconnectionAttempts: Infinity
+      });
+
+      socket.on('connect', () => {
+        setIsLiveConnected(true);
+        socket?.emit('get-radio-metadata');
+      });
+
+      socket.on('disconnect', () => {
+        setIsLiveConnected(false);
+      });
+
+      socket.on('radio-metadata', (data: any) => {
+        setIsLiveConnected(true);
+        applyMetadata(data);
+      });
+    } catch (err) {
+      console.warn("WebSocket initialization warning:", err);
+    }
+
+    return () => {
+      if (socket) {
+        socket.disconnect();
+      }
+    };
+  }, [applyMetadata]);
+
+  // 2. Server-Sent Events (SSE) Real-Time stream fallback
+  useEffect(() => {
+    if (typeof EventSource === 'undefined') return;
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource('/api/metadata/stream');
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          applyMetadata(data);
+          setIsLiveConnected(true);
+        } catch (_) {}
+      };
+      es.onerror = () => {
+        // SSE will attempt auto-reconnect
+      };
+    } catch (_) {}
+
+    return () => {
+      if (es) es.close();
+    };
+  }, [applyMetadata]);
+
+  // 3. Regular Polling Interval (every 5 seconds) to guarantee no stagnation
   useEffect(() => {
     fetchMetadata();
-    const interval = setInterval(fetchMetadata, 10000);
-    return () => clearInterval(interval);
-  }, [config.general.enableAutoMetadata, config.general.streamUrl, config.appearance.radioPlayer?.showMetadata]);
+    const interval = setInterval(fetchMetadata, 5000);
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchMetadata();
+      }
+    };
+
+    const handleFocus = () => {
+      fetchMetadata();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [fetchMetadata]);
 
   // Fallback values from config
   const stationName = config.general.stationName || 'BUENÍSIMA 87.7 FM';
@@ -597,6 +685,12 @@ export const RadioPlayer: React.FC = () => {
                               <span className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-white animate-ping' : 'bg-secondary'}`}></span>
                               {isPlaying ? 'Al Aire' : 'En Sintonía'}
                           </span>
+                          {isLiveConnected && (
+                            <span className="hidden sm:flex items-center gap-1 text-[10px] text-emerald-400 font-mono tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                              <Wifi size={10} className="animate-pulse text-emerald-400" />
+                              <span>EN VIVO</span>
+                            </span>
+                          )}
                           {(config.appearance.radioPlayer?.showMetadata !== false) && (
                               <motion.p 
                                 key={displayArtist}

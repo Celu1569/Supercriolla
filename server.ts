@@ -110,38 +110,96 @@ async function startServer() {
 
   // Robust metadata API with Icecast JSON, ICY stream title & iTunes Cover Art lookup
   const DEFAULT_COVER = "/images/default-cover.svg";
-  let cachedMetadata = { title: "BUENÍSIMA", artist: "La Radio de la Buena Vibra", cover: DEFAULT_COVER };
+  let cachedMetadata = { 
+    title: "BUENÍSIMA", 
+    artist: "La Radio de la Buena Vibra", 
+    cover: DEFAULT_COVER,
+    updatedAt: Date.now()
+  };
   let lastMetadataFetch = 0;
   let activeStreamUrl = "https://redradioypc.com:8010/live";
 
-  // Helper to search iTunes with multiple fallbacks
+  // Realtime SSE connected clients
+  const sseClients = new Set<express.Response>();
+
+  const broadcastRadioMetadata = (data: typeof cachedMetadata) => {
+    cachedMetadata = data;
+    lastMetadataFetch = Date.now();
+    // Emit via Socket.IO
+    try {
+      io.emit("radio-metadata", data);
+    } catch (_) {}
+    // Emit via Server-Sent Events
+    for (const client of sseClients) {
+      try {
+        client.write(`data: ${JSON.stringify(data)}\n\n`);
+      } catch (_) {
+        sseClients.delete(client);
+      }
+    }
+  };
+
+  // Register Radio Metadata Socket events
+  io.on("connection", (socket) => {
+    socket.emit("radio-metadata", cachedMetadata);
+    socket.on("get-radio-metadata", () => {
+      socket.emit("radio-metadata", cachedMetadata);
+    });
+  });
+
+  // Capitalize words nicely if stream sends ALL-CAPS
+  const formatTitleCase = (str: string) => {
+    if (!str) return '';
+    // If it's all uppercase and longer than 3 chars, title-case it nicely
+    if (str === str.toUpperCase() && str.length > 3) {
+      return str.toLowerCase().replace(/(?:^|\s|\/|-)\S/g, (char) => char.toUpperCase());
+    }
+    return str;
+  };
+
+  // Helper to search iTunes with multiple fallbacks and match validation
   const searchItunesCover = async (artist: string, title: string) => {
-    const cleanArtist = artist.replace(/\s*\([^)]*\)/g, '').trim();
+    const cleanArtist = artist.replace(/\s*\([^)]*\)/g, '').replace(/feat\..*$/i, '').trim();
     const cleanTitle = title.replace(/\s*\([^)]*\)/g, '').trim();
+
     const queries = [
       cleanArtist && cleanTitle ? `${cleanArtist} ${cleanTitle}` : null,
+      cleanTitle && cleanArtist ? `${cleanTitle} ${cleanArtist}` : null,
       cleanTitle && cleanTitle.length > 3 ? cleanTitle : null,
       cleanArtist && cleanArtist.length > 2 ? cleanArtist : null,
     ].filter(Boolean) as string[];
 
     for (const q of queries) {
       try {
-        const itunesRes = await axios.get(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&limit=1`, {
-          httpsAgent: httpsAgent,
-          timeout: 3000
+        const itunesRes = await axios.get(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&limit=2`, {
+          headers: { 'User-Agent': 'curl/8.5.0' },
+          timeout: 2500
         });
         if (itunesRes.data.results && itunesRes.data.results.length > 0) {
-          const item = itunesRes.data.results[0];
-          const cover = item.artworkUrl100 ? item.artworkUrl100.replace('100x100', '600x600') : '';
-          return {
-            cover: cover || DEFAULT_COVER,
-            title: item.trackName || title,
-            artist: item.artistName || artist
-          };
+          // Verify that at least one significant word matches to avoid unrelated album covers
+          const queryWords = q.toLowerCase().split(/\s+/).filter(w => w.length >= 4);
+          
+          for (const item of itunesRes.data.results) {
+            const trackLower = (item.trackName || '').toLowerCase();
+            const artistLower = (item.artistName || '').toLowerCase();
+            
+            const matchesQuery = queryWords.length === 0 || queryWords.some(w => 
+              trackLower.includes(w) || artistLower.includes(w)
+            );
+
+            if (matchesQuery && item.artworkUrl100) {
+              const cover = item.artworkUrl100.replace('100x100', '600x600');
+              return {
+                cover: cover || DEFAULT_COVER,
+                title: item.trackName || formatTitleCase(title),
+                artist: item.artistName || formatTitleCase(artist)
+              };
+            }
+          }
         }
       } catch (_) {}
     }
-    return { cover: DEFAULT_COVER, title, artist };
+    return { cover: DEFAULT_COVER, title: formatTitleCase(title), artist: formatTitleCase(artist) };
   };
 
   const fetchLiveMetadata = async (streamUrl: string) => {
@@ -149,15 +207,20 @@ async function startServer() {
 
     let rawTitle = "";
 
-    // Method 1: Ultra-fast Icecast status-json.xsl check
+    // Method 1: Fast Icecast status-json.xsl check (requires curl/browser UA to bypass server 403)
     try {
       const urlModule = (await import('url')).default;
       const parsed = urlModule.parse(streamUrl);
       const jsonStatusUrl = `${parsed.protocol}//${parsed.host}/status-json.xsl`;
       const statusRes = await axios.get(jsonStatusUrl, {
         httpsAgent: httpsAgent,
+        headers: {
+          'User-Agent': 'curl/8.5.0',
+          'Accept': '*/*'
+        },
         timeout: 2500
       });
+
       if (statusRes.data && statusRes.data.icestats) {
         const source = statusRes.data.icestats.source;
         if (Array.isArray(source)) {
@@ -169,7 +232,7 @@ async function startServer() {
       }
     } catch (_) {}
 
-    // Method 2: ICY Socket fallback if status-json didn't yield title
+    // Method 2: ICY Socket fallback with curl User-Agent
     if (!rawTitle) {
       try {
         const icy = (await import('icy')).default;
@@ -182,7 +245,7 @@ async function startServer() {
           agent: isHttps ? httpsAgent : undefined,
           rejectUnauthorized: false,
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'curl/8.5.0',
             'Icy-MetaData': '1'
           }
         };
@@ -191,7 +254,7 @@ async function startServer() {
           let isDone = false;
           const timer = setTimeout(() => {
             if (!isDone) { isDone = true; resolve(""); }
-          }, 4500);
+          }, 4000);
 
           try {
             const request = icy.get(options as any, (response: any) => {
@@ -227,40 +290,73 @@ async function startServer() {
 
       if (rawTitle.includes(" - ")) {
         const parts = rawTitle.split(" - ");
-        // Some streams use TRACK - ARTIST, others ARTIST - TRACK
-        // We will test iTunes with both to find the best match
+        // Some streams send Track - Artist, others Artist - Track
         artist = parts[0].trim();
         title = parts.slice(1).join(" - ").trim();
       } else if (rawTitle.includes("-")) {
         const parts = rawTitle.split("-");
         artist = parts[0].trim();
         title = parts.slice(1).join("-").trim();
+      } else {
+        // No dash in stream title
+        title = rawTitle;
+        artist = "Buenísima 87.7 FM";
       }
 
       const itunesData = await searchItunesCover(artist, title);
       const result = {
-        title: itunesData.title || title || "Buenísima en Vivo",
-        artist: itunesData.artist || artist || "La Radio de la Buena Vibra",
-        cover: itunesData.cover || DEFAULT_COVER
+        title: itunesData.title || formatTitleCase(title) || "Buenísima en Vivo",
+        artist: itunesData.artist || formatTitleCase(artist) || "La Radio de la Buena Vibra",
+        cover: itunesData.cover || DEFAULT_COVER,
+        updatedAt: Date.now()
       };
-      cachedMetadata = result;
-      lastMetadataFetch = Date.now();
+
+      // If data changed, broadcast to all socket.io clients and SSE streams
+      if (
+        result.title !== cachedMetadata.title || 
+        result.artist !== cachedMetadata.artist || 
+        result.cover !== cachedMetadata.cover
+      ) {
+        broadcastRadioMetadata(result);
+      } else {
+        cachedMetadata.updatedAt = Date.now();
+      }
+
       return result;
     }
 
     return cachedMetadata;
   };
 
-  // Periodic background refresh for stream metadata
+  // Periodic background refresh for stream metadata (every 5 seconds for real-time detection)
   setInterval(() => {
     fetchLiveMetadata(activeStreamUrl).catch(() => {});
-  }, 12000);
+  }, 5000);
 
-  // Initial fetch
+  // Initial fetch on server startup
   setTimeout(() => {
     fetchLiveMetadata(activeStreamUrl).catch(() => {});
-  }, 1000);
+  }, 500);
 
+  // Real-time Server-Sent Events endpoint
+  app.get("/api/metadata/stream", (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.flushHeaders?.();
+
+    // Send immediate current state
+    res.write(`data: ${JSON.stringify(cachedMetadata)}\n\n`);
+
+    sseClients.add(res);
+
+    req.on('close', () => {
+      sseClients.delete(res);
+    });
+  });
+
+  // Standard polling API
   app.get("/api/metadata", async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
@@ -270,8 +366,8 @@ async function startServer() {
     const streamUrl = (req.query.url as string) || activeStreamUrl;
     if (streamUrl) activeStreamUrl = streamUrl;
 
-    // Serve fresh cache if available within 8 seconds
-    if (Date.now() - lastMetadataFetch < 8000 && cachedMetadata.title) {
+    // Return fresh cache if updated within last 4 seconds
+    if (Date.now() - lastMetadataFetch < 4000 && cachedMetadata.title) {
       return res.json(cachedMetadata);
     }
 
