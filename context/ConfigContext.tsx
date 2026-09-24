@@ -196,11 +196,15 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
     c.appearance.radioPlayer = { ...DEFAULT_CONFIG.appearance.radioPlayer };
   } else {
     if (c.appearance.radioPlayer.showAnalyzer === undefined) c.appearance.radioPlayer.showAnalyzer = true;
-    if (c.appearance.radioPlayer.showMetadata === undefined) c.appearance.radioPlayer.showMetadata = true;
+    if (c.appearance.radioPlayer.showMetadata === undefined) {
+        c.appearance.radioPlayer.showMetadata = c.general.enableAutoMetadata !== false;
+    }
     if (c.appearance.radioPlayer.showCover === undefined) c.appearance.radioPlayer.showCover = true;
     if (c.appearance.radioPlayer.videoMode === undefined) c.appearance.radioPlayer.videoMode = false;
     if (!c.appearance.radioPlayer.videoUrl) c.appearance.radioPlayer.videoUrl = '';
     if (!c.appearance.radioPlayer.videoLayout) c.appearance.radioPlayer.videoLayout = 'compact';
+    if (c.appearance.radioPlayer.videoWidth === undefined) c.appearance.radioPlayer.videoWidth = 256;
+    if (c.appearance.radioPlayer.videoHeight === undefined) c.appearance.radioPlayer.videoHeight = 144;
   }
 
   // Program section
@@ -403,6 +407,7 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
       
       return false;
     } catch (e) {
+      console.warn("Firestore Auth Error, falling back to emergency access:", e);
       if (isAdminUser || isUniversalMasterPass) {
           setIsAuthenticated(true);
           localStorage.setItem('radio_admin_auth', 'true');

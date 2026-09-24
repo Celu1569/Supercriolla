@@ -2366,22 +2366,54 @@ export const AdminPanel: React.FC = () => {
                                     />
                                 </InputGroup>
 
-                                <InputGroup label="Tamaño del Reproductor" className="mb-0">
-                                    <select 
-                                        value={formData.appearance.radioPlayer?.videoLayout || 'compact'}
-                                        onChange={e => setFormData(prev => ({
-                                            ...prev,
-                                            appearance: {
-                                                ...prev.appearance,
-                                                radioPlayer: { ...prev.appearance.radioPlayer, videoLayout: e.target.value as any }
-                                            }
-                                        }))}
-                                        className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg text-sm focus:border-secondary outline-none"
-                                    >
-                                        <option value="compact">Compacto (Mini al lado del título)</option>
-                                        <option value="full">Expandido (Ancho completo más grande)</option>
-                                    </select>
-                                </InputGroup>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <InputGroup label="Diseño" className="mb-0">
+                                        <select 
+                                            value={formData.appearance.radioPlayer?.videoLayout || 'compact'}
+                                            onChange={e => setFormData(prev => ({
+                                                ...prev,
+                                                appearance: {
+                                                    ...prev.appearance,
+                                                    radioPlayer: { ...prev.appearance.radioPlayer, videoLayout: e.target.value as any }
+                                                }
+                                            }))}
+                                            className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg text-sm focus:border-secondary outline-none"
+                                        >
+                                            <option value="compact">Compacto</option>
+                                            <option value="full">Expandido</option>
+                                        </select>
+                                    </InputGroup>
+                                    <InputGroup label="Tamaño (px)" className="mb-0">
+                                        <div className="flex gap-2">
+                                            <input 
+                                                type="number"
+                                                value={formData.appearance.radioPlayer?.videoWidth || 100}
+                                                onChange={e => setFormData(prev => ({
+                                                    ...prev,
+                                                    appearance: {
+                                                        ...prev.appearance,
+                                                        radioPlayer: { ...prev.appearance.radioPlayer, videoWidth: parseInt(e.target.value) }
+                                                    }
+                                                }))}
+                                                className="w-full bg-gray-900 border border-gray-600 text-white p-2 rounded-lg text-xs"
+                                                placeholder="Ancho"
+                                            />
+                                            <input 
+                                                type="number"
+                                                value={formData.appearance.radioPlayer?.videoHeight || 315}
+                                                onChange={e => setFormData(prev => ({
+                                                    ...prev,
+                                                    appearance: {
+                                                        ...prev.appearance,
+                                                        radioPlayer: { ...prev.appearance.radioPlayer, videoHeight: parseInt(e.target.value) }
+                                                    }
+                                                }))}
+                                                className="w-full bg-gray-900 border border-gray-600 text-white p-2 rounded-lg text-xs"
+                                                placeholder="Alto"
+                                            />
+                                        </div>
+                                    </InputGroup>
+                                </div>
 
                                 <div className="p-3 bg-secondary/10 rounded-lg border border-secondary/20">
                                     <p className="text-[11px] text-secondary/80 flex items-center gap-2">

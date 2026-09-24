@@ -32,7 +32,9 @@ export const RadioPlayer: React.FC = () => {
 
   // Fetch metadata periodically
   useEffect(() => {
-    if (!isPlaying || config.general.enableAutoMetadata === false) {
+    const showMetadata = config.appearance.radioPlayer?.showMetadata !== false;
+    
+    if (!isPlaying || !showMetadata) {
         if (!isPlaying) setMetadata({ title: '', artist: '', cover: '' });
         return;
     }
@@ -285,10 +287,14 @@ export const RadioPlayer: React.FC = () => {
 
               {/* Video Area (If Video Mode Active) */}
               {isVideoMode && (
-                  <div className={`relative overflow-hidden rounded-2xl shadow-2xl border border-white/10 bg-black ${videoLayout === 'full' ? 'w-full lg:max-w-2xl aspect-video' : 'w-full md:w-64 aspect-video'}`}>
+                  <div 
+                    className={`relative overflow-hidden rounded-2xl shadow-2xl border border-white/10 bg-black ${videoLayout === 'full' ? 'w-full lg:max-w-2xl' : 'w-full md:w-64'} aspect-video`}
+                    style={videoLayout === 'compact' && config.appearance.radioPlayer?.videoWidth ? { width: `${config.appearance.radioPlayer.videoWidth}px` } : {}}
+                  >
                       <iframe 
                         src={embedUrl}
                         className="w-full h-full"
+                        style={config.appearance.radioPlayer?.videoHeight ? { height: `${config.appearance.radioPlayer.videoHeight}px` } : {}}
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
                       />
