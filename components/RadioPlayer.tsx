@@ -17,6 +17,9 @@ export const RadioPlayer: React.FC = () => {
   const animationRef = useRef<number>();
   
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [activeSource, setActiveSource] = useState<'direct' | 'proxy'>('direct');
   const [volume, setVolume] = useState(0.85);
   const [isMuted, setIsMuted] = useState(false);
   const [prevVolume, setPrevVolume] = useState(0.85);
@@ -25,6 +28,8 @@ export const RadioPlayer: React.FC = () => {
 
   const [hasError, setHasError] = useState(false);
   const [isLiveConnected, setIsLiveConnected] = useState(false);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const retryCountRef = useRef(0);
   const [metadata, setMetadata] = useState<{ title: string; artist: string; cover: string }>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -202,7 +207,19 @@ export const RadioPlayer: React.FC = () => {
     }
   }, [volume, isMuted]);
 
-  // Audio Visualizer effect
+  // Stream URLs helper (direct stream + server-side proxy fallback)
+  const getStreamUrls = useCallback(() => {
+    const rawDirect = config.general.streamUrl || 'https://redradioypc.com:8010/live';
+    let directUrl = rawDirect;
+    if (/^https?:\/\/[^/]+\/?$/.test(directUrl) && !directUrl.includes('?')) {
+      directUrl = `${directUrl}${directUrl.endsWith('/') ? '' : '/'};`;
+    }
+    const directWithCb = `${directUrl}${directUrl.includes('?') ? '&' : '?'}cb=${Date.now()}`;
+    const proxyUrl = `/api/stream?url=${encodeURIComponent(rawDirect)}&cb=${Date.now()}`;
+    return { directUrl: directWithCb, proxyUrl, rawDirect };
+  }, [config.general.streamUrl]);
+
+  // Audio Visualizer effect (safely isolated so errors never mute or cut audio)
   useEffect(() => {
       if (!audioRef.current || !canvasRef.current || config.appearance.radioPlayer?.showAnalyzer === false) return;
 
@@ -210,25 +227,28 @@ export const RadioPlayer: React.FC = () => {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      if (isPlaying) {
+      if (isPlaying && !isBuffering) {
           if (!audioCtxRef.current) {
               const Ctx = window.AudioContext || (window as any).webkitAudioContext;
               if (Ctx) {
-                  audioCtxRef.current = new Ctx();
-                  analyzerRef.current = audioCtxRef.current.createAnalyser();
-                  analyzerRef.current.fftSize = 128;
                   try {
-                      sourceRef.current = audioCtxRef.current.createMediaElementSource(audioRef.current);
-                      sourceRef.current.connect(analyzerRef.current);
-                      analyzerRef.current.connect(audioCtxRef.current.destination);
-                  } catch (e) {
-                      // Audio context already initialized or cross-origin
+                      audioCtxRef.current = new Ctx();
+                      analyzerRef.current = audioCtxRef.current.createAnalyser();
+                      analyzerRef.current.fftSize = 128;
+                      // Only attach if crossOrigin is enabled (e.g. proxy stream) to prevent browser audio blocking
+                      if (audioRef.current.crossOrigin && !sourceRef.current) {
+                        sourceRef.current = audioCtxRef.current.createMediaElementSource(audioRef.current);
+                        sourceRef.current.connect(analyzerRef.current);
+                        analyzerRef.current.connect(audioCtxRef.current.destination);
+                      }
+                  } catch (_) {
+                      // Audio visualizer fallback - audio playback remains 100% functional
                   }
               }
           }
 
           if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-              audioCtxRef.current.resume();
+              audioCtxRef.current.resume().catch(() => {});
           }
 
           const draw = () => {
@@ -269,39 +289,115 @@ export const RadioPlayer: React.FC = () => {
       return () => {
           if (animationRef.current) cancelAnimationFrame(animationRef.current);
       };
-  }, [isPlaying, config.appearance.radioPlayer?.showAnalyzer, config.appearance.secondaryColor]);
+  }, [isPlaying, isBuffering, config.appearance.radioPlayer?.showAnalyzer, config.appearance.secondaryColor]);
+
+  // Handle stream errors with auto-recovery and fallback switching
+  const handleStreamRecovery = useCallback((forceSource?: 'direct' | 'proxy') => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
+    if (retryCountRef.current < 4) {
+      retryCountRef.current += 1;
+      setIsReconnecting(true);
+      setIsBuffering(true);
+      setHasError(false);
+
+      const nextSource: 'direct' | 'proxy' = forceSource || (activeSource === 'direct' ? 'proxy' : 'direct');
+      
+      reconnectTimeoutRef.current = setTimeout(() => {
+        if (!audioRef.current) return;
+        const { directUrl, proxyUrl } = getStreamUrls();
+        const targetUrl = nextSource === 'proxy' ? proxyUrl : directUrl;
+        
+        setActiveSource(nextSource);
+        if (nextSource === 'proxy') {
+          audioRef.current.crossOrigin = "anonymous";
+        } else {
+          audioRef.current.removeAttribute('crossOrigin');
+        }
+
+        audioRef.current.src = targetUrl;
+        audioRef.current.load();
+        audioRef.current.play().then(() => {
+          setIsBuffering(false);
+          setIsReconnecting(false);
+          setHasError(false);
+          retryCountRef.current = 0;
+        }).catch((err) => {
+          if (err.name !== 'AbortError') {
+            handleStreamRecovery(nextSource === 'direct' ? 'proxy' : 'direct');
+          }
+        });
+      }, 1500);
+    } else {
+      setIsPlaying(false);
+      setIsBuffering(false);
+      setIsReconnecting(false);
+      setHasError(true);
+    }
+  }, [activeSource, getStreamUrls]);
 
   const togglePlay = async () => {
       if (!audioRef.current) return;
       
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+
       if (isPlaying) {
           audioRef.current.pause();
           setIsPlaying(false);
+          setIsBuffering(false);
+          setIsReconnecting(false);
+          setHasError(false);
+          retryCountRef.current = 0;
           audioRef.current.removeAttribute('src');
           audioRef.current.load();
       } else {
           setHasError(false);
           setIsPlaying(true);
-          let finalUrl = config.general.streamUrl || 'https://redradioypc.com:8010/live';
+          setIsBuffering(true);
+          retryCountRef.current = 0;
+
+          const { directUrl, proxyUrl } = getStreamUrls();
+          // Use direct stream as default, with proxy as immediate fallback
+          const useSource = activeSource || 'direct';
+          const finalUrl = useSource === 'proxy' ? proxyUrl : directUrl;
           
-          if (/^https?:\/\/[^/]+\/?$/.test(finalUrl) && !finalUrl.includes('?')) {
-              finalUrl = `${finalUrl}${finalUrl.endsWith('/') ? '' : '/'};`;
+          if (useSource === 'proxy') {
+            audioRef.current.crossOrigin = "anonymous";
+          } else {
+            audioRef.current.removeAttribute('crossOrigin');
           }
-          finalUrl += (finalUrl.includes('?') ? '&' : '?') + `cb=${Date.now()}`;
 
           audioRef.current.src = finalUrl;
           try {
               await audioRef.current.play();
-              // Re-fetch metadata once playing starts
+              setIsBuffering(false);
+              setIsReconnecting(false);
+              setHasError(false);
+              retryCountRef.current = 0;
               fetchMetadata();
           } catch (e: any) {
               if (e.name !== 'AbortError') {
-                  setHasError(true);
-                  setIsPlaying(false);
+                  // Direct stream failed - immediately retry with server proxy
+                  handleStreamRecovery('proxy');
               }
           }
       }
   };
+
+  // Cleanup pending reconnect timers
+  useEffect(() => {
+    return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const getVolumeIcon = () => {
       if (isMuted || volume === 0) return <VolumeX size={18} />;
@@ -330,17 +426,48 @@ export const RadioPlayer: React.FC = () => {
     }
   };
 
+  // Audio element event handlers
+  const handleAudioPlaying = () => {
+    setIsBuffering(false);
+    setIsReconnecting(false);
+    setHasError(false);
+    retryCountRef.current = 0;
+  };
+
+  const handleAudioWaiting = () => {
+    if (isPlaying) {
+      setIsBuffering(true);
+    }
+  };
+
+  const handleAudioStalled = () => {
+    if (isPlaying && !isReconnecting) {
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = setTimeout(() => {
+        if (isPlaying) {
+          handleStreamRecovery();
+        }
+      }, 4500);
+    }
+  };
+
   // -------------------------------------------------------------
   // RENDER PLAYER BASED ON SELECTED STYLE
   // -------------------------------------------------------------
 
-  // Hidden Audio Element (always active in background)
+  // Resilient Audio Element (active in background with intelligent event recovery)
   const audioElement = (
     <audio 
       ref={audioRef} 
-      crossOrigin="anonymous" 
-      onEnded={() => setIsPlaying(false)} 
-      onError={() => { setHasError(true); setIsPlaying(false); }} 
+      onPlaying={handleAudioPlaying}
+      onWaiting={handleAudioWaiting}
+      onStalled={handleAudioStalled}
+      onEnded={() => {
+        if (isPlaying) handleStreamRecovery();
+      }} 
+      onError={() => {
+        if (isPlaying) handleStreamRecovery();
+      }} 
       preload="none" 
     />
   );
@@ -371,11 +498,19 @@ export const RadioPlayer: React.FC = () => {
 
             <div className="space-y-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${isPlaying ? 'bg-red-500 text-white animate-pulse' : 'bg-white/10 text-gray-400'}`}>
-                  {isPlaying ? 'EN VIVO' : 'PAUSADO'}
+                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${
+                  isReconnecting ? 'bg-amber-500 text-black animate-pulse' :
+                  isBuffering && isPlaying ? 'bg-blue-500 text-white animate-pulse' :
+                  isPlaying ? 'bg-red-500 text-white animate-pulse' : 
+                  hasError ? 'bg-rose-600 text-white' : 'bg-white/10 text-gray-400'
+                }`}>
+                  {isReconnecting ? 'RECONECTANDO' :
+                   isBuffering && isPlaying ? 'SINTONIZANDO' :
+                   isPlaying ? 'EN VIVO' : 
+                   hasError ? 'SIN AUDIO' : 'PAUSADO'}
                 </span>
-                <span className="text-[11px] font-bold text-yellow-400 tracking-widest uppercase">
-                  {displayArtist}
+                <span className="text-[11px] font-bold text-yellow-400 tracking-widest uppercase truncate max-w-xs">
+                  {hasError ? 'Señal interrumpida • Clic para reintentar' : (isReconnecting ? 'Reconectando transmisión...' : displayArtist)}
                 </span>
                 <button onClick={fetchMetadata} title="Actualizar título" className="p-1 hover:text-yellow-400 text-gray-500 transition-colors">
                   <RefreshCw size={12} className={isFetchingMetadata ? 'animate-spin text-yellow-400' : ''} />
@@ -449,10 +584,20 @@ export const RadioPlayer: React.FC = () => {
 
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex items-center gap-2">
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${isPlaying ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-white/10 text-gray-400'}`}>
-                  {isPlaying ? '● Al Aire' : '○ Pausado'}
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                  isReconnecting ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                  isBuffering && isPlaying ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30 animate-pulse' :
+                  isPlaying ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                  hasError ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-white/10 text-gray-400'
+                }`}>
+                  {isReconnecting ? '● Reconectando' :
+                   isBuffering && isPlaying ? '● Sintonizando' :
+                   isPlaying ? '● Al Aire' :
+                   hasError ? '✕ Sin Audio' : '○ Pausado'}
                 </span>
-                <p className="text-xs font-bold text-yellow-400 uppercase tracking-widest truncate">{displayArtist}</p>
+                <p className="text-xs font-bold text-yellow-400 uppercase tracking-widest truncate">
+                  {hasError ? 'Señal interrumpida • Clic para reintentar' : (isReconnecting ? 'Recuperando transmisión...' : displayArtist)}
+                </p>
                 <button onClick={fetchMetadata} title="Actualizar canción" className="text-gray-500 hover:text-white transition-colors">
                   <RefreshCw size={12} className={isFetchingMetadata ? 'animate-spin text-yellow-400' : ''} />
                 </button>
@@ -519,7 +664,9 @@ export const RadioPlayer: React.FC = () => {
 
             <div className="min-w-0 truncate">
               <span className="text-xs font-black text-white truncate block">{displayTitle}</span>
-              <span className="text-[10px] text-yellow-400 truncate block uppercase tracking-wider">{displayArtist}</span>
+              <span className="text-[10px] text-yellow-400 truncate block uppercase tracking-wider">
+                {hasError ? 'Sin audio (Clic en Play)' : (isReconnecting ? 'Reconectando...' : (isBuffering && isPlaying ? 'Sintonizando...' : displayArtist))}
+              </span>
             </div>
           </div>
 
@@ -571,8 +718,15 @@ export const RadioPlayer: React.FC = () => {
               )}
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-red-500 animate-ping' : 'bg-gray-500'}`}></span>
-                  <span className="text-[10px] font-bold text-yellow-400 uppercase tracking-widest truncate">{displayArtist}</span>
+                  <span className={`w-2 h-2 rounded-full ${
+                    isReconnecting ? 'bg-amber-400 animate-ping' :
+                    isBuffering && isPlaying ? 'bg-blue-400 animate-pulse' :
+                    isPlaying ? 'bg-red-500 animate-ping' : 
+                    hasError ? 'bg-rose-500' : 'bg-gray-500'
+                  }`}></span>
+                  <span className="text-[10px] font-bold text-yellow-400 uppercase tracking-widest truncate">
+                    {hasError ? 'Sin audio • Clic Play' : (isReconnecting ? 'Reconectando...' : (isBuffering && isPlaying ? 'Sintonizando...' : displayArtist))}
+                  </span>
                 </div>
                 <h4 className="text-sm font-black text-white truncate max-w-sm sm:max-w-md">{displayTitle}</h4>
               </div>
@@ -681,9 +835,22 @@ export const RadioPlayer: React.FC = () => {
 
                   <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex items-center gap-2.5 flex-wrap">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-colors ${isPlaying ? 'bg-red-600 text-white shadow-red-500/50' : 'bg-white/10 text-white/80'}`}>
-                              <span className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-white animate-ping' : 'bg-secondary'}`}></span>
-                              {isPlaying ? 'Al Aire' : 'En Sintonía'}
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-colors ${
+                            isReconnecting ? 'bg-amber-600 text-white animate-pulse' :
+                            isBuffering && isPlaying ? 'bg-blue-600 text-white animate-pulse' :
+                            isPlaying ? 'bg-red-600 text-white shadow-red-500/50' : 
+                            hasError ? 'bg-rose-700 text-white' : 'bg-white/10 text-white/80'
+                          }`}>
+                              <span className={`w-2 h-2 rounded-full ${
+                                isReconnecting ? 'bg-amber-200 animate-ping' :
+                                isBuffering && isPlaying ? 'bg-blue-200 animate-pulse' :
+                                isPlaying ? 'bg-white animate-ping' : 
+                                hasError ? 'bg-rose-200' : 'bg-secondary'
+                              }`}></span>
+                              {isReconnecting ? 'Reconectando' :
+                               isBuffering && isPlaying ? 'Sintonizando' :
+                               isPlaying ? 'Al Aire' : 
+                               hasError ? 'Sin Señal' : 'En Sintonía'}
                           </span>
                           {isLiveConnected && (
                             <span className="hidden sm:flex items-center gap-1 text-[10px] text-emerald-400 font-mono tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
@@ -698,7 +865,7 @@ export const RadioPlayer: React.FC = () => {
                                 animate={{ opacity: 1, x: 0 }}
                                 className="text-xs sm:text-sm font-black text-secondary uppercase tracking-[0.2em] truncate drop-shadow-md flex items-center gap-1.5"
                               >
-                                  <span>{hasError ? 'Error de Transmisión' : displayArtist}</span>
+                                  <span>{hasError ? 'Señal interrumpida - Toca Reproducir para reintentar' : (isReconnecting ? 'Reconectando transmisión de audio...' : displayArtist)}</span>
                                   <button onClick={fetchMetadata} title="Comprobar título en vivo" className="text-gray-400 hover:text-white transition-colors">
                                     <RefreshCw size={12} className={isFetchingMetadata ? 'animate-spin text-secondary' : ''} />
                                   </button>

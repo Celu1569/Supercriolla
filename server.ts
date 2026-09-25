@@ -207,7 +207,8 @@ async function startServer() {
 
     let rawTitle = "";
 
-    // Method 1: Fast Icecast status-json.xsl check (requires curl/browser UA to bypass server 403)
+    // Method 1: Fast Icecast status-json.xsl check with robust text/regex parsing
+    // Handles malformed JSON produced by some Icecast builds (e.g. trailing commas, unclosed brackets)
     try {
       const urlModule = (await import('url')).default;
       const parsed = urlModule.parse(streamUrl);
@@ -215,24 +216,57 @@ async function startServer() {
       const statusRes = await axios.get(jsonStatusUrl, {
         httpsAgent: httpsAgent,
         headers: {
-          'User-Agent': 'curl/8.5.0',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': '*/*'
         },
-        timeout: 2500
+        responseType: 'text',
+        timeout: 3000
       });
 
-      if (statusRes.data && statusRes.data.icestats) {
-        const source = statusRes.data.icestats.source;
-        if (Array.isArray(source)) {
-          const matchSource = source.find((s: any) => s.listenurl && streamUrl.includes(s.listenurl.replace('http:', '').replace('https:', ''))) || source[0];
-          if (matchSource && matchSource.title) rawTitle = matchSource.title.trim();
-        } else if (source && source.title) {
-          rawTitle = source.title.trim();
+      const rawText = typeof statusRes.data === 'string' ? statusRes.data : JSON.stringify(statusRes.data);
+      if (rawText) {
+        // Fast direct regex extraction for stream title
+        const match = rawText.match(/"(?:title|yp_currently_playing)"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/i);
+        if (match && match[1]) {
+          rawTitle = match[1].replace(/\\"/g, '"').trim();
+        }
+
+        if (!rawTitle) {
+          try {
+            // Clean trailing commas and test JSON parse
+            const cleaned = rawText.replace(/,\s*([\]}])/g, '$1');
+            const data = JSON.parse(cleaned);
+            if (data?.icestats?.source) {
+              const src = Array.isArray(data.icestats.source) ? data.icestats.source[0] : data.icestats.source;
+              if (src?.title) rawTitle = src.title.trim();
+            }
+          } catch (_) {}
         }
       }
     } catch (_) {}
 
-    // Method 2: ICY Socket fallback with curl User-Agent
+    // Method 2: Shoutcast 7.html or status.xsl fallback
+    if (!rawTitle) {
+      try {
+        const urlModule = (await import('url')).default;
+        const parsed = urlModule.parse(streamUrl);
+        const stats7Url = `${parsed.protocol}//${parsed.host}/7.html`;
+        const res7 = await axios.get(stats7Url, {
+          httpsAgent: httpsAgent,
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+          responseType: 'text',
+          timeout: 2500
+        });
+        if (typeof res7.data === 'string' && res7.data.includes(',')) {
+          const parts = res7.data.replace(/<[^>]*>/g, '').split(',');
+          if (parts.length >= 7 && parts[6].trim()) {
+            rawTitle = parts.slice(6).join(',').trim();
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Method 3: ICY Socket fallback with GUARANTEED immediate connection teardown
     if (!rawTitle) {
       try {
         const icy = (await import('icy')).default;
@@ -245,40 +279,52 @@ async function startServer() {
           agent: isHttps ? httpsAgent : undefined,
           rejectUnauthorized: false,
           headers: {
-            'User-Agent': 'curl/8.5.0',
+            'User-Agent': 'Mozilla/5.0 (compatible; RadioBot/1.0)',
             'Icy-MetaData': '1'
           }
         };
 
         rawTitle = await new Promise<string>((resolve) => {
           let isDone = false;
-          const timer = setTimeout(() => {
-            if (!isDone) { isDone = true; resolve(""); }
-          }, 4000);
+          let activeReq: any = null;
+          let activeRes: any = null;
+
+          const finish = (result: string) => {
+            if (isDone) return;
+            isDone = true;
+            clearTimeout(timer);
+            if (activeRes) {
+              try { activeRes.removeAllListeners(); activeRes.destroy(); } catch (_) {}
+            }
+            if (activeReq) {
+              try { activeReq.removeAllListeners(); activeReq.destroy(); } catch (_) {}
+            }
+            resolve(result);
+          };
+
+          const timer = setTimeout(() => finish(""), 2000);
 
           try {
-            const request = icy.get(options as any, (response: any) => {
+            activeReq = icy.get(options as any, (response: any) => {
+              activeRes = response;
               response.on('metadata', (metadataBuffer: Buffer) => {
-                if (isDone) return;
-                isDone = true;
-                clearTimeout(timer);
                 try {
                   const parsed = icy.parse(metadataBuffer);
                   if (parsed && parsed.StreamTitle) {
-                    try { response.destroy(); } catch (_) {}
-                    resolve(parsed.StreamTitle.trim());
+                    finish(parsed.StreamTitle.trim());
                     return;
                   }
                 } catch (_) {}
-                try { response.destroy(); } catch (_) {}
-                resolve("");
+                finish("");
               });
-              response.on('data', () => {});
-              response.on('error', () => { if (!isDone) { isDone = true; clearTimeout(timer); resolve(""); } });
+              response.on('data', () => {
+                // Do not buffer audio data; close quickly if no metadata within 1s
+              });
+              response.on('error', () => finish(""));
             });
-            request.on('error', () => { if (!isDone) { isDone = true; clearTimeout(timer); resolve(""); } });
+            activeReq.on('error', () => finish(""));
           } catch (_) {
-            if (!isDone) { isDone = true; clearTimeout(timer); resolve(""); }
+            finish("");
           }
         });
       } catch (_) {}
@@ -290,7 +336,6 @@ async function startServer() {
 
       if (rawTitle.includes(" - ")) {
         const parts = rawTitle.split(" - ");
-        // Some streams send Track - Artist, others Artist - Track
         artist = parts[0].trim();
         title = parts.slice(1).join(" - ").trim();
       } else if (rawTitle.includes("-")) {
@@ -298,7 +343,6 @@ async function startServer() {
         artist = parts[0].trim();
         title = parts.slice(1).join("-").trim();
       } else {
-        // No dash in stream title
         title = rawTitle;
         artist = "Buenísima 87.7 FM";
       }
@@ -311,7 +355,6 @@ async function startServer() {
         updatedAt: Date.now()
       };
 
-      // If data changed, broadcast to all socket.io clients and SSE streams
       if (
         result.title !== cachedMetadata.title || 
         result.artist !== cachedMetadata.artist || 
@@ -328,15 +371,15 @@ async function startServer() {
     return cachedMetadata;
   };
 
-  // Periodic background refresh for stream metadata (every 5 seconds for real-time detection)
+  // Periodic background refresh for stream metadata (every 10 seconds - avoids overloading radio server)
   setInterval(() => {
     fetchLiveMetadata(activeStreamUrl).catch(() => {});
-  }, 5000);
+  }, 10000);
 
   // Initial fetch on server startup
   setTimeout(() => {
     fetchLiveMetadata(activeStreamUrl).catch(() => {});
-  }, 500);
+  }, 1000);
 
   // Real-time Server-Sent Events endpoint
   app.get("/api/metadata/stream", (req, res) => {
@@ -366,8 +409,8 @@ async function startServer() {
     const streamUrl = (req.query.url as string) || activeStreamUrl;
     if (streamUrl) activeStreamUrl = streamUrl;
 
-    // Return fresh cache if updated within last 4 seconds
-    if (Date.now() - lastMetadataFetch < 4000 && cachedMetadata.title) {
+    // Return fresh cache if updated within last 6 seconds
+    if (Date.now() - lastMetadataFetch < 6000 && cachedMetadata.title) {
       return res.json(cachedMetadata);
     }
 
@@ -376,6 +419,83 @@ async function startServer() {
       res.json(data);
     } catch (error) {
       res.json(cachedMetadata);
+    }
+  });
+
+  // Audio stream proxy endpoint to bypass CORS, firewall port 8010 blocks, and SSL issues
+  app.get("/api/stream", async (req, res) => {
+    const targetUrl = (req.query.url as string) || activeStreamUrl || "https://redradioypc.com:8010/live";
+
+    res.setHeader("Content-Type", "audio/aac");
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Headers", "*");
+
+    try {
+      const urlModule = (await import('url')).default;
+      const httpModule = (await import('http')).default;
+      const httpsModule = (await import('https')).default;
+      const parsed = urlModule.parse(targetUrl);
+      const isHttps = parsed.protocol === 'https:';
+      const client = isHttps ? httpsModule : httpModule;
+
+      const proxyReq = client.get(targetUrl, {
+        agent: isHttps ? httpsAgent : undefined,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': '*/*',
+          'Icy-MetaData': '0'
+        },
+        timeout: 8000
+      }, (proxyRes) => {
+        if (proxyRes.statusCode && proxyRes.statusCode >= 400) {
+          if (!res.headersSent) res.status(proxyRes.statusCode);
+          proxyRes.destroy();
+          res.end();
+          return;
+        }
+
+        if (proxyRes.headers['content-type']) {
+          res.setHeader('Content-Type', proxyRes.headers['content-type']);
+        }
+
+        proxyRes.pipe(res);
+
+        proxyRes.on('error', () => {
+          try { proxyRes.destroy(); } catch (_) {}
+          if (!res.writableEnded) res.end();
+        });
+      });
+
+      proxyReq.on('error', (err) => {
+        if (!res.headersSent) {
+          res.status(502).json({ error: "No se pudo conectar a la transmisión", details: err.message });
+        } else {
+          if (!res.writableEnded) res.end();
+        }
+      });
+
+      proxyReq.on('timeout', () => {
+        try { proxyReq.destroy(); } catch (_) {}
+        if (!res.headersSent) {
+          res.status(504).end();
+        } else {
+          if (!res.writableEnded) res.end();
+        }
+      });
+
+      // Clean up connection immediately when client closes tab or stops player
+      req.on('close', () => {
+        try { proxyReq.destroy(); } catch (_) {}
+      });
+      req.on('error', () => {
+        try { proxyReq.destroy(); } catch (_) {}
+      });
+
+    } catch (e: any) {
+      if (!res.headersSent) res.status(500).json({ error: e.message });
     }
   });
 
