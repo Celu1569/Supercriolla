@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useConfig } from '../context/ConfigContext';
 import { RadioPlayer } from './RadioPlayer';
 import Chat from './Chat';
@@ -8,6 +8,7 @@ import { SocialCarousel } from './SocialCarousel';
 import { WidgetEmbed } from './WidgetEmbed';
 import { Menu, X, Facebook, Instagram, Youtube, Phone, Mail, MapPin, Radio, ChevronLeft, ChevronRight, Sun, Moon, PlayCircle, Video, Heart, CreditCard, Tv, Play, MessageSquare, Users, Mic2, Newspaper, Calendar, User, ArrowRight, ChevronDown } from 'lucide-react';
 import { TikTok } from './TikTokIcon';
+import { ProgramCarousel } from './ProgramCarousel';
 import { NewsItem, ProgramItem } from '../types';
 
 interface NavLinkProps {
@@ -150,6 +151,36 @@ const PublicView: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [secretClicks, setSecretClicks] = useState(0);
+  const [numPresses, setNumPresses] = useState(0);
+  const pressTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      if (e.key === '1') {
+        if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+        
+        const next = numPresses + 1;
+        if (next >= 5) {
+          window.location.hash = '#/login';
+          setNumPresses(0);
+        } else {
+          setNumPresses(next);
+          pressTimerRef.current = setTimeout(() => setNumPresses(0), 2000);
+        }
+      } else {
+        setNumPresses(0);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+    };
+  }, [numPresses]);
 
   // Player State
   const [playerMode, setPlayerMode] = useState<'live' | 'episode'>('live');
@@ -944,214 +975,29 @@ const PublicView: React.FC = () => {
 
                 case 'program':
                     return activeSections.program ? (
-        <section id="program" key="program" className="py-20 bg-surface-alt animate-fade-in">
+        <section id="program" key="program" className="py-20 bg-surface-alt animate-fade-in overflow-hidden">
             <div className="container mx-auto px-4 text-center">
-            {/* Updated to use text-heading */}
-            <h2 className="text-4xl font-heading font-bold text-heading mb-6">
-                {config.content.program.title}
-            </h2>
-            
-            {/* Programming Toggle Buttons */}
-            <div className="flex justify-center gap-4 mb-12">
-                <button 
-                    onClick={() => setProgramView('week')}
-                    className={`px-6 py-2 rounded-full font-bold transition-all ${
-                        programView === 'week' 
-                        ? 'bg-secondary text-primary shadow-lg scale-105' 
-                        : 'bg-surface text-on-surface-muted hover:bg-gray-200'
-                    }`}
-                >
-                    Lunes a Viernes
-                </button>
-                <button 
-                    onClick={() => setProgramView('weekend')}
-                    className={`px-6 py-2 rounded-full font-bold transition-all ${
-                        programView === 'weekend' 
-                        ? 'bg-secondary text-primary shadow-lg scale-105' 
-                        : 'bg-surface text-on-surface-muted hover:bg-gray-200'
-                    }`}
-                >
-                    Fin de Semana
-                </button>
-            </div>
-
-            {/* Programs List / Grid based on layoutStyle */}
-            {(() => {
-                const layout = config.content.program.layoutStyle || 'grid';
-                const programs = (programView === 'week' ? config.content.program.programs : (config.content.program.weekendPrograms || [])) || [];
+                <div className="mb-12">
+                    <h2 className="text-4xl md:text-5xl font-heading font-bold text-heading mb-4">
+                        {config.content.program.title}
+                    </h2>
+                    <p className="text-on-surface-muted max-w-2xl mx-auto italic">
+                        {config.content.program.description}
+                    </p>
+                    <div className="w-24 h-1 bg-secondary mx-auto mt-6 rounded-full"></div>
+                </div>
                 
-                if (layout === 'list') {
-                    return (
-                        <div className="space-y-6 max-w-5xl mx-auto">
-                            {programs.map((prog) => (
-                                <div key={prog.id} className="bg-surface p-6 rounded-2xl shadow-md hover:shadow-xl transition-all border-l-8 border-secondary text-left flex flex-col md:flex-row gap-6 items-center md:items-start group animate-fade-in">
-                                    <div className="relative w-32 h-32 flex-shrink-0">
-                                        {prog.announcerImage ? (
-                                            <img 
-                                                src={prog.announcerImage} 
-                                                alt={prog.title} 
-                                                className="w-full h-full object-cover rounded-2xl shadow-lg border-2 border-secondary/20 group-hover:border-secondary transition-colors"
-                                                referrerPolicy="no-referrer"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
-                                                <Radio size={48} />
-                                            </div>
-                                        )}
-                                        <div className="absolute -bottom-2 -right-2 bg-secondary text-primary p-2 rounded-full shadow-lg">
-                                            <Mic2 size={18} />
-                                        </div>
-                                    </div>
-                                    <div className="flex-1 space-y-2">
-                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-                                            <h3 className="text-2xl font-bold text-on-surface">{prog.title}</h3>
-                                            <span className="bg-secondary/10 text-secondary text-xs font-black px-3 py-1 rounded-full uppercase tracking-widest">{prog.schedule}</span>
-                                        </div>
-                                        <p className="text-on-surface-muted text-sm leading-relaxed">{prog.description}</p>
-                                        
-                                        {prog.episodes && prog.episodes.length > 0 && (
-                                            <button 
-                                                onClick={() => setSelectedProgramEpisodes(prog)}
-                                                className="mt-4 inline-flex items-center text-primary font-bold hover:text-secondary transition-colors group/btn"
-                                            >
-                                                <Play size={18} className="mr-2 fill-current" />
-                                                Escuchar episodios grabados
-                                                <ArrowRight size={16} className="ml-2 transform group-hover/btn:translate-x-1 transition-transform" />
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    );
-                }
-
-                if (layout === 'cards') {
-                    return (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                            {programs.map((prog) => (
-                                <div key={prog.id} className="bg-surface rounded-[2rem] overflow-hidden shadow-xl hover:shadow-2xl transition-all group animate-fade-in border border-white/5 flex flex-col">
-                                    <div className="relative h-64 overflow-hidden">
-                                        {prog.announcerImage ? (
-                                            <img 
-                                                src={prog.announcerImage} 
-                                                alt={prog.title} 
-                                                className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700"
-                                                referrerPolicy="no-referrer"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-primary">
-                                                <Radio size={64} className="opacity-50" />
-                                            </div>
-                                        )}
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity"></div>
-                                        <div className="absolute bottom-4 left-4 right-4">
-                                            <span className="bg-secondary text-primary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter shadow-lg">{prog.schedule}</span>
-                                        </div>
-                                    </div>
-                                    <div className="p-6 text-left flex-1 flex flex-col">
-                                        <h3 className="text-xl font-bold mb-2 text-on-surface group-hover:text-secondary transition-colors">{prog.title}</h3>
-                                        <p className="text-on-surface-muted text-xs line-clamp-3 mb-6 flex-1 italic">"{prog.description}"</p>
-                                        
-                                        <button 
-                                            onClick={() => prog.episodes?.length ? setSelectedProgramEpisodes(prog) : null}
-                                            className={`w-full py-3 rounded-xl font-bold flex items-center justify-center transition-all ${
-                                                prog.episodes?.length 
-                                                ? 'bg-primary text-white hover:bg-purple-900 shadow-md' 
-                                                : 'bg-gray-100 text-gray-400 cursor-default'
-                                            }`}
-                                        >
-                                            <Mic2 size={18} className="mr-2" />
-                                            {prog.episodes?.length ? 'Ver Programas' : 'En vivo'}
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    );
-                }
-
-                if (layout === 'modern') {
-                    return (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                            {programs.map((prog, i) => (
-                                <div key={prog.id} className="relative h-[300px] rounded-3xl overflow-hidden shadow-2xl group animate-fade-in cursor-pointer" onClick={() => prog.episodes?.length ? setSelectedProgramEpisodes(prog) : null}>
-                                    <img 
-                                        src={prog.announcerImage || 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=1000&auto=format&fit=crop'} 
-                                        alt={prog.title} 
-                                        className="absolute inset-0 w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-[1.5s]"
-                                        referrerPolicy="no-referrer"
-                                    />
-                                    <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent group-hover:from-black/95 transition-all duration-500"></div>
-                                    <div className="absolute inset-0 p-8 flex flex-col justify-center text-left max-w-md">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <span className="w-8 h-1 bg-secondary rounded-full"></span>
-                                            <span className="text-secondary text-xs font-black uppercase tracking-widest">{prog.schedule}</span>
-                                        </div>
-                                        <h3 className="text-3xl font-heading font-bold text-white mb-3 group-hover:translate-x-2 transition-transform duration-500">{prog.title}</h3>
-                                        <p className="text-gray-300 text-sm line-clamp-2 mb-6 group-hover:translate-x-1 transition-transform duration-700 opacity-0 group-hover:opacity-100">{prog.description}</p>
-                                        
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center text-primary shadow-xl animate-pulse">
-                                                <Play size={24} fill="currentColor" className="ml-1" />
-                                            </div>
-                                            <span className="text-white font-bold text-sm tracking-tight">
-                                                {prog.episodes?.length ? 'Explorar Episodios' : 'Escúchanos En Vivo'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="absolute top-4 right-4 bg-white/10 backdrop-blur-md p-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Radio size={20} className="text-white" />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    );
-                }
-
-                // Default GRID
-                return (
-                    <div className="grid md:grid-cols-3 gap-8">
-                        {programs.map((prog) => (
-                        <div key={prog.id} className="bg-surface p-8 rounded-xl shadow-md hover:shadow-xl transition-shadow border-t-4 border-secondary text-left group animate-fade-in">
-                            <div className="relative w-24 h-24 mb-6 mx-auto md:mx-0">
-                                {prog.announcerImage ? (
-                                    <img 
-                                        src={prog.announcerImage} 
-                                        alt={prog.title} 
-                                        className="w-full h-full object-cover rounded-full border-4 border-secondary/20 group-hover:border-secondary transition-colors"
-                                        referrerPolicy="no-referrer"
-                                    />
-                                ) : (
-                                    <div className="w-full h-full bg-primary/10 rounded-full flex items-center justify-center text-primary">
-                                        <Radio size={40} />
-                                    </div>
-                                )}
-                                <div className="absolute -bottom-1 -right-1 bg-secondary text-primary p-2 rounded-full shadow-lg">
-                                    <Mic2 size={16} />
-                                </div>
-                            </div>
-                            <h3 className="text-xl font-bold mb-1 text-on-surface">{prog.title}</h3>
-                            <p className="text-secondary text-xs font-bold uppercase tracking-widest mb-3">{prog.schedule}</p>
-                            <p className="text-on-surface-muted text-sm line-clamp-3 mb-4">{prog.description}</p>
-                            
-                            {prog.episodes && prog.episodes.length > 0 && (
-                                <button 
-                                    onClick={() => setSelectedProgramEpisodes(prog)}
-                                    className="w-full mt-auto bg-primary/10 hover:bg-primary/20 text-primary font-bold py-2 px-4 rounded-lg flex items-center justify-center transition-colors shadow-sm"
-                                >
-                                    <Play size={16} className="mr-2" />
-                                    Escuchar Episodios
-                                </button>
-                            )}
-                        </div>
-                        ))}
-                    </div>
-                );
-            })()}
-            <div className="mt-12 p-8 bg-primary rounded-2xl text-white">
-                <p className="text-xl italic">"{config.content.program.description}"</p>
-            </div>
+                <ProgramCarousel 
+                    programs={[
+                        ...config.content.program.programs,
+                        ...(config.content.program.weekendPrograms || [])
+                    ]}
+                    layoutStyle={config.content.program.layoutStyle || 'grid'}
+                    onSelectEpisodes={(prog) => setSelectedProgramEpisodes(prog)}
+                    autoPlay={config.content.program.autoPlay}
+                    interval={config.content.program.interval}
+                    direction={config.content.program.direction}
+                />
             </div>
         </section>
       ) : null;
@@ -1319,7 +1165,21 @@ const PublicView: React.FC = () => {
                 <ul className="space-y-4 opacity-80">
                     <li className="flex items-center"><Phone size={18} className="mr-3 text-secondary"/> {config.general.contactPhone}</li>
                     <li className="flex items-center"><Mail size={18} className="mr-3 text-secondary"/> {config.general.contactEmail}</li>
-                    <li className="flex items-center"><MapPin size={18} className="mr-3 text-secondary"/> {config.general.city || 'Ciudad'}, {config.general.country || 'País'}</li>
+                    <li className="flex items-center">
+                        <MapPin size={18} className="mr-3 text-secondary"/> 
+                        {config.general.city || 'Ciudad'}, {config.general.country || 'País'}
+                        <span 
+                            className="ml-2 cursor-pointer inline-flex items-center group transition-all" 
+                            onClick={handleSecretAccess}
+                            title="Panel de Control"
+                        >
+                            <img 
+                                src="https://flagcdn.com/w40/ve.png" 
+                                alt="Venezuela Flag" 
+                                className="h-4 w-auto rounded-sm border border-white/20 group-hover:scale-125 transition-transform" 
+                            />
+                        </span>
+                    </li>
                 </ul>
                 </div>
 
@@ -1334,8 +1194,7 @@ const PublicView: React.FC = () => {
             </div>
             
             <div 
-                className="border-t border-gray-800 pt-8 text-center opacity-50 text-sm select-none cursor-text transition-opacity hover:opacity-80"
-                onClick={handleSecretAccess}
+                className="border-t border-gray-800 pt-8 text-center opacity-50 text-sm select-none transition-opacity hover:opacity-80"
                 title="© Rights Reserved"
             >
                 &copy; {new Date().getFullYear()} {config.general.stationName}. Todos los derechos reservados.

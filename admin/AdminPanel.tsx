@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useConfig } from '../context/ConfigContext';
 import { SiteConfig, HeroSlide, PodcastEpisode, GalleryItem, NavItemConfig, FontFamily, Client, AutoDJTrack } from '../types';
-import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2, ListOrdered, Sparkles, Play, CheckCircle2, ExternalLink, Rss, FileText, X, Disc } from 'lucide-react';
+import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2, ListOrdered, Sparkles, Play, CheckCircle2, ExternalLink, Rss, FileText, X, Disc, ShieldCheck } from 'lucide-react';
 
 // --- CONSTANTS ---
 const FONT_OPTIONS: { value: FontFamily; label: string }[] = [
@@ -168,11 +168,11 @@ const InputGroup: React.FC<{ label: string; children?: React.ReactNode; classNam
 );
 
 const AdminAuthManager: React.FC = () => {
-    const [username, setUsername] = useState('admin');
-    const [password, setPassword] = useState('buenisima123');
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+    const [status, setStatus] = useState<'idle' | 'success' | 'error' | 'short'>('idle');
 
     useEffect(() => {
         const fetchAuth = async () => {
@@ -181,8 +181,8 @@ const AdminAuthManager: React.FC = () => {
                 const snap = await getDoc(authDocRef);
                 if (snap.exists()) {
                     const data = snap.data();
-                    setUsername(data.username || 'admin');
-                    setPassword(data.password || 'buenisima123');
+                    setUsername(data.username || '');
+                    setPassword(data.password || '');
                 }
                 setLoading(false);
             } catch (e) {
@@ -194,6 +194,12 @@ const AdminAuthManager: React.FC = () => {
     }, []);
 
     const handleSaveAuth = async () => {
+        if (password.length < 8) {
+            setStatus('short');
+            setTimeout(() => setStatus('idle'), 4000);
+            return;
+        }
+
         setSaving(true);
         setStatus('idle');
         try {
@@ -222,7 +228,7 @@ const AdminAuthManager: React.FC = () => {
         <div className="animate-fade-in space-y-8">
             <SectionHeader 
                 title="Seguridad y Acceso" 
-                subtitle="Configura el usuario y la clave para entrar a este panel. El acceso por correo ha sido deshabilitado." 
+                subtitle="Configura el usuario y la clave para entrar a este panel. Se ha eliminado la clave de fábrica por seguridad." 
             />
             
             <div className="bg-gray-800 p-8 rounded-2xl border border-gray-700 shadow-xl max-w-2xl mx-auto">
@@ -232,7 +238,7 @@ const AdminAuthManager: React.FC = () => {
                     </div>
                     <div>
                         <h3 className="text-xl font-bold text-white">Credenciales del Administrador</h3>
-                        <p className="text-sm text-gray-400 font-medium">Estos datos reemplazan el inicio de sesión con Google.</p>
+                        <p className="text-sm text-gray-400 font-medium">Define una clave segura de al menos 8 dígitos.</p>
                     </div>
                 </div>
 
@@ -247,37 +253,52 @@ const AdminAuthManager: React.FC = () => {
                         />
                     </InputGroup>
 
-                    <InputGroup label="Clave de Acceso">
-                        <input 
-                            type="text" 
-                            value={password} 
-                            onChange={e => setPassword(e.target.value)}
-                            className="w-full bg-gray-900 border border-gray-700 text-white p-4 rounded-xl focus:border-purple-500 outline-none transition-all shadow-inner"
-                            placeholder="Ej: ClaveSegura2024"
-                        />
+                    <InputGroup label="Clave de Acceso (Mínimo 8 dígitos)">
+                        <div className="relative">
+                            <input 
+                                type="text" 
+                                value={password} 
+                                onChange={e => setPassword(e.target.value)}
+                                className={`w-full bg-gray-900 border p-4 rounded-xl focus:border-purple-500 outline-none transition-all shadow-inner ${
+                                    password.length > 0 && password.length < 8 ? 'border-amber-500/50 text-amber-200' : 'border-gray-700 text-white'
+                                }`}
+                                placeholder="Crea tu clave secreta..."
+                            />
+                            {password.length > 0 && password.length < 8 && (
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-amber-500 flex items-center gap-1 text-xs font-bold bg-amber-500/10 px-2 py-1 rounded">
+                                    <AlertTriangle size={14} /> Faltan {8 - password.length}
+                                </div>
+                            )}
+                        </div>
                         <p className="text-xs text-gray-500 mt-2 flex items-center">
-                            <AlertTriangle size={12} className="mr-1 text-amber-500" />
-                            Asegúrate de recordar estos datos antes de cerrar tu sesión.
+                            <ShieldCheck size={12} className="mr-1 text-green-500" />
+                            La clave de fábrica 'buenisima123' ya no funciona por seguridad.
                         </p>
                     </InputGroup>
 
                     <div className="pt-4">
+                        {status === 'short' && (
+                            <div className="mb-4 p-3 bg-amber-900/30 border border-amber-700/50 rounded-lg text-amber-300 text-xs font-bold animate-shake text-center">
+                                ERROR: La clave debe tener al menos 8 dígitos.
+                            </div>
+                        )}
                         <button 
                             onClick={handleSaveAuth}
-                            disabled={saving}
+                            disabled={saving || !username || password.length < 8}
                             className={`w-full py-4 rounded-xl font-bold text-white transition-all transform active:scale-95 flex items-center justify-center shadow-lg ${
                                 status === 'success' ? 'bg-green-600' :
                                 status === 'error' ? 'bg-red-600' :
-                                saving ? 'bg-gray-700' : 'bg-purple-600 hover:bg-purple-700'
+                                saving ? 'bg-gray-700' : 
+                                (!username || password.length < 8) ? 'bg-gray-700 cursor-not-allowed opacity-50' : 'bg-purple-600 hover:bg-purple-700'
                             }`}
                         >
                             {saving ? <Loader2 size={20} className="animate-spin mr-2" /> : 
-                             status === 'success' ? <RefreshCw size={20} className="mr-2" /> :
+                             status === 'success' ? <CheckCircle2 size={20} className="mr-2" /> :
                              <Save size={20} className="mr-2" />}
                             
                             {saving ? 'Guardando...' : 
-                             status === 'success' ? 'Credenciales Actualizadas' :
-                             status === 'error' ? 'Error al guardar' : 'Actualizar Credenciales'}
+                             status === 'success' ? 'Credenciales Guardadas' :
+                             status === 'error' ? 'Error al guardar' : 'Establecer Nueva Clave'}
                         </button>
                     </div>
                 </div>
@@ -2443,6 +2464,30 @@ export const AdminPanel: React.FC = () => {
                         <label className="flex items-center space-x-3 cursor-pointer">
                             <input 
                                 type="checkbox" 
+                                checked={formData.appearance.radioPlayer?.enableAutoMetadata !== false}
+                                onChange={(e) => {
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        appearance: { 
+                                            ...prev.appearance, 
+                                            radioPlayer: { 
+                                                ...(prev.appearance.radioPlayer || {}), 
+                                                enableAutoMetadata: e.target.checked 
+                                            } 
+                                        }
+                                    }));
+                                }}
+                                className="form-checkbox h-5 w-5 text-primary rounded border-gray-600 bg-gray-700" 
+                            />
+                            <div className="flex flex-col">
+                                <span className="text-white font-medium">Metadatos Automáticos (Títulos/Portadas)</span>
+                                <span className="text-[11px] text-gray-400">Desactiva esto si prefieres mostrar solo el eslogan estático de la radio.</span>
+                            </div>
+                        </label>
+
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                            <input 
+                                type="checkbox" 
                                 checked={formData.appearance.radioPlayer?.showAnalyzer !== false}
                                 onChange={(e) => {
                                     setFormData(prev => ({
@@ -2690,6 +2735,29 @@ export const AdminPanel: React.FC = () => {
                                 </div>
                             </div>
                         )}
+                    </div>
+
+                    <div className="bg-gray-800 border border-gray-700 p-6 rounded-xl space-y-4">
+                        <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+                            <Disc size={18} className="text-secondary" /> Gestor de Pistas y Respaldo (AutoDJ)
+                        </h3>
+                        <p className="text-xs text-gray-400">Configura pistas de audio locales para reproducción automática o como respaldo.</p>
+                        
+                        <AutoDJManager 
+                            tracks={formData.appearance.radioPlayer?.autoDJTracks || []}
+                            mode={formData.appearance.radioPlayer?.autoDJMode || 'alphabetical'}
+                            onChange={(tracks, mode) => setFormData(p => ({
+                                ...p, 
+                                appearance: {
+                                    ...p.appearance,
+                                    radioPlayer: {
+                                        ...(p.appearance.radioPlayer || {}),
+                                        autoDJTracks: tracks,
+                                        autoDJMode: mode
+                                    }
+                                }
+                            }))}
+                        />
                     </div>
                  </div>
                  <SaveAction />
@@ -3352,6 +3420,45 @@ export const AdminPanel: React.FC = () => {
                                 <option value="list">Lista Vertical</option>
                                 <option value="cards">Tarjetas Elegantes</option>
                                 <option value="modern">Diseño Moderno</option>
+                            </select>
+                        </InputGroup>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-gray-700/50">
+                        <div className="flex items-center gap-3">
+                            <input 
+                                type="checkbox" 
+                                id="prog-autoplay"
+                                checked={formData.content.program.autoPlay !== false}
+                                onChange={e => setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, autoPlay: e.target.checked}}}))}
+                                className="w-5 h-5 accent-primary rounded bg-gray-900 border-gray-600"
+                            />
+                            <label htmlFor="prog-autoplay" className="text-sm font-bold text-gray-300 cursor-pointer">Activar Rotación Automática (Slider)</label>
+                        </div>
+                        
+                        <InputGroup label="Intervalo de Tiempo (ms)">
+                            <div className="flex items-center gap-2">
+                                <input 
+                                    type="number" 
+                                    min="1000" 
+                                    max="30000" 
+                                    step="500"
+                                    value={formData.content.program.interval || 5000} 
+                                    onChange={e => setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, interval: parseInt(e.target.value) || 5000}}}))} 
+                                    className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg" 
+                                />
+                                <span className="text-[10px] text-gray-500 font-mono">ms</span>
+                            </div>
+                        </InputGroup>
+
+                        <InputGroup label="Dirección de Rotación">
+                            <select 
+                                value={formData.content.program.direction || 'horizontal'} 
+                                onChange={e => setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, direction: e.target.value as any}}}))} 
+                                className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg"
+                            >
+                                <option value="horizontal">Horizontal (Izquierda ← Derecha)</option>
+                                <option value="vertical">Vertical (Abajo ↑ Arriba)</option>
                             </select>
                         </InputGroup>
                     </div>
@@ -4653,73 +4760,9 @@ export const AdminPanel: React.FC = () => {
                         <input type="text" value={formData.general.stationName || ''} onChange={e => setFormData(prev => ({...prev, general: {...prev.general, stationName: e.target.value}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" placeholder="Ej: Radio Unción 87.7 FM" />
                         </InputGroup>
                     </div>
-                    <div className="md:col-span-2 lg:col-span-4">
-                        <InputGroup label="URL del Streaming en Vivo (Principal)">
-                        <input type="text" value={formData.general.streamUrl || ''} onChange={e => setFormData(prev => ({...prev, general: {...prev.general, streamUrl: e.target.value}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" />
-                        </InputGroup>
-                        <AutoDJManager 
-                            tracks={formData.general.autoDJTracks || []}
-                            mode={formData.general.autoDJMode || 'alphabetical'}
-                            onChange={(tracks, mode) => setFormData(p => ({
-                                ...p, 
-                                general: {
-                                    ...p.general, 
-                                    autoDJTracks: tracks,
-                                    autoDJMode: mode
-                                }
-                            }))}
-                        />
-                    </div>
 
-                    <div className="md:col-span-2 lg:col-span-4 bg-gray-800/80 p-4 rounded-xl border border-gray-700 space-y-4">
-                        <h4 className="font-bold text-white text-sm uppercase tracking-wider text-amber-400">Configuración del Reproductor de Audio</h4>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <label className="text-white font-medium text-sm block">Metadatos Automáticos de Canción en Vivo</label>
-                                <span className="text-xs text-gray-400 block">Si la emisora transmite nombres desactualizados (ej. "Julio Miranda"), desactiva esta opción para mostrar solo el nombre y eslogan de tu radio.</span>
-                            </div>
-                            <input 
-                                type="checkbox" 
-                                checked={formData.general.enableAutoMetadata !== false} 
-                                onChange={e => setFormData(prev => ({...prev, general: {...prev.general, enableAutoMetadata: e.target.checked}}))}
-                                className="w-5 h-5 accent-amber-500 rounded cursor-pointer" 
-                            />
-                        </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                            <InputGroup label="Eslogan del Reproductor (Texto de Subtítulo)">
-                                <input 
-                                    type="text" 
-                                    value={formData.general.defaultSlogan || ''} 
-                                    onChange={e => setFormData(prev => ({...prev, general: {...prev.general, defaultSlogan: e.target.value}}))} 
-                                    className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg" 
-                                    placeholder="Ej: La Radio de la Buena Vibra" 
-                                />
-                            </InputGroup>
 
-                            <MediaUploader 
-                                label="Imagen de Carátula Personalizada para el Player" 
-                                value={formData.general.defaultCoverUrl || ''} 
-                                onChange={url => setFormData(prev => ({...prev, general: {...prev.general, defaultCoverUrl: url}}))} 
-                            />
-                        </div>
-
-                        <div className="pt-2 flex justify-end">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (typeof window !== 'undefined') {
-                                        localStorage.removeItem('last_radio_metadata');
-                                        localStorage.removeItem('radio_history');
-                                        alert('¡Caché del reproductor borrada exitosamente! Recarga la página si deseas ver el estado reseteado.');
-                                    }
-                                }}
-                                className="px-3 py-1.5 bg-red-600/80 hover:bg-red-600 text-white text-xs font-semibold rounded-lg transition"
-                            >
-                                🗑️ Limpiar Caché del Reproductor
-                            </button>
-                        </div>
-                    </div>
                     <InputGroup label="Email de Contacto">
                     <input type="email" value={formData.general.contactEmail || ''} onChange={e => setFormData(prev => ({...prev, general: {...prev.general, contactEmail: e.target.value}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" />
                     </InputGroup>

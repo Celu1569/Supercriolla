@@ -5,17 +5,11 @@ export const DEFAULT_CONFIG: SiteConfig = {
     stationName: "BUENÍSIMA",
     // User provided stream
     streamUrl: "https://redradioypc.com:8010/live", 
-    fallbackStreamUrl: "",
-    autoDJTracks: [],
-    autoDJMode: 'alphabetical',
     logoUrl: "https://i.ibb.co/ZptWRz8G/LOGO-2.png", 
     contactEmail: "contacto@buenisima.com",
     contactPhone: "+584144105077",
     city: "Valencia",
     country: "Venezuela",
-    enableAutoMetadata: true,
-    defaultSlogan: "La Radio de la Buena Vibra",
-    defaultCoverUrl: "/images/default-cover.svg"
   },
   navigation: {
     logoUrl: "https://i.ibb.co/ZptWRz8G/LOGO-2.png",
@@ -57,7 +51,11 @@ export const DEFAULT_CONFIG: SiteConfig = {
       videoHeight: 180,
       videoLayout: 'compact',
       playerStyle: 'modern',
-      customCoverUrl: "",
+      customCoverUrl: "https://i.ibb.co/kVQLN1F1/Logo-Buenisima-esfera-512x256.png",
+      slogan: "La Radio de la Buena Vibra",
+      autoDJTracks: [],
+      autoDJMode: 'alphabetical',
+      enableAutoMetadata: true,
     }
   },
   content: {
@@ -109,6 +107,9 @@ export const DEFAULT_CONFIG: SiteConfig = {
       title: "Nuestra Programación",
       description: "La mejor selección musical y entretenimiento para llenar tu día de buena vibra.",
       layoutStyle: 'grid',
+      autoPlay: true,
+      interval: 5000,
+      direction: 'horizontal',
       programs: [
         {
           id: 'prog-1',

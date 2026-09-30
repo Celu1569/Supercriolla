@@ -37,6 +37,9 @@ export interface ProgramConfig {
   programs: ProgramItem[];
   weekendPrograms?: ProgramItem[]; // New: Programming for weekends
   layoutStyle?: 'grid' | 'list' | 'cards' | 'modern'; // New: Template selection
+  autoPlay?: boolean;
+  interval?: number;
+  direction?: 'horizontal' | 'vertical';
 }
 
 export interface PodcastConfig {
@@ -280,23 +283,21 @@ export interface RadioPlayerConfig {
   videoLayout?: 'compact' | 'full';
   playerStyle?: 'modern' | 'card' | 'retro' | 'compact' | 'sticky';
   customCoverUrl?: string;
+  slogan?: string;
+  autoDJTracks?: AutoDJTrack[];
+  autoDJMode?: 'alphabetical' | 'random';
+  enableAutoMetadata?: boolean;
 }
 
 export interface SiteConfig {
   general: {
     stationName: string;
     streamUrl: string;
-    fallbackStreamUrl?: string; // Audio file to play when stream fails
-    autoDJTracks?: AutoDJTrack[];
-    autoDJMode?: 'alphabetical' | 'random';
     logoUrl: string; // Deprecated in favor of navigation.logoUrl, kept for legacy compatibility
     contactEmail: string;
     contactPhone: string;
     city?: string;
     country?: string;
-    enableAutoMetadata?: boolean;
-    defaultSlogan?: string;
-    defaultCoverUrl?: string;
   };
   navigation: NavigationConfig;
   appearance: {

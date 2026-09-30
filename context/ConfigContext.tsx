@@ -15,6 +15,7 @@ interface ConfigContextType {
   login: (username?: string, password?: string) => Promise<boolean>;
   logout: () => void;
   resetDefaultAuth: () => Promise<boolean>;
+  saveAuth: (username: string, password: string) => Promise<boolean>;
 }
 
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
@@ -232,32 +233,49 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
     c.content.clients = DEFAULT_CONFIG.content.clients ? [...DEFAULT_CONFIG.content.clients] : [];
   }
 
-  // Radio Player appearance
+  // Radio Player appearance and logic consolidation
   if (!c.appearance.radioPlayer) {
     c.appearance.radioPlayer = { ...DEFAULT_CONFIG.appearance.radioPlayer };
   } else {
-    if (c.appearance.radioPlayer.showAnalyzer === undefined) c.appearance.radioPlayer.showAnalyzer = true;
-    // Always enable live metadata and cover art so listeners see song titles and covers
-    c.appearance.radioPlayer.showMetadata = true;
-    c.appearance.radioPlayer.showCover = true;
-    if (c.appearance.radioPlayer.videoMode === undefined) c.appearance.radioPlayer.videoMode = false;
-    if (!c.appearance.radioPlayer.videoUrl) c.appearance.radioPlayer.videoUrl = '';
-    if (!c.appearance.radioPlayer.videoLayout) c.appearance.radioPlayer.videoLayout = 'compact';
-    if (!c.appearance.radioPlayer.playerStyle) c.appearance.radioPlayer.playerStyle = 'card';
-    if (c.appearance.radioPlayer.customCoverUrl) {
-      c.appearance.radioPlayer.customCoverUrl = resolveDirectImageUrl(c.appearance.radioPlayer.customCoverUrl);
-    } else {
-      c.appearance.radioPlayer.customCoverUrl = 'https://i.ibb.co/kVQLN1F1/Logo-Buenisima-esfera-512x256.png';
+    const rp = c.appearance.radioPlayer;
+    const gen = c.general as any;
+
+    // Migrate from General to RadioPlayer if present
+    if (gen.autoDJTracks && (!rp.autoDJTracks || rp.autoDJTracks.length === 0)) {
+        rp.autoDJTracks = gen.autoDJTracks;
     }
-    if (c.appearance.radioPlayer.videoWidth === undefined) c.appearance.radioPlayer.videoWidth = 200;
-    if (c.appearance.radioPlayer.videoHeight === undefined) c.appearance.radioPlayer.videoHeight = 112;
+    if (gen.autoDJMode && !rp.autoDJMode) {
+        rp.autoDJMode = gen.autoDJMode;
+    }
+    if (gen.defaultSlogan && !rp.slogan) {
+        rp.slogan = gen.defaultSlogan;
+    }
+    if (gen.defaultCoverUrl && !rp.customCoverUrl) {
+        rp.customCoverUrl = gen.defaultCoverUrl;
+    }
+
+    if (rp.showAnalyzer === undefined) rp.showAnalyzer = true;
+    // Always enable live metadata and cover art so listeners see song titles and covers
+    rp.showMetadata = true;
+    rp.showCover = true;
+    if (rp.videoMode === undefined) rp.videoMode = false;
+    if (!rp.videoUrl) rp.videoUrl = '';
+    if (!rp.videoLayout) rp.videoLayout = 'compact';
+    if (!rp.playerStyle) rp.playerStyle = 'modern';
+    
+    if (rp.customCoverUrl) {
+      rp.customCoverUrl = resolveDirectImageUrl(rp.customCoverUrl);
+    } else {
+      rp.customCoverUrl = 'https://i.ibb.co/kVQLN1F1/Logo-Buenisima-esfera-512x256.png';
+    }
+    
+    if (rp.videoWidth === undefined) rp.videoWidth = 320;
+    if (rp.videoHeight === undefined) rp.videoHeight = 180;
+    
+    if (!rp.slogan) rp.slogan = "La Radio de la Buena Vibra";
+    if (!rp.autoDJTracks) rp.autoDJTracks = [];
+    if (!rp.autoDJMode) rp.autoDJMode = 'alphabetical';
   }
-  if (!c.general.defaultCoverUrl || c.general.defaultCoverUrl.includes('ibb.co/V02Ffm8m')) {
-    c.general.defaultCoverUrl = 'https://i.ibb.co/kVQLN1F1/Logo-Buenisima-esfera-512x256.png';
-  } else {
-    c.general.defaultCoverUrl = resolveDirectImageUrl(c.general.defaultCoverUrl);
-  }
-  c.general.enableAutoMetadata = true;
 
   // Program section
   if (!c.content.program) {
@@ -405,83 +423,53 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
     const cleanUser = (username || '').trim().toLowerCase();
     const cleanPass = (password || '').trim();
 
-    // Emergency Fallback Usernames & Passwords
-    const isAdminUser = cleanUser === 'admin' || 
-                        cleanUser === 'administrador' ||
-                        cleanUser === 'buenisima' || 
-                        cleanUser === 'buenisimaradio' || 
-                        cleanUser === 'uncion' ||
-                        cleanUser === 'uncionradio' ||
-                        cleanUser === 'uncionradio87.7fm' || 
-                        cleanUser === 'uncionradio87.7fm@gmail.com';
-
-    const isUniversalMasterPass = cleanPass === 'buenisima123' || 
-                                  cleanPass === 'admin' || 
-                                  cleanPass === 'admin123' || 
-                                  cleanPass === '123456';
-
-    if (!hasFirebaseKeys) {
-        if (isAdminUser || cleanPass === 'buenisima123') {
-            setIsAuthenticated(true);
-            localStorage.setItem('radio_admin_auth', 'true');
-            return true;
-        }
+    if (!hasFirebaseKeys || !db) {
+        // Standalone mode - no auth possible without Firebase
         return false;
     }
     
     try {
       const authDocRef = doc(db, 'settings', 'auth');
       const snap = await getDoc(authDocRef).catch(err => {
-          console.warn("Error al leer credenciales desde Firestore, usando modo emergencia:", err);
+          console.warn("Error al leer credenciales desde Firestore:", err);
           return null;
       });
       
-      let validUser = 'admin';
-      let validPass = 'buenisima123';
-      
       if (snap && snap.exists()) {
         const data = snap.data();
-        validUser = (data.username || validUser).trim().toLowerCase();
-        validPass = (data.password || validPass).trim();
-      } else {
-        // If auth doc doesn't exist, initialize it with default so user is never locked out
-        try {
-          await setDoc(authDocRef, { username: 'admin', password: 'buenisima123' });
-        } catch (initErr) {
-          console.error("Could not initialize auth doc", initErr);
+        const validUser = (data.username || '').trim().toLowerCase();
+        const validPass = (data.password || '').trim();
+        
+        if (cleanUser === validUser && cleanPass === validPass && validPass.length >= 8) {
+          setIsAuthenticated(true);
+          localStorage.setItem('radio_admin_auth', 'true');
+          return true;
         }
-      }
-
-      const matchesRemote = (cleanUser === validUser && cleanPass === validPass);
-      const matchesMaster = isUniversalMasterPass && (isAdminUser || cleanUser === validUser || cleanUser === 'admin');
-
-      if (matchesRemote || matchesMaster) {
-        setIsAuthenticated(true);
-        localStorage.setItem('radio_admin_auth', 'true');
-        return true;
       }
       
       return false;
     } catch (e) {
-      console.warn("Firestore Auth Error, falling back to emergency access:", e);
-      if (isAdminUser || isUniversalMasterPass) {
-          setIsAuthenticated(true);
-          localStorage.setItem('radio_admin_auth', 'true');
-          return true;
-      }
+      console.error("Firestore Auth Error:", e);
       return false;
     }
   };
 
   const resetDefaultAuth = async () => {
+    // Only allow resetting to a specific secure key if requested, 
+    // but the user wants to ELIMINATE the factory default.
+    // I will return false to disable this feature or make it a no-op that needs manual Firestore action.
+    console.warn("Reset to default auth disabled for security.");
+    return false;
+  };
+
+  const saveAuth = async (username: string, password: string) => {
+    if (!hasFirebaseKeys || !db) return false;
     try {
-      if (hasFirebaseKeys && db) {
-        const authDocRef = doc(db, 'settings', 'auth');
-        await setDoc(authDocRef, { username: 'admin', password: 'buenisima123' });
-      }
+      const authDocRef = doc(db, 'settings', 'auth');
+      await setDoc(authDocRef, { username, password });
       return true;
     } catch (e) {
-      console.error("Error resetting auth to defaults", e);
+      console.error("Error saving auth:", e);
       return false;
     }
   };
@@ -497,7 +485,7 @@ export const ConfigProvider = ({ children }: ConfigProviderProps) => {
   };
 
   return (
-    <ConfigContext.Provider value={{ config, updateConfig, resetConfig, isAuthenticated, isConfigLoaded, login, logout, resetDefaultAuth }}>
+    <ConfigContext.Provider value={{ config, updateConfig, resetConfig, isAuthenticated, isConfigLoaded, login, logout, resetDefaultAuth, saveAuth }}>
       {children}
     </ConfigContext.Provider>
   );

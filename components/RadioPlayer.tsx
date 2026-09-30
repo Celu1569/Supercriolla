@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { resolveDirectImageUrl } from '../utils/imageUrl';
 import { io, Socket } from 'socket.io-client';
 
-const DEFAULT_COVER = "/images/default-cover.svg";
+const DEFAULT_COVER = "https://i.ibb.co/kVQLN1F1/Logo-Buenisima-esfera-512x256.png";
 
 export const RadioPlayer: React.FC = () => {
   const { config } = useConfig();
@@ -30,6 +30,11 @@ export const RadioPlayer: React.FC = () => {
   const [isLiveConnected, setIsLiveConnected] = useState(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef(0);
+
+  // Fallback values from config
+  const stationName = config.general.stationName || 'BUENÍSIMA 87.7 FM';
+  const defaultSlogan = config.appearance.radioPlayer?.slogan || config.general.defaultSlogan || 'La Radio de la Buena Vibra';
+
   const [metadata, setMetadata] = useState<{ title: string; artist: string; cover: string }>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -38,26 +43,28 @@ export const RadioPlayer: React.FC = () => {
           const parsed = JSON.parse(cached);
           if (parsed && (parsed.title || parsed.artist)) {
             return {
-              title: parsed.title || '',
-              artist: parsed.artist || '',
-              cover: parsed.cover || ''
+              title: parsed.title || stationName,
+              artist: parsed.artist || defaultSlogan,
+              cover: parsed.cover || DEFAULT_COVER
             };
           }
         }
       } catch (_) {}
     }
-    return { title: '', artist: '', cover: '' };
+    return { title: stationName, artist: defaultSlogan, cover: DEFAULT_COVER };
   });
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
 
   // Apply new metadata smoothly
   const applyMetadata = useCallback((data: { title?: string; artist?: string; cover?: string }) => {
-    if (!data || (!data.title && !data.artist)) return;
+    if (!data) return;
+    
     const sanitized = {
-      title: data.title || '',
-      artist: data.artist || '',
-      cover: data.cover || ''
+      title: (data.title && data.title !== 'Sintonizando...') ? data.title : stationName,
+      artist: (data.artist && data.artist !== 'BUENÍSIMA 87.7 FM') ? data.artist : defaultSlogan,
+      cover: data.cover || DEFAULT_COVER
     };
+
     setMetadata(prev => {
       if (prev.title === sanitized.title && prev.artist === sanitized.artist && prev.cover === sanitized.cover) {
         return prev;
@@ -69,7 +76,7 @@ export const RadioPlayer: React.FC = () => {
       } catch (_) {}
       return sanitized;
     });
-  }, []);
+  }, [stationName, defaultSlogan]);
 
   // Fetch metadata via HTTP polling API
   const fetchMetadata = useCallback(async () => {
@@ -146,10 +153,10 @@ export const RadioPlayer: React.FC = () => {
     };
   }, [applyMetadata]);
 
-  // 3. Regular Polling Interval (every 5 seconds) to guarantee no stagnation
+  // 3. Regular Polling Interval (every 15 seconds) to guarantee no stagnation
   useEffect(() => {
     fetchMetadata();
-    const interval = setInterval(fetchMetadata, 5000);
+    const interval = setInterval(fetchMetadata, 15000); // Increased interval to reduce redundant calls
 
     const handleVisibilityChange = () => {
       if (!document.hidden) {
@@ -171,22 +178,20 @@ export const RadioPlayer: React.FC = () => {
     };
   }, [fetchMetadata]);
 
-  // Fallback values from config
-  const stationName = config.general.stationName || 'BUENÍSIMA 87.7 FM';
-  const defaultSlogan = config.general.defaultSlogan || 'La Radio de la Buena Vibra';
-  const displayTitle = metadata.title || stationName;
-  const displayArtist = metadata.artist || defaultSlogan;
+  // Consolidated values from config
+  const showAutoMetadata = config.appearance.radioPlayer?.enableAutoMetadata !== false;
+  const displayTitle = showAutoMetadata ? (metadata.title || stationName) : stationName;
+  const displayArtist = showAutoMetadata ? (metadata.artist || defaultSlogan) : defaultSlogan;
 
   // Selected player style and custom covers
   const playerStyle = config.appearance.radioPlayer?.playerStyle || 'modern';
-  const customCover = resolveDirectImageUrl(config.appearance.radioPlayer?.customCoverUrl);
-  const defaultStationCover = resolveDirectImageUrl(config.general.defaultCoverUrl);
+  const displayCover = resolveDirectImageUrl(config.appearance.radioPlayer?.customCoverUrl) || DEFAULT_COVER;
   
-  // Smart cover selection: live song artwork from Apple/iTunes first; if none, station logo; fallback SVG
-  const isMusicCover = !!(metadata.cover && metadata.cover.startsWith('http') && !metadata.cover.includes('default-cover.svg'));
-  const displayCover = isMusicCover 
-    ? metadata.cover 
-    : (customCover || defaultStationCover || metadata.cover || DEFAULT_COVER);
+  // Use metadata cover ONLY if it's a real music cover from iTunes, otherwise use station default
+  const isMusicCover = !!(metadata.cover && metadata.cover.startsWith('http') && 
+                        !metadata.cover.includes('Logo-Buenisima-esfera') && 
+                        !metadata.cover.includes('i.ibb.co'));
+  const finalCover = isMusicCover ? metadata.cover : displayCover;
 
   const videoUrl = config.appearance.radioPlayer?.videoUrl || '';
   const isVideoMode = config.appearance.radioPlayer?.videoMode && videoUrl;
@@ -418,7 +423,7 @@ export const RadioPlayer: React.FC = () => {
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     const target = e.currentTarget;
-    const fallback = customCover || defaultStationCover || DEFAULT_COVER;
+    const fallback = displayCover || DEFAULT_COVER;
     if (target.src !== fallback && fallback) {
       target.src = fallback;
     } else if (target.src !== DEFAULT_COVER) {
@@ -725,7 +730,7 @@ export const RadioPlayer: React.FC = () => {
                     hasError ? 'bg-rose-500' : 'bg-gray-500'
                   }`}></span>
                   <span className="text-[10px] font-bold text-yellow-400 uppercase tracking-widest truncate">
-                    {hasError ? 'Sin audio • Clic Play' : (isReconnecting ? 'Reconectando...' : (isBuffering && isPlaying ? 'Sintonizando...' : displayArtist))}
+                    {hasError ? 'Sin audio • Clic Play' : (isReconnecting ? 'Reconectando...' : (isBuffering && isPlaying ? 'Sintonizando...' : (displayArtist !== defaultSlogan ? displayArtist : '')))}
                   </span>
                 </div>
                 <h4 className="text-sm font-black text-white truncate max-w-sm sm:max-w-md">{displayTitle}</h4>
@@ -863,9 +868,9 @@ export const RadioPlayer: React.FC = () => {
                                 key={displayArtist}
                                 initial={{ opacity: 0, x: -10 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                className="text-xs sm:text-sm font-black text-secondary uppercase tracking-[0.2em] truncate drop-shadow-md flex items-center gap-1.5"
+                                className="text-xs sm:text-sm font-black text-secondary uppercase tracking-[0.1em] sm:tracking-[0.2em] line-clamp-1 drop-shadow-md flex items-center gap-1.5"
                               >
-                                  <span>{hasError ? 'Señal interrumpida - Toca Reproducir para reintentar' : (isReconnecting ? 'Reconectando transmisión de audio...' : displayArtist)}</span>
+                                  <span>{hasError ? 'Señal interrumpida - Toca Reproducir' : (isReconnecting ? 'Reconectando...' : displayArtist)}</span>
                                   <button onClick={fetchMetadata} title="Comprobar título en vivo" className="text-gray-400 hover:text-white transition-colors">
                                     <RefreshCw size={12} className={isFetchingMetadata ? 'animate-spin text-secondary' : ''} />
                                   </button>
@@ -876,7 +881,7 @@ export const RadioPlayer: React.FC = () => {
                         key={displayTitle}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="text-xl sm:text-2xl lg:text-3xl font-black text-white truncate drop-shadow-2xl leading-tight tracking-tight"
+                        className="text-lg sm:text-2xl lg:text-3xl font-black text-white line-clamp-1 sm:line-clamp-2 drop-shadow-2xl leading-tight tracking-tight"
                         title={displayTitle}
                       >
                           {(config.appearance.radioPlayer?.showMetadata !== false) ? displayTitle : stationName}
