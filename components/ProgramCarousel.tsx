@@ -57,6 +57,7 @@ export const ProgramCarousel: React.FC<ProgramCarouselProps> = ({
     const timer = setInterval(() => {
       if (scrollRef.current) {
         const el = scrollRef.current;
+        
         if (direction === 'horizontal') {
           // Explicitly scroll from right to left (RTL) effect by moving container left
           const isAtEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 20;
@@ -79,7 +80,7 @@ export const ProgramCarousel: React.FC<ProgramCarouselProps> = ({
           }
         }
       }
-    }, Math.max(2000, interval));
+    }, Math.max(2000, (interval && interval < 100) ? interval * 1000 : (interval || 5000)));
 
     return () => clearInterval(timer);
   }, [autoPlay, interval, direction, programs.length]);

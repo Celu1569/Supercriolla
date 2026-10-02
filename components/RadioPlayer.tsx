@@ -215,13 +215,23 @@ export const RadioPlayer: React.FC = () => {
   // Stream URLs helper (direct stream + server-side proxy fallback)
   const getStreamUrls = useCallback(() => {
     const rawDirect = config.general.streamUrl || 'https://redradioypc.com:8010/live';
+    
+    // Check for mixed content issues
+    const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    const isHttpStream = rawDirect.startsWith('http:');
+    const hasNonStandardPort = /:\d+/.test(rawDirect) && !rawDirect.includes(':443') && !rawDirect.includes(':80');
+    
+    // Automatically prefer proxy if we anticipate mixed content or SSL issues (non-standard ports)
+    const shouldPreferProxy = (isHttpsPage && isHttpStream) || hasNonStandardPort;
+
     let directUrl = rawDirect;
     if (/^https?:\/\/[^/]+\/?$/.test(directUrl) && !directUrl.includes('?')) {
       directUrl = `${directUrl}${directUrl.endsWith('/') ? '' : '/'};`;
     }
     const directWithCb = `${directUrl}${directUrl.includes('?') ? '&' : '?'}cb=${Date.now()}`;
     const proxyUrl = `/api/stream?url=${encodeURIComponent(rawDirect)}&cb=${Date.now()}`;
-    return { directUrl: directWithCb, proxyUrl, rawDirect };
+    
+    return { directUrl: directWithCb, proxyUrl, rawDirect, shouldPreferProxy };
   }, [config.general.streamUrl]);
 
   // Audio Visualizer effect (safely isolated so errors never mute or cut audio)
@@ -367,10 +377,13 @@ export const RadioPlayer: React.FC = () => {
           setIsBuffering(true);
           retryCountRef.current = 0;
 
-          const { directUrl, proxyUrl } = getStreamUrls();
-          // Use direct stream as default, with proxy as immediate fallback
-          const useSource = activeSource || 'direct';
+          const { directUrl, proxyUrl, shouldPreferProxy } = getStreamUrls();
+          
+          // Use proxy if preferred or if already selected
+          const useSource = activeSource || (shouldPreferProxy ? 'proxy' : 'direct');
           const finalUrl = useSource === 'proxy' ? proxyUrl : directUrl;
+          
+          console.log(`[Player] Attempting playback with source: ${useSource}`);
           
           if (useSource === 'proxy') {
             audioRef.current.crossOrigin = "anonymous";
@@ -388,8 +401,9 @@ export const RadioPlayer: React.FC = () => {
               fetchMetadata();
           } catch (e: any) {
               if (e.name !== 'AbortError') {
-                  // Direct stream failed - immediately retry with server proxy
-                  handleStreamRecovery('proxy');
+                  console.warn(`[Player] ${useSource} playback failed:`, e.message);
+                  // If direct failed, try proxy. If proxy failed, try direct (though proxy is usually more reliable)
+                  handleStreamRecovery(useSource === 'direct' ? 'proxy' : 'direct');
               }
           }
       }

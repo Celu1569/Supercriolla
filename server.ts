@@ -232,67 +232,74 @@ async function startServer() {
     if (!streamUrl) return cachedMetadata;
 
     let rawTitle = "";
+    const parsedUrl = new URL(streamUrl);
+    const host = parsedUrl.host;
+    // Use http for metadata check to avoid common SSL cert issues on radio ports
+    const httpStatusUrl = `http://${host}/status-json.xsl`;
+    const httpsStatusUrl = `https://${host}/status-json.xsl`;
 
     // Method 1: Improved Icecast status-json.xsl check
-    try {
-      const urlModule = (await import('url')).default;
-      const parsed = urlModule.parse(streamUrl);
-      const jsonStatusUrl = `${parsed.protocol}//${parsed.host}/status-json.xsl`;
-      
-      console.log(`[Metadata] Fetching from JSON: ${jsonStatusUrl}`);
-      
-      const statusRes = await axios.get(jsonStatusUrl, {
-        httpsAgent: httpsAgent,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Accept': 'application/json, text/plain, */*'
-        },
-        responseType: 'text',
-        timeout: 4000
-      });
+    const tryJson = async (url: string) => {
+      try {
+        console.log(`[Metadata] Fetching from JSON: ${url}`);
+        const statusRes = await axios.get(url, {
+          httpsAgent: httpsAgent,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*'
+          },
+          responseType: 'text',
+          timeout: 4000
+        });
 
-      let textData = statusRes.data;
-      if (typeof textData !== 'string') textData = JSON.stringify(textData);
+        let textData = statusRes.data;
+        if (typeof textData !== 'string') textData = JSON.stringify(textData);
 
-    if (textData) {
-        // 1. Direct Regex Extraction (Safest for malformed JSON)
-        // Search for title or yp_currently_playing in raw text
-        const titleMatch = textData.match(/"(?:title|yp_currently_playing|StreamTitle)"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/i);
-        if (titleMatch && titleMatch[1]) {
-           rawTitle = titleMatch[1].replace(/\\"/g, '"').replace(/\\u([0-9a-fA-F]{4})/g, (match, grp) => String.fromCharCode(parseInt(grp, 16))).trim();
-           console.log(`[Metadata] Regex match found: ${rawTitle}`);
-        }
+        if (textData) {
+          // 1. Direct Regex Extraction (Safest for malformed JSON)
+          const titleMatch = textData.match(/"(?:title|yp_currently_playing|StreamTitle)"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/i);
+          if (titleMatch && titleMatch[1]) {
+            rawTitle = titleMatch[1].replace(/\\"/g, '"').replace(/\\u([0-9a-fA-F]{4})/g, (match, grp) => String.fromCharCode(parseInt(grp, 16))).trim();
+            console.log(`[Metadata] Regex match found: ${rawTitle}`);
+          }
 
-        // 2. JSON Parse Fallback (with aggressive cleanup for unclosed blocks)
-        if (!rawTitle) {
-          try {
-            const cleanedJson = textData
-                .replace(/,\s*\]/g, ']') // Fix [a,b,]
-                .replace(/,\s*\}/g, '}') // Fix {a:b,}
-                .replace(/([^{}\[\]]+)(?=\s*\])/g, (match) => {
-                   // If we find text before a closing bracket without a brace, try closing it
-                   return match.includes('{') && !match.includes('}') ? match + '}' : match;
-                })
-                .replace(/\]\s*\]/g, ']') 
-                .replace(/\}\s*\}/g, '}'); 
-            
-            const data = JSON.parse(cleanedJson);
-            const icestats = data?.icestats;
-            if (icestats) {
-                const sources = icestats.source;
-                if (sources) {
-                    const src = Array.isArray(sources) ? (sources.find((s: any) => s.title) || sources[0]) : sources;
-                    if (src?.title) rawTitle = src.title.trim();
-                }
+          // 2. JSON Parse Fallback (with aggressive cleanup for the specific malformed case we saw)
+          if (!rawTitle) {
+            try {
+              let cleanedJson = textData.trim();
+              // Remove trailing comma before closing array/object in malformed Icecast JSON
+              cleanedJson = cleanedJson.replace(/,\s*\]/g, ']').replace(/,\s*\}/g, '}');
+              // If there's an unclosed object at the end of the source array
+              if (cleanedJson.includes('"source":[') && !cleanedJson.includes(']}')) {
+                 cleanedJson = cleanedJson.replace(/,\s*$/g, '') + ']}';
+              }
+              // Even more aggressive: if it ends with ...,]}}
+              cleanedJson = cleanedJson.replace(/,\]\}\}$/, ']}');
+              
+              const data = JSON.parse(cleanedJson);
+              const icestats = data?.icestats;
+              if (icestats) {
+                  const sources = icestats.source;
+                  if (sources) {
+                      const src = Array.isArray(sources) ? (sources.find((s: any) => s.title) || sources[0]) : sources;
+                      if (src?.title) rawTitle = src.title.trim();
+                      else if (src?.yp_currently_playing) rawTitle = src.yp_currently_playing.trim();
+                  }
+              }
+            } catch (_) {
+              const fallbackMatch = textData.match(/"title":"([^"]+)"/i) || textData.match(/"StreamTitle":"([^"]+)"/i) || textData.match(/"yp_currently_playing":"([^"]+)"/i);
+              if (fallbackMatch) rawTitle = fallbackMatch[1].trim();
             }
-          } catch (_) {
-            // Last ditch: if JSON parse failed, try one more regex for any key-value pair that looks like a title
-            const fallbackMatch = textData.match(/"title":"([^"]+)"/i) || textData.match(/"StreamTitle":"([^"]+)"/i);
-            if (fallbackMatch) rawTitle = fallbackMatch[1].trim();
           }
         }
+      } catch (e: any) {
+        console.warn(`[Metadata] JSON fetch failed for ${url}: ${e.message}`);
       }
-    } catch (_) {}
+    };
+
+    // Try HTTP first for status-json (more reliable for these servers)
+    await tryJson(httpStatusUrl);
+    if (!rawTitle) await tryJson(httpsStatusUrl);
 
     // Method 2: Shoutcast/Centova 7.html or status.xsl fallback
     if (!rawTitle) {
@@ -325,15 +332,19 @@ async function startServer() {
     if (!rawTitle) {
       try {
         const icy = (await import('icy')).default;
-        const urlModule = (await import('url')).default;
-        const parsedUrl = urlModule.parse(streamUrl);
         
         rawTitle = await new Promise<string>((resolve) => {
           let found = false;
-          const timer = setTimeout(() => { if(!found) resolve(""); }, 3500);
+          const timer = setTimeout(() => { if(!found) resolve(""); }, 4000);
           
           try {
-            const client = icy.get(streamUrl as any, (res: any) => {
+            // Pass agent options to handle SSL cert issues in icy
+            const options = {
+              headers: { 'Icy-MetaData': '1' },
+              rejectUnauthorized: false
+            };
+            
+            const client = icy.get(streamUrl as any, options, (res: any) => {
               res.on('metadata', (metadata: Buffer) => {
                 const parsed = icy.parse(metadata);
                 if (parsed && parsed.StreamTitle) {
@@ -343,7 +354,8 @@ async function startServer() {
                   resolve(parsed.StreamTitle.trim());
                 }
               });
-              res.on('data', () => {}); // Must consume some data to trigger metadata events
+              res.on('data', () => {}); 
+              res.on('error', () => { if(!found) resolve(""); });
             });
             client.on('error', () => { if(!found) resolve(""); });
           } catch (_) { if(!found) resolve(""); }
