@@ -40,6 +40,9 @@ export interface ProgramConfig {
   autoPlay?: boolean;
   interval?: number;
   direction?: 'horizontal' | 'vertical';
+  infiniteLoop?: boolean;
+  scrollStep?: number;
+  pauseOnHover?: boolean;
 }
 
 export interface PodcastConfig {

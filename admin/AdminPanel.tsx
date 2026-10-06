@@ -3424,34 +3424,71 @@ export const AdminPanel: React.FC = () => {
                         </InputGroup>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-gray-700/50">
-                        <div className="flex items-center gap-3">
-                            <input 
-                                type="checkbox" 
-                                id="prog-autoplay"
-                                checked={formData.content.program.autoPlay !== false}
-                                onChange={e => setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, autoPlay: e.target.checked}}}))}
-                                className="w-5 h-5 accent-primary rounded bg-gray-900 border-gray-600"
-                            />
-                            <label htmlFor="prog-autoplay" className="text-sm font-bold text-gray-300 cursor-pointer">Activar Rotación Automática (Slider)</label>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-4 border-t border-gray-700/50">
+                        <div className="flex flex-col gap-3">
+                            <div className="flex items-center gap-3">
+                                <input 
+                                    type="checkbox" 
+                                    id="prog-autoplay"
+                                    checked={formData.content.program.autoPlay !== false}
+                                    onChange={e => setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, autoPlay: e.target.checked}}}))}
+                                    className="w-5 h-5 accent-primary rounded bg-gray-900 border-gray-600"
+                                />
+                                <label htmlFor="prog-autoplay" className="text-sm font-bold text-gray-300 cursor-pointer">Auto-Reproducción</label>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <input 
+                                    type="checkbox" 
+                                    id="prog-loop"
+                                    checked={formData.content.program.infiniteLoop !== false}
+                                    onChange={e => setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, infiniteLoop: e.target.checked}}}))}
+                                    className="w-5 h-5 accent-primary rounded bg-gray-900 border-gray-600"
+                                />
+                                <label htmlFor="prog-loop" className="text-sm font-bold text-gray-300 cursor-pointer">Bucle Infinito (Sin retroceder)</label>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <input 
+                                    type="checkbox" 
+                                    id="prog-pause-hover"
+                                    checked={formData.content.program.pauseOnHover !== false}
+                                    onChange={e => setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, pauseOnHover: e.target.checked}}}))}
+                                    className="w-5 h-5 accent-primary rounded bg-gray-900 border-gray-600"
+                                />
+                                <label htmlFor="prog-pause-hover" className="text-sm font-bold text-gray-300 cursor-pointer">Pausar al pasar mouse</label>
+                            </div>
                         </div>
                         
-                        <InputGroup label="Intervalo de Tiempo (ms)">
+                        <InputGroup label="Intervalo (ms)">
                             <div className="flex items-center gap-2">
                                 <input 
                                     type="number" 
-                                    min="1000" 
+                                    min="500" 
                                     max="30000" 
                                     step="500"
                                     value={formData.content.program.interval || 5000} 
                                     onChange={e => setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, interval: parseInt(e.target.value) || 5000}}}))} 
                                     className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg" 
                                 />
-                                <span className="text-[10px] text-gray-500 font-mono">ms</span>
                             </div>
                         </InputGroup>
 
-                        <InputGroup label="Dirección de Rotación">
+                        <InputGroup label="Desplazamiento (px)">
+                            <div className="flex items-center gap-2">
+                                <input 
+                                    type="number" 
+                                    min="100" 
+                                    max="1200" 
+                                    step="50"
+                                    value={formData.content.program.scrollStep || 400} 
+                                    onChange={e => setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, scrollStep: parseInt(e.target.value) || 400}}}))} 
+                                    className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg" 
+                                    placeholder="Ej: 400"
+                                />
+                            </div>
+                            <p className="text-[10px] text-gray-500 mt-1">Pixeles que avanza por paso</p>
+                        </InputGroup>
+
+                        <InputGroup label="Dirección">
                             <select 
                                 value={formData.content.program.direction || 'horizontal'} 
                                 onChange={e => setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, direction: e.target.value as any}}}))} 

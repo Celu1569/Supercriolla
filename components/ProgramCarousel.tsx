@@ -9,6 +9,9 @@ interface ProgramCarouselProps {
   autoPlay?: boolean;
   interval?: number;
   direction?: 'horizontal' | 'vertical';
+  infiniteLoop?: boolean;
+  scrollStep?: number;
+  pauseOnHover?: boolean;
 }
 
 export const ProgramCarousel: React.FC<ProgramCarouselProps> = ({ 
@@ -17,11 +20,20 @@ export const ProgramCarousel: React.FC<ProgramCarouselProps> = ({
   layoutStyle = 'grid',
   autoPlay = false,
   interval = 5000,
-  direction = 'horizontal'
+  direction = 'horizontal',
+  infiniteLoop = true,
+  scrollStep,
+  pauseOnHover = true
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
+
+  // Triple the programs for a seamless infinite loop effect if enabled
+  const displayPrograms = infiniteLoop && programs.length > 0 
+    ? [...programs, ...programs, ...programs] 
+    : programs;
 
   const checkScroll = () => {
     if (scrollRef.current) {
@@ -29,10 +41,32 @@ export const ProgramCarousel: React.FC<ProgramCarouselProps> = ({
         const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
         setShowLeftArrow(scrollLeft > 10);
         setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 10);
+
+        // Infinite loop jump logic
+        if (infiniteLoop && programs.length > 0) {
+          const singleWidth = scrollWidth / 3;
+          if (scrollLeft >= singleWidth * 2) {
+            // Jump back to middle section without animation
+            scrollRef.current.scrollLeft = scrollLeft - singleWidth;
+          } else if (scrollLeft <= singleWidth / 2) {
+            // Jump forward to middle section
+            scrollRef.current.scrollLeft = scrollLeft + singleWidth;
+          }
+        }
       } else {
         const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
         setShowLeftArrow(scrollTop > 10);
         setShowRightArrow(scrollTop < scrollHeight - clientHeight - 10);
+
+        // Infinite loop jump logic for vertical
+        if (infiniteLoop && programs.length > 0) {
+          const singleHeight = scrollHeight / 3;
+          if (scrollTop >= singleHeight * 2) {
+            scrollRef.current.scrollTop = scrollTop - singleHeight;
+          } else if (scrollTop <= singleHeight / 2) {
+            scrollRef.current.scrollTop = scrollTop + singleHeight;
+          }
+        }
       }
     }
   };
@@ -40,6 +74,15 @@ export const ProgramCarousel: React.FC<ProgramCarouselProps> = ({
   useEffect(() => {
     const el = scrollRef.current;
     if (el) {
+      // Set initial scroll to middle section for infinite loop
+      if (infiniteLoop && programs.length > 0) {
+        if (direction === 'horizontal') {
+          el.scrollLeft = el.scrollWidth / 3;
+        } else {
+          el.scrollTop = el.scrollHeight / 3;
+        }
+      }
+      
       el.addEventListener('scroll', checkScroll);
       checkScroll();
       window.addEventListener('resize', checkScroll);
@@ -48,50 +91,49 @@ export const ProgramCarousel: React.FC<ProgramCarouselProps> = ({
       el?.removeEventListener('scroll', checkScroll);
       window.removeEventListener('resize', checkScroll);
     };
-  }, [programs.length, direction]);
+  }, [programs.length, direction, infiniteLoop]);
 
   // Auto-play effect
   useEffect(() => {
-    if (!autoPlay || programs.length <= 1) return;
+    if (!autoPlay || programs.length <= 1 || (pauseOnHover && isPaused)) return;
 
     const timer = setInterval(() => {
       if (scrollRef.current) {
         const el = scrollRef.current;
         
         if (direction === 'horizontal') {
-          // Explicitly scroll from right to left (RTL) effect by moving container left
           const isAtEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 20;
-          if (isAtEnd) {
+          
+          if (isAtEnd && !infiniteLoop) {
             el.scrollTo({ left: 0, behavior: 'smooth' });
           } else {
-            // Scroll by one approximate item width + gap
-            const scrollAmount = window.innerWidth < 640 ? 300 : 400;
-            el.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+            const step = scrollStep || (window.innerWidth < 640 ? 300 : 400);
+            el.scrollBy({ left: step, behavior: 'smooth' });
           }
         } else {
-          // Bottom to top rotation
           const isAtEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
-          if (isAtEnd) {
+          
+          if (isAtEnd && !infiniteLoop) {
             el.scrollTo({ top: 0, behavior: 'smooth' });
           } else {
-            // Scroll by one approximate item height + gap
-            const scrollAmount = 420; 
-            el.scrollBy({ top: scrollAmount, behavior: 'smooth' });
+            const step = scrollStep || 420; 
+            el.scrollBy({ top: step, behavior: 'smooth' });
           }
         }
       }
-    }, Math.max(2000, (interval && interval < 100) ? interval * 1000 : (interval || 5000)));
+    }, Math.max(1000, (interval && interval < 100) ? interval * 1000 : (interval || 5000)));
 
     return () => clearInterval(timer);
-  }, [autoPlay, interval, direction, programs.length]);
+  }, [autoPlay, interval, direction, programs.length, infiniteLoop, isPaused, pauseOnHover, scrollStep]);
 
   const scroll = (dir: 'left' | 'right' | 'up' | 'down') => {
     if (scrollRef.current) {
+      const step = scrollStep || 400;
       if (direction === 'horizontal') {
-        const scrollAmount = (dir === 'left' || dir === 'up') ? -400 : 400;
+        const scrollAmount = (dir === 'left' || dir === 'up') ? -step : step;
         scrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
       } else {
-        const scrollAmount = (dir === 'left' || dir === 'up') ? -400 : 400;
+        const scrollAmount = (dir === 'left' || dir === 'up') ? -step : step;
         scrollRef.current.scrollBy({ top: scrollAmount, behavior: 'smooth' });
       }
     }
@@ -157,14 +199,16 @@ export const ProgramCarousel: React.FC<ProgramCarouselProps> = ({
               <h3 className="text-2xl font-heading font-bold text-white mb-2 group-hover:translate-x-1 transition-transform duration-500">{prog.title}</h3>
               <p className="text-gray-300 text-xs line-clamp-2 mb-4 group-hover:translate-y-0 translate-y-2 opacity-0 group-hover:opacity-100 transition-all duration-700">{prog.description}</p>
               
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-primary shadow-xl">
-                  <Play size={20} fill="currentColor" className="ml-0.5" />
+              {prog.episodes && prog.episodes.length > 0 && (
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-primary shadow-xl">
+                    <Play size={20} fill="currentColor" className="ml-0.5" />
+                  </div>
+                  <span className="text-white font-bold text-xs tracking-tight">
+                    Escuchar
+                  </span>
                 </div>
-                <span className="text-white font-bold text-xs tracking-tight">
-                  {prog.episodes?.length ? 'Escuchar' : 'En vivo'}
-                </span>
-              </div>
+              )}
             </div>
           </div>
         );
@@ -194,17 +238,15 @@ export const ProgramCarousel: React.FC<ProgramCarouselProps> = ({
               <h3 className="text-lg font-bold mb-1 text-on-surface group-hover:text-secondary transition-colors truncate">{prog.title}</h3>
               <p className="text-on-surface-muted text-[10px] line-clamp-2 mb-4 flex-1 italic leading-relaxed">"{prog.description}"</p>
               
-              <button 
-                onClick={() => prog.episodes?.length ? onSelectEpisodes(prog) : null}
-                className={`w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center transition-all ${
-                  prog.episodes?.length 
-                  ? 'bg-primary text-white hover:bg-purple-900 shadow-md' 
-                  : 'bg-gray-100 text-gray-400 cursor-default'
-                }`}
-              >
-                <Mic2 size={16} className="mr-2" />
-                {prog.episodes?.length ? 'Ver Programas' : 'En vivo'}
-              </button>
+              {prog.episodes && prog.episodes.length > 0 && (
+                <button 
+                  onClick={() => onSelectEpisodes(prog)}
+                  className="w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center transition-all bg-primary text-white hover:bg-purple-900 shadow-md"
+                >
+                  <Mic2 size={16} className="mr-2" />
+                  Ver Programas
+                </button>
+              )}
             </div>
           </div>
         );
@@ -234,10 +276,16 @@ export const ProgramCarousel: React.FC<ProgramCarouselProps> = ({
       {/* Scrolling Container */}
       <div 
         ref={scrollRef}
+        onMouseEnter={() => pauseOnHover && setIsPaused(true)}
+        onMouseLeave={() => pauseOnHover && setIsPaused(false)}
         className={`flex ${direction === 'horizontal' ? 'overflow-x-auto gap-6 sm:gap-8 px-2' : 'flex-col overflow-y-auto gap-4 max-h-[600px] px-4'} hide-scrollbar scroll-smooth`}
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        {programs.map(renderProgramCard)}
+        {displayPrograms.map((prog, index) => (
+          <React.Fragment key={`${prog.id}-${index}`}>
+            {renderProgramCard(prog)}
+          </React.Fragment>
+        ))}
       </div>
       
       {/* Mobile Indicator */}

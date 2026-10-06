@@ -997,6 +997,9 @@ const PublicView: React.FC = () => {
                     autoPlay={config.content.program.autoPlay}
                     interval={config.content.program.interval}
                     direction={config.content.program.direction}
+                    infiniteLoop={config.content.program.infiniteLoop}
+                    scrollStep={config.content.program.scrollStep}
+                    pauseOnHover={config.content.program.pauseOnHover}
                 />
             </div>
         </section>
