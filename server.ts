@@ -167,48 +167,54 @@ async function startServer() {
 
   // Helper to search iTunes with multiple fallbacks and match validation
   const searchItunesCover = async (artist: string, title: string) => {
-    // 1. Clean strings from common radio tags
-    const cleanArtist = artist
+    // 1. Clean strings from common radio tags and symbols
+    const cleanStr = (s: string) => s
         .replace(/\s*\(.*?\)/g, '') // Remove (brackets)
+        .replace(/\s*\[.*?\]/g, '') // Remove [brackets]
         .replace(/feat\..*$/i, '')   // Remove feat...
         .replace(/ft\..*$/i, '')     // Remove ft...
         .replace(/&.*$/i, '')        // Remove &...
-        .trim();
-        
-    const cleanTitle = title
-        .replace(/\s*\(.*?\)/g, '')
-        .replace(/\[.*?\]/g, '')
-        .replace(/- .*$/i, '')       // Remove sub-titles after dash
+        .replace(/[^\w\sáéíóúñÁÉÍÓÚÑ]/g, ' ') // Keep alphanumeric and spaces
+        .replace(/\s+/g, ' ')
         .trim();
 
+    const cArtist = cleanStr(artist);
+    const cTitle = cleanStr(title);
+        
     // 2. Generate search queries from most specific to least
     const queries = [
-      `${cleanArtist} ${cleanTitle}`,
-      `${cleanTitle} ${cleanArtist}`,
-      cleanTitle.length > 5 ? cleanTitle : null,
+      `${cArtist} ${cTitle}`,
+      `${cTitle} ${cArtist}`,
+      cTitle.length > 3 ? cTitle : null,
+      cArtist.length > 3 ? cArtist : null,
     ].filter(Boolean) as string[];
 
     for (const q of queries) {
+      if (q.length < 3) continue;
       try {
-        // Use a real browser user agent to avoid bot blocks
-        const itunesRes = await axios.get(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&limit=5&entity=song`, {
+        console.log(`[Metadata] Searching iTunes for: ${q}`);
+        const itunesRes = await axios.get(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&limit=10&entity=song`, {
           headers: { 
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' 
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' 
           },
-          timeout: 3000
+          timeout: 4000
         });
 
         if (itunesRes.data.results && itunesRes.data.results.length > 0) {
-          // Find the best match
+          // Find the best match - be strict to avoid fuzzy "Kenny Garcia" matches for other Garcias
           const bestMatch = itunesRes.data.results.find((item: any) => {
              const trackLower = (item.trackName || '').toLowerCase();
              const artistLower = (item.artistName || '').toLowerCase();
-             const tL = cleanTitle.toLowerCase();
-             const aL = cleanArtist.toLowerCase();
+             const tL = cTitle.toLowerCase();
+             const aL = cArtist.toLowerCase();
              
-             return (trackLower.includes(tL) || tL.includes(trackLower)) && 
-                    (artistLower.includes(aL) || aL.includes(artistLower));
-          }) || itunesRes.data.results[0];
+             // Strict check: artist or title must be very similar
+             const artistMatch = artistLower.includes(aL) || aL.includes(artistLower) || 
+                                (aL.length > 5 && artistLower.includes(aL.substring(0, 5)));
+             const trackMatch = trackLower.includes(tL) || tL.includes(trackLower);
+             
+             return artistMatch && trackMatch;
+          });
 
           if (bestMatch && bestMatch.artworkUrl100) {
             const highResCover = bestMatch.artworkUrl100.replace('100x100', '1000x1000');
@@ -232,74 +238,116 @@ async function startServer() {
     if (!streamUrl) return cachedMetadata;
 
     let rawTitle = "";
-    const parsedUrl = new URL(streamUrl);
-    const host = parsedUrl.host;
-    // Use http for metadata check to avoid common SSL cert issues on radio ports
-    const httpStatusUrl = `http://${host}/status-json.xsl`;
-    const httpsStatusUrl = `https://${host}/status-json.xsl`;
+    try {
+      const parsedUrl = new URL(streamUrl);
+      const host = parsedUrl.host;
+      // Use http for metadata check to avoid common SSL cert issues on radio ports
+      const httpStatusUrl = `http://${host}/status-json.xsl`;
+      const httpsStatusUrl = `https://${host}/status-json.xsl`;
 
-    // Method 1: Improved Icecast status-json.xsl check
-    const tryJson = async (url: string) => {
-      try {
-        console.log(`[Metadata] Fetching from JSON: ${url}`);
-        const statusRes = await axios.get(url, {
-          httpsAgent: httpsAgent,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*'
-          },
-          responseType: 'text',
-          timeout: 4000
-        });
+      // Method 1: Improved Icecast status-json.xsl check
+      const tryJson = async (url: string) => {
+        try {
+          console.log(`[Metadata] Fetching from JSON: ${url}`);
+          const statusRes = await axios.get(url, {
+            httpsAgent: httpsAgent,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+              'Accept': 'application/json, text/plain, */*'
+            },
+            responseType: 'text',
+            timeout: 5000
+          });
 
-        let textData = statusRes.data;
-        if (typeof textData !== 'string') textData = JSON.stringify(textData);
+          let textData = statusRes.data;
+          if (typeof textData !== 'string') textData = JSON.stringify(textData);
 
-        if (textData) {
-          // 1. Direct Regex Extraction (Safest for malformed JSON)
-          const titleMatch = textData.match(/"(?:title|yp_currently_playing|StreamTitle)"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/i);
-          if (titleMatch && titleMatch[1]) {
-            rawTitle = titleMatch[1].replace(/\\"/g, '"').replace(/\\u([0-9a-fA-F]{4})/g, (match, grp) => String.fromCharCode(parseInt(grp, 16))).trim();
-            console.log(`[Metadata] Regex match found: ${rawTitle}`);
-          }
+          if (textData) {
+            // 1. Direct Regex Extraction (Safest for malformed JSON)
+            const titleMatch = textData.match(/"(?:title|yp_currently_playing|StreamTitle)"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/i);
+            if (titleMatch && titleMatch[1]) {
+              rawTitle = titleMatch[1].replace(/\\"/g, '"').replace(/\\u([0-9a-fA-F]{4})/g, (match, grp) => String.fromCharCode(parseInt(grp, 16))).trim();
+              console.log(`[Metadata] Regex match found: ${rawTitle}`);
+            }
 
-          // 2. JSON Parse Fallback (with aggressive cleanup for the specific malformed case we saw)
-          if (!rawTitle) {
-            try {
-              let cleanedJson = textData.trim();
-              // Remove trailing comma before closing array/object in malformed Icecast JSON
-              cleanedJson = cleanedJson.replace(/,\s*\]/g, ']').replace(/,\s*\}/g, '}');
-              // If there's an unclosed object at the end of the source array
-              if (cleanedJson.includes('"source":[') && !cleanedJson.includes(']}')) {
-                 cleanedJson = cleanedJson.replace(/,\s*$/g, '') + ']}';
+            // 2. JSON Parse Fallback (with aggressive cleanup)
+            if (!rawTitle) {
+              try {
+                let cleanedJson = textData.trim();
+                // Extremely aggressive cleanup for the specific malformed case where source array ends with a comma
+                cleanedJson = cleanedJson
+                  .replace(/,\s*\]/g, ']') 
+                  .replace(/,\s*\}/g, '}')
+                  .replace(/\]\s*\]/g, ']')
+                  .replace(/\}\s*\}/g, '}');
+
+                // If it ends with ...,]}} or similar
+                if (cleanedJson.endsWith(',]}}')) cleanedJson = cleanedJson.replace(/,\]\}\}$/, ']}');
+                if (cleanedJson.endsWith(',] }')) cleanedJson = cleanedJson.replace(/,\] \}$/, ']}');
+                
+                const data = JSON.parse(cleanedJson);
+                const icestats = data?.icestats;
+                if (icestats) {
+                    const sources = icestats.source;
+                    if (sources) {
+                        const sourcesArray = Array.isArray(sources) ? sources : [sources];
+                        // Find source with title, preferring one that matches station keywords if possible
+                        const src = sourcesArray.find((s: any) => 
+                          s.title && s.title !== "-" && 
+                          !["STREAMING", "WEB", "ORBAN", "BUENISIMA"].some(k => s.title.toUpperCase() === k)
+                        ) || sourcesArray[0];
+
+                        if (src?.title) rawTitle = src.title.trim();
+                        else if (src?.yp_currently_playing) rawTitle = src.yp_currently_playing.trim();
+
+                        // Check for metadata staleness
+                        if (src?.metadata_updated) {
+                            try {
+                                // Icecast date format: "06/Oct/2026:05:03:33 -0400"
+                                // We need to convert it to a standard JS date
+                                const parts = src.metadata_updated.split(' ');
+                                const datePart = parts[0].replace(/:/, ' '); // Replace first colon with space for Date parsing
+                                const updated = new Date(datePart).getTime();
+                                
+                                if (!isNaN(updated)) {
+                                    const now = Date.now();
+                                    // If metadata is more than 20 mins old, it's considered stale
+                                    if (now - updated > 20 * 60 * 1000) {
+                                        console.log(`[Metadata] Stale JSON detected (${Math.round((now-updated)/60000)} mins old): ${src.metadata_updated}`);
+                                        rawTitle = ""; // Clear it so it doesn't show wrong info
+                                    }
+                                }
+                            } catch (err) {
+                                console.error("[Metadata] Error parsing timestamp:", err);
+                            }
+                        }
+
+                        // Additional check: if the stream name is completely different (e.g. Supercriolla vs Buenisima)
+                        // we should be wary of the metadata if it's not updating.
+                        const serverName = (src?.server_name || data?.icestats?.server_id || "").toUpperCase();
+                        if (serverName.includes("SUPERCRIOLLA") && rawTitle.includes("GLENDY GARCIA")) {
+                            console.log("[Metadata] Ignoring known stuck Supercriolla metadata");
+                            rawTitle = "";
+                        }
+                    }
+                }
+              } catch (_) {
+                const fallbackMatch = textData.match(/"title":"([^"]+)"/i) || textData.match(/"StreamTitle":"([^"]+)"/i) || textData.match(/"yp_currently_playing":"([^"]+)"/i);
+                if (fallbackMatch) rawTitle = fallbackMatch[1].trim();
               }
-              // Even more aggressive: if it ends with ...,]}}
-              cleanedJson = cleanedJson.replace(/,\]\}\}$/, ']}');
-              
-              const data = JSON.parse(cleanedJson);
-              const icestats = data?.icestats;
-              if (icestats) {
-                  const sources = icestats.source;
-                  if (sources) {
-                      const src = Array.isArray(sources) ? (sources.find((s: any) => s.title) || sources[0]) : sources;
-                      if (src?.title) rawTitle = src.title.trim();
-                      else if (src?.yp_currently_playing) rawTitle = src.yp_currently_playing.trim();
-                  }
-              }
-            } catch (_) {
-              const fallbackMatch = textData.match(/"title":"([^"]+)"/i) || textData.match(/"StreamTitle":"([^"]+)"/i) || textData.match(/"yp_currently_playing":"([^"]+)"/i);
-              if (fallbackMatch) rawTitle = fallbackMatch[1].trim();
             }
           }
+        } catch (e: any) {
+          // console.warn(`[Metadata] JSON fetch failed for ${url}: ${e.message}`);
         }
-      } catch (e: any) {
-        console.warn(`[Metadata] JSON fetch failed for ${url}: ${e.message}`);
-      }
-    };
+      };
 
-    // Try HTTP first for status-json (more reliable for these servers)
-    await tryJson(httpStatusUrl);
-    if (!rawTitle) await tryJson(httpsStatusUrl);
+      // Try HTTP first for status-json (more reliable for these servers)
+      await tryJson(httpStatusUrl);
+      if (!rawTitle) await tryJson(httpsStatusUrl);
+    } catch (err) {
+      console.warn(`[Metadata] URL parsing failed for ${streamUrl}`);
+    }
 
     // Method 2: Shoutcast/Centova 7.html or status.xsl fallback
     if (!rawTitle) {
@@ -335,12 +383,13 @@ async function startServer() {
         
         rawTitle = await new Promise<string>((resolve) => {
           let found = false;
-          const timer = setTimeout(() => { if(!found) resolve(""); }, 4000);
+          // Increase timeout for ICY as some streams send metadata slowly
+          const timer = setTimeout(() => { if(!found) resolve(""); }, 6000);
           
           try {
             // Pass agent options to handle SSL cert issues in icy
             const options = {
-              headers: { 'Icy-MetaData': '1' },
+              headers: { 'Icy-MetaData': '1', 'User-Agent': 'Mozilla/5.0' },
               rejectUnauthorized: false
             };
             
@@ -348,6 +397,7 @@ async function startServer() {
               res.on('metadata', (metadata: Buffer) => {
                 const parsed = icy.parse(metadata);
                 if (parsed && parsed.StreamTitle) {
+                  console.log(`[Metadata] ICY match found: ${parsed.StreamTitle}`);
                   found = true;
                   clearTimeout(timer);
                   res.destroy(); // Stop stream immediately
@@ -357,29 +407,41 @@ async function startServer() {
               res.on('data', () => {}); 
               res.on('error', () => { if(!found) resolve(""); });
             });
-            client.on('error', () => { if(!found) resolve(""); });
+            client.on('error', (e: any) => { 
+                console.log(`[Metadata] ICY client error: ${e.message}`);
+                if(!found) resolve(""); 
+            });
           } catch (_) { if(!found) resolve(""); }
         });
       } catch (_) {}
     }
 
     // Final Processing & Broadcast
-    if (rawTitle && rawTitle !== "-") {
+    if (rawTitle && rawTitle !== "-" && rawTitle !== "Sintonizando...") {
       let artist = "Buenísima 87.7 FM";
       let title = rawTitle;
 
       // Handle split patterns: "Artist - Title", "Artist-Title", "Artist : Title", "Artist. Title"
-      const separators = [" - ", " : ", " – ", " — ", " . ", "-", ":", ". "];
+      const separators = [" - ", " : ", " – ", " — ", " | ", " . ", "-", ":", ". "];
       for (const sep of separators) {
           if (rawTitle.includes(sep)) {
               const parts = rawTitle.split(sep);
               // Avoid splitting if the separator is just a dot inside a word (e.g. "St. Vincent")
-              if (sep === ". " && parts[0].length < 3) continue; 
+              if ((sep === ". " || sep === ".") && (parts[0].length < 3 || parts[1].length < 3)) continue; 
               
               artist = parts[0].trim();
               title = parts.slice(1).join(sep).trim();
               break;
           }
+      }
+
+      // Special case: if artist is just the station name or common placeholder
+      const stationMatch = ["BUENISIMA", "SUPERCRRIOLLA", "EN VIVO", "RADIO"].some(s => artist.toUpperCase().includes(s));
+      if (stationMatch && title.includes("-")) {
+         // Swap if it looks like the title contains the real metadata
+         const subParts = title.split("-");
+         artist = subParts[0].trim();
+         title = subParts.slice(1).join("-").trim();
       }
 
       // Special case: remove URLS from title if present
@@ -403,10 +465,18 @@ async function startServer() {
     return cachedMetadata;
   };
 
-  // Periodic background refresh for stream metadata (every 10 seconds - avoids overloading radio server)
-  setInterval(() => {
-    fetchLiveMetadata(activeStreamUrl).catch(() => {});
-  }, 10000);
+  // Periodic background refresh for stream metadata
+  let isFetching = false;
+  setInterval(async () => {
+    if (isFetching) return;
+    isFetching = true;
+    try {
+      await fetchLiveMetadata(activeStreamUrl);
+    } catch (err) {}
+    finally {
+      isFetching = false;
+    }
+  }, 15000); // 15 seconds to avoid overlapping and respect rate limits
 
   // Initial fetch on server startup
   setTimeout(() => {
@@ -433,6 +503,12 @@ async function startServer() {
 
   // Standard polling API
   app.get("/api/metadata", async (req, res) => {
+    // Force refresh if requested
+    if (req.query.refresh === 'true') {
+        lastMetadataFetch = 0;
+        cachedMetadata.title = "Sintonizando...";
+    }
+    
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');

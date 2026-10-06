@@ -59,10 +59,16 @@ export const RadioPlayer: React.FC = () => {
   const applyMetadata = useCallback((data: { title?: string; artist?: string; cover?: string }) => {
     if (!data) return;
     
+    // Check for generic or sintonizando titles which should revert to station default
+    const isGeneric = !data.title || 
+                     data.title === 'Sintonizando...' || 
+                     data.title === 'En Vivo' || 
+                     data.title === stationName;
+
     const sanitized = {
-      title: (data.title && data.title !== 'Sintonizando...') ? data.title : stationName,
-      artist: (data.artist && data.artist !== 'BUENÍSIMA 87.7 FM') ? data.artist : defaultSlogan,
-      cover: data.cover || DEFAULT_COVER
+      title: isGeneric ? stationName : data.title,
+      artist: isGeneric ? defaultSlogan : (data.artist || defaultSlogan),
+      cover: isGeneric ? DEFAULT_COVER : (data.cover || DEFAULT_COVER)
     };
 
     setMetadata(prev => {
@@ -79,17 +85,20 @@ export const RadioPlayer: React.FC = () => {
   }, [stationName, defaultSlogan]);
 
   // Fetch metadata via HTTP polling API
-  const fetchMetadata = useCallback(async () => {
+  const fetchMetadata = useCallback(async (force = false) => {
     setIsFetchingMetadata(true);
     try {
       const streamUrl = config.general.streamUrl || 'https://redradioypc.com:8010/live';
-      const response = await fetch(`/api/metadata?url=${encodeURIComponent(streamUrl)}&_t=${Date.now()}`);
+      const response = await fetch(`/api/metadata?url=${encodeURIComponent(streamUrl)}&_t=${Date.now()}${force ? '&refresh=true' : ''}`);
       if (response.ok) {
         const data = await response.json();
+        console.log("[Player] Received Metadata:", data);
         applyMetadata(data);
+      } else {
+        console.warn("[Player] Metadata API returned error:", response.status);
       }
     } catch (err) {
-      console.warn("Could not fetch metadata:", err);
+      console.warn("[Player] Could not fetch metadata:", err);
     } finally {
       setIsFetchingMetadata(false);
     }
@@ -503,7 +512,7 @@ export const RadioPlayer: React.FC = () => {
               <div className={`w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-tr from-gray-900 via-gray-800 to-black p-1 shadow-2xl border border-yellow-500/30 flex items-center justify-center ${isPlaying ? 'animate-[spin_4s_linear_infinite]' : ''}`}>
                 <div className="w-full h-full rounded-full border-4 border-dashed border-white/20 p-2 flex items-center justify-center">
                   <img 
-                    src={displayCover} 
+                    src={finalCover} 
                     alt={displayTitle} 
                     onError={handleImageError}
                     className="w-14 h-14 rounded-full object-cover shadow-inner"
@@ -531,7 +540,7 @@ export const RadioPlayer: React.FC = () => {
                 <span className="text-[11px] font-bold text-yellow-400 tracking-widest uppercase truncate max-w-xs">
                   {hasError ? 'Señal interrumpida • Clic para reintentar' : (isReconnecting ? 'Reconectando transmisión...' : displayArtist)}
                 </span>
-                <button onClick={fetchMetadata} title="Actualizar título" className="p-1 hover:text-yellow-400 text-gray-500 transition-colors">
+                <button onClick={() => fetchMetadata(true)} title="Actualizar título" className="p-1 hover:text-yellow-400 text-gray-500 transition-colors">
                   <RefreshCw size={12} className={isFetchingMetadata ? 'animate-spin text-yellow-400' : ''} />
                 </button>
               </div>
@@ -589,7 +598,7 @@ export const RadioPlayer: React.FC = () => {
             {config.appearance.radioPlayer?.showCover !== false && (
               <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden shadow-2xl border border-white/20 flex-shrink-0 group">
                 <img 
-                  src={displayCover} 
+                  src={finalCover} 
                   alt={displayTitle} 
                   onError={handleImageError}
                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -617,7 +626,7 @@ export const RadioPlayer: React.FC = () => {
                 <p className="text-xs font-bold text-yellow-400 uppercase tracking-widest truncate">
                   {hasError ? 'Señal interrumpida • Clic para reintentar' : (isReconnecting ? 'Recuperando transmisión...' : displayArtist)}
                 </p>
-                <button onClick={fetchMetadata} title="Actualizar canción" className="text-gray-500 hover:text-white transition-colors">
+                <button onClick={() => fetchMetadata(true)} title="Actualizar canción" className="text-gray-500 hover:text-white transition-colors">
                   <RefreshCw size={12} className={isFetchingMetadata ? 'animate-spin text-yellow-400' : ''} />
                 </button>
               </div>
@@ -674,7 +683,7 @@ export const RadioPlayer: React.FC = () => {
 
             {config.appearance.radioPlayer?.showCover !== false && (
               <img 
-                src={displayCover} 
+                src={finalCover} 
                 alt={displayTitle} 
                 onError={handleImageError}
                 className="w-10 h-10 rounded-lg object-cover border border-white/10 flex-shrink-0"
@@ -690,7 +699,7 @@ export const RadioPlayer: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <button onClick={fetchMetadata} className="text-gray-500 hover:text-white p-1">
+            <button onClick={() => fetchMetadata(true)} className="text-gray-500 hover:text-white p-1">
               <RefreshCw size={14} className={isFetchingMetadata ? 'animate-spin text-yellow-400' : ''} />
             </button>
             <div className="hidden sm:flex items-center gap-2 bg-white/5 rounded-full px-3 py-1.5 border border-white/10">
@@ -728,7 +737,7 @@ export const RadioPlayer: React.FC = () => {
               {config.appearance.radioPlayer?.showCover !== false && (
                 <div className="relative w-12 h-12 rounded-xl overflow-hidden border border-white/20 flex-shrink-0">
                   <img 
-                    src={displayCover} 
+                    src={finalCover} 
                     alt={displayTitle} 
                     onError={handleImageError}
                     className="w-full h-full object-cover"
@@ -774,7 +783,7 @@ export const RadioPlayer: React.FC = () => {
                 />
               </div>
 
-              <button onClick={fetchMetadata} className="text-gray-400 hover:text-white p-2">
+              <button onClick={() => fetchMetadata(true)} className="text-gray-400 hover:text-white p-2">
                 <RefreshCw size={16} className={isFetchingMetadata ? 'animate-spin text-yellow-400' : ''} />
               </button>
             </div>
@@ -835,12 +844,12 @@ export const RadioPlayer: React.FC = () => {
                       <div className="relative w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 flex-shrink-0 group">
                           <AnimatePresence mode="wait">
                               <motion.img 
-                                  key={displayCover}
+                                  key={finalCover}
                                   initial={{ opacity: 0, scale: 0.85 }}
                                   animate={{ opacity: 1, scale: 1 }}
                                   exit={{ opacity: 0, scale: 1.05 }}
                                   transition={{ duration: 0.3 }}
-                                  src={displayCover} 
+                                  src={finalCover} 
                                   alt={displayTitle}
                                   onError={handleImageError}
                                   className="w-full h-full object-cover rounded-2xl shadow-2xl border-2 border-white/10 group-hover:border-secondary/50 transition-colors bg-black/40"
@@ -885,7 +894,7 @@ export const RadioPlayer: React.FC = () => {
                                 className="text-xs sm:text-sm font-black text-secondary uppercase tracking-[0.1em] sm:tracking-[0.2em] line-clamp-1 drop-shadow-md flex items-center gap-1.5"
                               >
                                   <span>{hasError ? 'Señal interrumpida - Toca Reproducir' : (isReconnecting ? 'Reconectando...' : displayArtist)}</span>
-                                  <button onClick={fetchMetadata} title="Comprobar título en vivo" className="text-gray-400 hover:text-white transition-colors">
+                                  <button onClick={() => fetchMetadata(true)} title="Comprobar título en vivo" className="text-gray-400 hover:text-white transition-colors">
                                     <RefreshCw size={12} className={isFetchingMetadata ? 'animate-spin text-secondary' : ''} />
                                   </button>
                               </motion.p>
