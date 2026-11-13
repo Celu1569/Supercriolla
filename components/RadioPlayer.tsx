@@ -1,13 +1,18 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Play, Pause, Volume2, VolumeX, Volume1, Radio, Disc, RefreshCw, Maximize2, Minimize2, Tv, Sparkles, Wifi } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Volume1, Radio, Disc, RefreshCw, Maximize2, Minimize2, Tv, Sparkles, Wifi, MessageCircle } from 'lucide-react';
 import { useConfig } from '../context/ConfigContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { resolveDirectImageUrl } from '../utils/imageUrl';
 import { io, Socket } from 'socket.io-client';
+import { parseAndResolveStreamMetadata, isRealMusicCover, DEFAULT_RADIO_COVER } from '../utils/musicMetadata';
 
-const DEFAULT_COVER = "https://i.ibb.co/kVQLN1F1/Logo-Buenisima-esfera-512x256.png";
+const DEFAULT_COVER = DEFAULT_RADIO_COVER;
 
-export const RadioPlayer: React.FC = () => {
+interface RadioPlayerProps {
+  onOpenSongRequest?: () => void;
+}
+
+export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) => {
   const { config } = useConfig();
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -55,50 +60,109 @@ export const RadioPlayer: React.FC = () => {
   });
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
 
-  // Apply new metadata smoothly
-  const applyMetadata = useCallback((data: { title?: string; artist?: string; cover?: string }) => {
+  // Universal music metadata & high-resolution cover resolver
+  const applyMetadata = useCallback(async (data: { title?: string; artist?: string; cover?: string }) => {
     if (!data) return;
-    
-    // Check for generic or sintonizando titles which should revert to station default
-    const isGeneric = !data.title || 
-                     data.title === 'Sintonizando...' || 
-                     data.title === 'En Vivo' || 
-                     data.title === stationName;
 
-    const sanitized = {
-      title: isGeneric ? stationName : data.title,
-      artist: isGeneric ? defaultSlogan : (data.artist || defaultSlogan),
-      cover: isGeneric ? DEFAULT_COVER : (data.cover || DEFAULT_COVER)
-    };
+    let { title = '', artist = '', cover = DEFAULT_COVER } = data;
 
-    setMetadata(prev => {
-      if (prev.title === sanitized.title && prev.artist === sanitized.artist && prev.cover === sanitized.cover) {
-        return prev;
-      }
-      try {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('last_radio_metadata', JSON.stringify(sanitized));
+    // If cover is already a real music cover, apply immediately
+    if (cover && isRealMusicCover(cover)) {
+      const sanitized = {
+        title: title || stationName,
+        artist: artist || defaultSlogan,
+        cover: cover
+      };
+      setMetadata(prev => {
+        if (prev.title === sanitized.title && prev.artist === sanitized.artist && prev.cover === sanitized.cover) {
+          return prev;
         }
-      } catch (_) {}
-      return sanitized;
-    });
+        try {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('last_radio_metadata', JSON.stringify(sanitized));
+          }
+        } catch (_) {}
+        return sanitized;
+      });
+      return;
+    }
+
+    // If no real cover or only raw title received, resolve using universal engine
+    const rawToResolve = title || artist;
+    if (rawToResolve) {
+      const resolved = await parseAndResolveStreamMetadata(rawToResolve, stationName, defaultSlogan);
+      setMetadata(prev => {
+        if (prev.title === resolved.title && prev.artist === resolved.artist && prev.cover === resolved.cover) {
+          return prev;
+        }
+        try {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('last_radio_metadata', JSON.stringify(resolved));
+          }
+        } catch (_) {}
+        return resolved;
+      });
+    }
   }, [stationName, defaultSlogan]);
 
-  // Fetch metadata via HTTP polling API
+  // Fetch metadata via HTTP polling API or Direct Fallback
   const fetchMetadata = useCallback(async (force = false) => {
     setIsFetchingMetadata(true);
+    const streamUrl = config.general.streamUrl || 'https://redradioypc.com:8010/live';
+    
+    // 1. Try internal API first
     try {
-      const streamUrl = config.general.streamUrl || 'https://redradioypc.com:8010/live';
       const response = await fetch(`/api/metadata?url=${encodeURIComponent(streamUrl)}&_t=${Date.now()}${force ? '&refresh=true' : ''}`);
       if (response.ok) {
         const data = await response.json();
-        console.log("[Player] Received Metadata:", data);
-        applyMetadata(data);
-      } else {
-        console.warn("[Player] Metadata API returned error:", response.status);
+        if (data && (data.title || data.artist)) {
+          await applyMetadata(data);
+          setIsFetchingMetadata(false);
+          return;
+        }
       }
     } catch (err) {
-      console.warn("[Player] Could not fetch metadata:", err);
+      // Internal API might be unreachable if static deployment without Node proxy
+    }
+
+    // 2. Direct Browser-side Fallback (CORS Proxy for static deployment)
+    try {
+      const host = new URL(streamUrl).host;
+      const statusUrl = `https://${host}/status-json.xsl`;
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(statusUrl)}`;
+      
+      const response = await fetch(proxyUrl);
+      if (response.ok) {
+        const text = await response.text();
+        // Aggressive cleanup for malformed JSON with trailing commas
+        let cleaned = text.trim()
+          .replace(/,\s*\]\s*\}\s*\}\s*$/, ']}}')
+          .replace(/,\s*\]/g, ']');
+        
+        let extractedTitle = "";
+        try {
+          const data = JSON.parse(cleaned);
+          const source = data.icestats?.source;
+          const srcArray = Array.isArray(source) ? source : [source];
+          const bestSrc = srcArray.find((s: any) => s && s.title && s.title !== "-") || srcArray[0];
+          
+          if (bestSrc && (bestSrc.title || bestSrc.yp_currently_playing)) {
+            extractedTitle = bestSrc.title || bestSrc.yp_currently_playing;
+          }
+        } catch (_) {
+          // Regex fallback if JSON still malformed
+          const titleMatch = text.match(/"(?:title|yp_currently_playing|StreamTitle)"\s*:\s*"([^"]+)"/i);
+          if (titleMatch && titleMatch[1]) {
+            extractedTitle = titleMatch[1];
+          }
+        }
+
+        if (extractedTitle) {
+          await applyMetadata({ title: extractedTitle });
+        }
+      }
+    } catch (err) {
+      console.warn("[Player] Direct metadata fallback failed:", err);
     } finally {
       setIsFetchingMetadata(false);
     }
@@ -925,7 +989,27 @@ export const RadioPlayer: React.FC = () => {
               )}
 
               {/* Controls */}
-              <div className={`flex items-center gap-4 sm:gap-6 w-full ${videoLayout === 'full' ? 'lg:w-auto' : 'md:w-auto'} justify-center md:justify-end flex-shrink-0`}>
+              <div className={`flex items-center gap-3 sm:gap-4 w-full ${videoLayout === 'full' ? 'lg:w-auto' : 'md:w-auto'} justify-center md:justify-end flex-shrink-0`}>
+                  {onOpenSongRequest && (
+                    <button
+                      onClick={onOpenSongRequest}
+                      className="flex items-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-full bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/40 text-xs font-black transition-all shadow-md active:scale-95 flex-shrink-0 group"
+                      title="Pedir canción directo a WhatsApp (0424 1555789)"
+                    >
+                      <MessageCircle size={15} className="text-emerald-400 group-hover:scale-110 transition-transform" />
+                      <span className="hidden sm:inline">Pedir Canción</span>
+                    </button>
+                  )}
+
+                  <a
+                    href="#/pantalla"
+                    className="flex items-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-black transition-all shadow-md active:scale-95 flex-shrink-0 group"
+                    title="Abrir en Modo Pantalla de Google / Smart TV"
+                  >
+                    <Tv size={15} className="text-secondary group-hover:scale-110 transition-transform" />
+                    <span className="hidden sm:inline">Pantalla Google</span>
+                  </a>
+
                   <motion.button
                       whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                       onClick={togglePlay}

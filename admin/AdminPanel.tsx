@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useConfig } from '../context/ConfigContext';
-import { SiteConfig, HeroSlide, PodcastEpisode, GalleryItem, NavItemConfig, FontFamily, Client, AutoDJTrack } from '../types';
-import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2, ListOrdered, Sparkles, Play, CheckCircle2, ExternalLink, Rss, FileText, X, Disc, ShieldCheck } from 'lucide-react';
+import { SiteConfig, HeroSlide, PodcastEpisode, GalleryItem, NavItemConfig, FontFamily, Client, AutoDJTrack, AdBannerItem } from '../types';
+import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2, ListOrdered, Sparkles, Play, CheckCircle2, ExternalLink, Rss, FileText, X, Disc, ShieldCheck, Tv, Copy } from 'lucide-react';
 
 // --- CONSTANTS ---
 const FONT_OPTIONS: { value: FontFamily; label: string }[] = [
@@ -1680,8 +1680,36 @@ export const AdminPanel: React.FC = () => {
     setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, programs: prev.content.program.programs.filter(p => p.id !== id)}}}));
   };
 
-  const updateProgram = (id: string, field: string, value: string) => {
+  const updateProgram = (id: string, field: string, value: any) => {
     setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, programs: prev.content.program.programs.map(p => p.id === id ? { ...p, [field]: value } : p)}}}));
+  };
+
+  const updateProgramSocialLink = (id: string, network: string, value: string, isWeekend: boolean) => {
+    setFormData(prev => {
+      const list = isWeekend ? (prev.content.program.weekendPrograms || []) : prev.content.program.programs;
+      const updated = list.map(p => {
+        if (p.id === id) {
+          return {
+            ...p,
+            socialLinks: {
+              ...(p.socialLinks || {}),
+              [network]: value
+            }
+          };
+        }
+        return p;
+      });
+      return {
+        ...prev,
+        content: {
+          ...prev.content,
+          program: {
+            ...prev.content.program,
+            [isWeekend ? 'weekendPrograms' : 'programs']: updated
+          }
+        }
+      };
+    });
   };
 
   const addWeekendProgram = () => {
@@ -1699,7 +1727,7 @@ export const AdminPanel: React.FC = () => {
     setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, weekendPrograms: (prev.content.program.weekendPrograms || []).filter(p => p.id !== id)}}}));
   };
 
-  const updateWeekendProgram = (id: string, field: string, value: string) => {
+  const updateWeekendProgram = (id: string, field: string, value: any) => {
     setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, weekendPrograms: (prev.content.program.weekendPrograms || []).map(p => p.id === id ? { ...p, [field]: value } : p)}}}));
   };
 
@@ -2277,6 +2305,8 @@ export const AdminPanel: React.FC = () => {
           <TabButton id="layout" activeTab={activeTab} onClick={setActiveTab} icon={ListOrdered} label="Orden de Secciones" />
           <TabButton id="sections" activeTab={activeTab} onClick={setActiveTab} icon={Grid} label="Estructura Menú" />
           <TabButton id="hero" activeTab={activeTab} onClick={setActiveTab} icon={Home} label="Banner" />
+          <TabButton id="advertising" activeTab={activeTab} onClick={setActiveTab} icon={RectangleVertical} label="Publicidad Lateral" />
+          <TabButton id="songrequest" activeTab={activeTab} onClick={setActiveTab} icon={MessageCircle} label="Pedidos WhatsApp" />
           <TabButton id="ribbon" activeTab={activeTab} onClick={setActiveTab} icon={Type} label="Cintillos" />
           <TabButton id="topvideos" activeTab={activeTab} onClick={setActiveTab} icon={PlayCircle} label="Más Viral y Comentado" />
           <TabButton id="podcast" activeTab={activeTab} onClick={setActiveTab} icon={Mic2} label="Podcast" />
@@ -3331,6 +3361,379 @@ export const AdminPanel: React.FC = () => {
               </div>
             )}
 
+            {/* Advertising / Publicidad Lateral Tab */}
+            {activeTab === 'advertising' && (
+              <div className="space-y-8 animate-fade-in">
+                <SectionHeader 
+                  title="Panel de Publicidad Lateral" 
+                  subtitle="Configura banners publicitarios (verticales o cuadrados), elige si se muestran del lado izquierdo o derecho, y activa o desactiva el panel." 
+                  action={
+                    <button 
+                      onClick={() => {
+                        const newBanner: AdBannerItem = {
+                          id: uuidv4(),
+                          title: "Nuevo Banner Publicitario",
+                          imageUrl: "https://images.unsplash.com/photo-1557804506-669a67965ba0?q=80&w=800&auto=format&fit=crop",
+                          linkUrl: "https://wa.me/584241555789",
+                          format: "vertical",
+                          active: true
+                        };
+                        setFormData(prev => ({
+                          ...prev,
+                          advertising: {
+                            ...(prev.advertising || { enabled: true, position: 'left', title: 'Publicidad & Aliados', banners: [] }),
+                            banners: [...(prev.advertising?.banners || []), newBanner]
+                          }
+                        }));
+                      }} 
+                      className="bg-primary text-white px-4 py-2.5 rounded-xl hover:bg-opacity-90 flex items-center shadow-lg shadow-purple-900/30 text-sm font-bold gap-2"
+                    >
+                      <Plus size={18} />
+                      <span>Agregar Banner</span>
+                    </button>
+                  } 
+                />
+
+                {/* Main Settings Card */}
+                <div className="bg-gray-800/80 border border-gray-700/80 p-6 rounded-2xl shadow-xl space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Enable Toggle */}
+                    <div className="flex items-center justify-between p-4 bg-gray-900/60 rounded-xl border border-gray-700">
+                      <div>
+                        <h4 className="text-sm font-bold text-white">Activar Panel de Publicidad</h4>
+                        <p className="text-xs text-gray-400">Muestra los banners publicitarios en la página pública</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={formData.advertising?.enabled !== false} 
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            advertising: {
+                              ...(prev.advertising || { position: 'left', title: 'Publicidad & Aliados', banners: [] }),
+                              enabled: e.target.checked
+                            }
+                          }))}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                      </label>
+                    </div>
+
+                    {/* Position: Left vs Right */}
+                    <div className="p-4 bg-gray-900/60 rounded-xl border border-gray-700 space-y-2">
+                      <label className="text-sm font-bold text-white block">Posición del Panel en Pantalla</label>
+                      <div className="grid grid-cols-2 gap-3 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({
+                            ...prev,
+                            advertising: {
+                              ...(prev.advertising || { enabled: true, title: 'Publicidad & Aliados', banners: [] }),
+                              position: 'left'
+                            }
+                          }))}
+                          className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+                            (formData.advertising?.position || 'left') === 'left'
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500 shadow-lg shadow-amber-500/10'
+                              : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'
+                          }`}
+                        >
+                          <AlignLeft size={16} />
+                          <span>Lado Izquierdo</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({
+                            ...prev,
+                            advertising: {
+                              ...(prev.advertising || { enabled: true, title: 'Publicidad & Aliados', banners: [] }),
+                              position: 'right'
+                            }
+                          }))}
+                          className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+                            formData.advertising?.position === 'right'
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500 shadow-lg shadow-amber-500/10'
+                              : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'
+                          }`}
+                        >
+                          <AlignRight size={16} />
+                          <span>Lado Derecho</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Title of Block */}
+                  <InputGroup label="Título de la Sección de Publicidad">
+                    <input 
+                      type="text" 
+                      value={formData.advertising?.title || 'Publicidad & Aliados'} 
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        advertising: {
+                          ...(prev.advertising || { enabled: true, position: 'left', banners: [] }),
+                          title: e.target.value
+                        }
+                      }))}
+                      placeholder="Ej. Publicidad & Aliados" 
+                      className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:border-amber-400 focus:outline-none" 
+                    />
+                  </InputGroup>
+                </div>
+
+                {/* Banners List */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <span>Banners Publicitarios ({formData.advertising?.banners?.length || 0})</span>
+                    </h3>
+                  </div>
+
+                  {(!formData.advertising?.banners || formData.advertising.banners.length === 0) ? (
+                    <div className="p-8 text-center bg-gray-800/40 border border-dashed border-gray-700 rounded-2xl">
+                      <RectangleVertical size={40} className="mx-auto text-gray-500 mb-3" />
+                      <p className="text-sm text-gray-400">No hay banners publicitarios agregados.</p>
+                      <button
+                        onClick={() => {
+                          const newBanner: AdBannerItem = {
+                            id: uuidv4(),
+                            title: "Espacio Publicitario",
+                            imageUrl: "https://images.unsplash.com/photo-1557804506-669a67965ba0?q=80&w=800&auto=format&fit=crop",
+                            linkUrl: "https://wa.me/584241555789",
+                            format: "vertical",
+                            active: true
+                          };
+                          setFormData(prev => ({
+                            ...prev,
+                            advertising: {
+                              ...(prev.advertising || { enabled: true, position: 'left', title: 'Publicidad & Aliados', banners: [] }),
+                              banners: [newBanner]
+                            }
+                          }));
+                        }}
+                        className="mt-3 text-xs font-bold text-amber-400 hover:text-amber-300 underline"
+                      >
+                        Crear primer banner de publicidad
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                      {formData.advertising.banners.map((banner, bIdx) => (
+                        <div key={banner.id} className="p-5 bg-gray-800/90 border border-gray-700 rounded-2xl shadow-lg space-y-4 relative group">
+                          {/* Top Controls */}
+                          <div className="flex items-center justify-between border-b border-gray-700/60 pb-3">
+                            <span className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                              <span>Banner #{bIdx + 1}</span>
+                              <span className="text-[10px] bg-gray-700 text-gray-300 px-2 py-0.5 rounded-full font-mono">
+                                {banner.format === 'vertical' ? 'Vertical (Alto)' : 'Cuadrado (1:1)'}
+                              </span>
+                            </span>
+
+                            <div className="flex items-center gap-3">
+                              <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={banner.active !== false}
+                                  onChange={(e) => {
+                                    const updated = [...(formData.advertising?.banners || [])];
+                                    updated[bIdx] = { ...updated[bIdx], active: e.target.checked };
+                                    setFormData(prev => ({ ...prev, advertising: { ...(prev.advertising || { enabled: true, position: 'left', title: 'Publicidad' }), banners: updated } }));
+                                  }}
+                                  className="h-4 w-4 accent-emerald-500 rounded"
+                                />
+                                <span className={banner.active !== false ? 'text-emerald-400 font-bold' : 'text-gray-500'}>
+                                  {banner.active !== false ? 'Activo' : 'Pausado'}
+                                </span>
+                              </label>
+
+                              <button
+                                onClick={() => {
+                                  const updated = formData.advertising?.banners.filter((_, idx) => idx !== bIdx) || [];
+                                  setFormData(prev => ({ ...prev, advertising: { ...(prev.advertising || { enabled: true, position: 'left', title: 'Publicidad' }), banners: updated } }));
+                                }}
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                                title="Eliminar banner"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Format Selector */}
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-gray-300">Tipo / Formato de Banner</label>
+                            <div className="grid grid-cols-2 gap-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = [...(formData.advertising?.banners || [])];
+                                  updated[bIdx] = { ...updated[bIdx], format: 'vertical' };
+                                  setFormData(prev => ({ ...prev, advertising: { ...(prev.advertising || { enabled: true, position: 'left', title: 'Publicidad' }), banners: updated } }));
+                                }}
+                                className={`flex items-center justify-center gap-2 p-2 rounded-xl border text-xs font-bold transition-all ${
+                                  banner.format === 'vertical'
+                                    ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                                    : 'bg-gray-900 border-gray-700 text-gray-400 hover:text-white'
+                                }`}
+                              >
+                                <RectangleVertical size={14} />
+                                <span>Vertical (Alto)</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = [...(formData.advertising?.banners || [])];
+                                  updated[bIdx] = { ...updated[bIdx], format: 'square' };
+                                  setFormData(prev => ({ ...prev, advertising: { ...(prev.advertising || { enabled: true, position: 'left', title: 'Publicidad' }), banners: updated } }));
+                                }}
+                                className={`flex items-center justify-center gap-2 p-2 rounded-xl border text-xs font-bold transition-all ${
+                                  banner.format === 'square'
+                                    ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                                    : 'bg-gray-900 border-gray-700 text-gray-400 hover:text-white'
+                                }`}
+                              >
+                                <Grid size={14} />
+                                <span>Cuadrado (1:1)</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Title */}
+                          <InputGroup label="Nombre o Título del Anunciante">
+                            <input
+                              type="text"
+                              value={banner.title}
+                              onChange={(e) => {
+                                const updated = [...(formData.advertising?.banners || [])];
+                                updated[bIdx] = { ...updated[bIdx], title: e.target.value };
+                                setFormData(prev => ({ ...prev, advertising: { ...(prev.advertising || { enabled: true, position: 'left', title: 'Publicidad' }), banners: updated } }));
+                              }}
+                              placeholder="Ej. Tienda Deportiva / Promoción Especial"
+                              className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-xl text-xs focus:border-amber-400 focus:outline-none"
+                            />
+                          </InputGroup>
+
+                          {/* Image Uploader */}
+                          <MediaUploader
+                            label={`Imagen del Banner (${banner.format === 'vertical' ? 'Recomendado Vertical: 300x600 o similar' : 'Recomendado Cuadrado: 300x250 o 300x300'})`}
+                            value={banner.imageUrl}
+                            onChange={(val) => {
+                              const updated = [...(formData.advertising?.banners || [])];
+                              updated[bIdx] = { ...updated[bIdx], imageUrl: val };
+                              setFormData(prev => ({ ...prev, advertising: { ...(prev.advertising || { enabled: true, position: 'left', title: 'Publicidad' }), banners: updated } }));
+                            }}
+                            type="image"
+                          />
+
+                          {/* Target Link */}
+                          <InputGroup label="Enlace al hacer Clic (WhatsApp o Web del Cliente)">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={banner.linkUrl || ''}
+                                onChange={(e) => {
+                                  const updated = [...(formData.advertising?.banners || [])];
+                                  updated[bIdx] = { ...updated[bIdx], linkUrl: e.target.value };
+                                  setFormData(prev => ({ ...prev, advertising: { ...(prev.advertising || { enabled: true, position: 'left', title: 'Publicidad' }), banners: updated } }));
+                                }}
+                                placeholder="https://wa.me/584241555789 o https://empresa.com"
+                                className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 pl-8 rounded-xl text-xs focus:border-amber-400 focus:outline-none"
+                              />
+                              <LinkIcon size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
+                            </div>
+                          </InputGroup>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <SaveAction />
+              </div>
+            )}
+
+            {/* Song Request WhatsApp Tab */}
+            {activeTab === 'songrequest' && (
+              <div className="space-y-8 animate-fade-in">
+                <SectionHeader 
+                  title="Pedidos de Canciones por WhatsApp" 
+                  subtitle="Configura el formulario interactivo para que tus oyentes soliciten canciones directamente a tu WhatsApp oficial."
+                />
+
+                <div className="bg-gray-800/80 border border-gray-700/80 p-6 rounded-2xl shadow-xl space-y-6">
+                  {/* Enable Switch */}
+                  <div className="flex items-center justify-between p-4 bg-gray-900/60 rounded-xl border border-gray-700">
+                    <div>
+                      <h4 className="text-sm font-bold text-white">Activar Formulario al lado del Reproductor</h4>
+                      <p className="text-xs text-gray-400">Permite a los oyentes pedir canciones directamente por WhatsApp</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={formData.songRequest?.enabled !== false} 
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          songRequest: {
+                            ...(prev.songRequest || { title: 'Pide tu Canción', whatsappNumber: '0424 1555789' }),
+                            enabled: e.target.checked
+                          }
+                        }))}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                    </label>
+                  </div>
+
+                  {/* WhatsApp Number Input */}
+                  <div className="space-y-2">
+                    <InputGroup label="Número de WhatsApp para Pedidos">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={formData.songRequest?.whatsappNumber || '0424 1555789'}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            songRequest: {
+                              ...(prev.songRequest || { enabled: true, title: 'Pide tu Canción' }),
+                              whatsappNumber: e.target.value
+                            }
+                          }))}
+                          placeholder="0424 1555789"
+                          className="w-full bg-gray-900 border border-gray-700 text-emerald-400 font-mono font-bold p-3 pl-10 rounded-xl focus:border-emerald-500 focus:outline-none"
+                        />
+                        <MessageCircle size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-400" />
+                      </div>
+                    </InputGroup>
+                    <p className="text-xs text-gray-400">
+                      Formato actual configurado: <strong className="text-white">0424 1555789</strong>. Los pedidos se abrirán en WhatsApp automáticamente formateados con el nombre del oyente, canción solicitada y dedicatoria.
+                    </p>
+                  </div>
+
+                  {/* Title of Form */}
+                  <InputGroup label="Título del Formulario">
+                    <input
+                      type="text"
+                      value={formData.songRequest?.title || 'Pide tu Canción'}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        songRequest: {
+                          ...(prev.songRequest || { enabled: true, whatsappNumber: '0424 1555789' }),
+                          title: e.target.value
+                        }
+                      }))}
+                      placeholder="Ej. Pide tu Canción"
+                      className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:border-amber-400 focus:outline-none"
+                    />
+                  </InputGroup>
+                </div>
+
+                <SaveAction />
+              </div>
+            )}
+
             {activeTab === 'podcast' && (
               <div className="space-y-6 animate-fade-in">
                 <SectionHeader title="Podcast y Transmisión" subtitle="Configura el video en vivo y la lista de episodios." />
@@ -3457,36 +3860,50 @@ export const AdminPanel: React.FC = () => {
                                 <label htmlFor="prog-pause-hover" className="text-sm font-bold text-gray-300 cursor-pointer">Pausar al pasar mouse</label>
                             </div>
                         </div>
-                        
-                        <InputGroup label="Intervalo (ms)">
-                            <div className="flex items-center gap-2">
-                                <input 
-                                    type="number" 
-                                    min="500" 
-                                    max="30000" 
-                                    step="500"
-                                    value={formData.content.program.interval || 5000} 
-                                    onChange={e => setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, interval: parseInt(e.target.value) || 5000}}}))} 
-                                    className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg" 
-                                />
-                            </div>
+
+                        <InputGroup label="Modo de Movimiento">
+                            <select 
+                                value={formData.content.program.scrollMode || 'continuous'} 
+                                onChange={e => setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, scrollMode: e.target.value as any}}}))} 
+                                className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg"
+                            >
+                                <option value="continuous">Flujo Continuo Infinito (Recomendado)</option>
+                                <option value="step">Por Pasos con Intervalo</option>
+                            </select>
+                            <p className="text-[10px] text-gray-400 mt-1">El flujo continuo nunca retrocede ni rebota</p>
                         </InputGroup>
 
-                        <InputGroup label="Desplazamiento (px)">
-                            <div className="flex items-center gap-2">
-                                <input 
-                                    type="number" 
-                                    min="100" 
-                                    max="1200" 
-                                    step="50"
-                                    value={formData.content.program.scrollStep || 400} 
-                                    onChange={e => setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, scrollStep: parseInt(e.target.value) || 400}}}))} 
-                                    className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg" 
-                                    placeholder="Ej: 400"
-                                />
-                            </div>
-                            <p className="text-[10px] text-gray-500 mt-1">Pixeles que avanza por paso</p>
-                        </InputGroup>
+                        {formData.content.program.scrollMode !== 'step' ? (
+                            <InputGroup label="Velocidad (px/s)">
+                                <div className="flex items-center gap-2">
+                                    <input 
+                                        type="number" 
+                                        min="15" 
+                                        max="120" 
+                                        step="5"
+                                        value={formData.content.program.speed || 38} 
+                                        onChange={e => setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, speed: parseInt(e.target.value) || 38}}}))} 
+                                        className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg" 
+                                    />
+                                </div>
+                                <p className="text-[10px] text-gray-500 mt-1">Sugerido: 35-45 px/s para lectura óptima</p>
+                            </InputGroup>
+                        ) : (
+                            <InputGroup label="Intervalo (ms)">
+                                <div className="flex items-center gap-2">
+                                    <input 
+                                        type="number" 
+                                        min="1000" 
+                                        max="30000" 
+                                        step="500"
+                                        value={formData.content.program.interval || 4000} 
+                                        onChange={e => setFormData(prev => ({...prev, content: {...prev.content, program: {...prev.content.program, interval: parseInt(e.target.value) || 4000}}}))} 
+                                        className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg" 
+                                    />
+                                </div>
+                                <p className="text-[10px] text-gray-500 mt-1">Tiempo entre desplazamientos</p>
+                            </InputGroup>
+                        )}
 
                         <InputGroup label="Dirección">
                             <select 
@@ -3552,12 +3969,116 @@ export const AdminPanel: React.FC = () => {
                                             className="w-full bg-gray-800 border border-gray-700 text-white p-2 rounded focus:border-primary outline-none" 
                                         />
                                     </InputGroup>
+                                    <InputGroup label="Nombre del Locutor / Conductor">
+                                        <input 
+                                            type="text" 
+                                            value={prog.announcerName || ''} 
+                                            onChange={e => adminProgramTab === 'week' ? updateProgram(prog.id, 'announcerName', e.target.value) : updateWeekendProgram(prog.id, 'announcerName', e.target.value)} 
+                                            className="w-full bg-gray-800 border border-gray-700 text-white p-2 rounded focus:border-primary outline-none" 
+                                            placeholder="Ej: Kenny García, Glendy García" 
+                                        />
+                                    </InputGroup>
+
                                     <MediaUploader 
                                         label="Foto del Locutor" 
                                         value={prog.announcerImage || ''} 
                                         onChange={(val) => adminProgramTab === 'week' ? updateProgram(prog.id, 'announcerImage', val) : updateWeekendProgram(prog.id, 'announcerImage', val)} 
                                         type="image" 
                                     />
+
+                                    {/* REDES SOCIALES DEL LOCUTOR */}
+                                    <div className="bg-gray-800/80 p-4 rounded-xl border border-gray-700/80 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 rounded-lg bg-pink-500/20 text-pink-400 flex items-center justify-center">
+                                                    <Instagram size={13} />
+                                                </div>
+                                                <span className="text-xs font-bold text-white">Redes del Locutor</span>
+                                            </div>
+                                            <span className="text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-bold">
+                                                {Object.values(prog.socialLinks || {}).filter(Boolean).length} activas
+                                            </span>
+                                        </div>
+
+                                        <p className="text-[11px] text-gray-400">
+                                            Añade los enlaces para que los oyentes sigan al locutor directamente desde la plantilla:
+                                        </p>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs pt-1">
+                                            <div>
+                                                <label className="text-[10px] font-bold text-pink-400 flex items-center gap-1 mb-1">
+                                                    <Instagram size={11} /> Instagram
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="@usuario o https://..." 
+                                                    value={prog.socialLinks?.instagram || ''} 
+                                                    onChange={e => updateProgramSocialLink(prog.id, 'instagram', e.target.value, adminProgramTab === 'weekend')} 
+                                                    className="w-full bg-gray-900 border border-gray-700 text-white px-2.5 py-1.5 rounded text-xs focus:border-pink-500 outline-none" 
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-cyan-400 flex items-center gap-1 mb-1">
+                                                    TikTok
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="@usuario o https://..." 
+                                                    value={prog.socialLinks?.tiktok || ''} 
+                                                    onChange={e => updateProgramSocialLink(prog.id, 'tiktok', e.target.value, adminProgramTab === 'weekend')} 
+                                                    className="w-full bg-gray-900 border border-gray-700 text-white px-2.5 py-1.5 rounded text-xs focus:border-cyan-500 outline-none" 
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-blue-400 flex items-center gap-1 mb-1">
+                                                    <Facebook size={11} /> Facebook
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="https://facebook.com/..." 
+                                                    value={prog.socialLinks?.facebook || ''} 
+                                                    onChange={e => updateProgramSocialLink(prog.id, 'facebook', e.target.value, adminProgramTab === 'weekend')} 
+                                                    className="w-full bg-gray-900 border border-gray-700 text-white px-2.5 py-1.5 rounded text-xs focus:border-blue-500 outline-none" 
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-green-400 flex items-center gap-1 mb-1">
+                                                    <MessageCircle size={11} /> WhatsApp
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Ej: +58 424 0000000" 
+                                                    value={prog.socialLinks?.whatsapp || ''} 
+                                                    onChange={e => updateProgramSocialLink(prog.id, 'whatsapp', e.target.value, adminProgramTab === 'weekend')} 
+                                                    className="w-full bg-gray-900 border border-gray-700 text-white px-2.5 py-1.5 rounded text-xs focus:border-green-500 outline-none" 
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-sky-400 flex items-center gap-1 mb-1">
+                                                    X (Twitter)
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="@usuario o https://..." 
+                                                    value={prog.socialLinks?.twitter || ''} 
+                                                    onChange={e => updateProgramSocialLink(prog.id, 'twitter', e.target.value, adminProgramTab === 'weekend')} 
+                                                    className="w-full bg-gray-900 border border-gray-700 text-white px-2.5 py-1.5 rounded text-xs focus:border-sky-500 outline-none" 
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-bold text-red-400 flex items-center gap-1 mb-1">
+                                                    <Youtube size={11} /> YouTube
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="https://youtube.com/..." 
+                                                    value={prog.socialLinks?.youtube || ''} 
+                                                    onChange={e => updateProgramSocialLink(prog.id, 'youtube', e.target.value, adminProgramTab === 'weekend')} 
+                                                    className="w-full bg-gray-900 border border-gray-700 text-white px-2.5 py-1.5 rounded text-xs focus:border-red-500 outline-none" 
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
 
                                     {/* EPISODES MANAGEMENT */}
                                     <div className="mt-6 pt-6 border-t border-gray-700">
@@ -4790,6 +5311,57 @@ export const AdminPanel: React.FC = () => {
             {activeTab === 'general' && (
               <div className="space-y-6 animate-fade-in">
                 <SectionHeader title="General / Footer" subtitle="Configura la información del pie de página." />
+
+                {/* ENLACE PARA PANTALLA DE GOOGLE / SMART DISPLAY CARD */}
+                <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border border-secondary/40 p-5 rounded-2xl shadow-xl space-y-3">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-secondary/20 text-secondary flex items-center justify-center flex-shrink-0">
+                        <Tv size={22} />
+                      </div>
+                      <div>
+                        <h4 className="text-base font-bold text-white flex items-center gap-2">
+                          Enlace para Pantalla de Google / Smart TV
+                          <span className="bg-secondary/20 text-secondary text-[10px] font-black px-2 py-0.5 rounded-full uppercase">Listo para usar</span>
+                        </h4>
+                        <p className="text-xs text-gray-400">
+                          Diseñado para Google Nest Hub (7"/10"), Chromecast, Google TV o cualquier navegador de pantalla inteligente.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href="#/pantalla"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-all"
+                      >
+                        <ExternalLink size={14} /> Abrir Pantalla
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="bg-black/60 p-3 rounded-xl border border-gray-700 flex items-center justify-between gap-3">
+                    <input 
+                      type="text" 
+                      readOnly 
+                      value={`${typeof window !== 'undefined' ? window.location.origin : 'https://ais-pre-kkn6qkgcsgj7v5xyziprtq-53201889037.us-west2.run.app'}/#/pantalla`}
+                      className="bg-transparent text-secondary text-xs sm:text-sm font-mono flex-1 outline-none truncate"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const link = `${typeof window !== 'undefined' ? window.location.origin : 'https://ais-pre-kkn6qkgcsgj7v5xyziprtq-53201889037.us-west2.run.app'}/#/pantalla`;
+                        navigator.clipboard.writeText(link);
+                        alert("¡Enlace copiado al portapapeles! Puedes pegarlo en tu Google Nest Hub, TV o navegador.");
+                      }}
+                      className="px-4 py-1.5 rounded-lg bg-secondary text-primary font-black text-xs hover:bg-yellow-400 flex items-center gap-1 shadow-md transition-all active:scale-95 flex-shrink-0"
+                    >
+                      <Copy size={13} /> Copiar Enlace
+                    </button>
+                  </div>
+                </div>
+
                 <h3 className="text-md font-bold text-gray-300 uppercase tracking-wide border-b border-gray-700 pb-2 mb-4">Información Principal y Stream</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="md:col-span-2 lg:col-span-4">

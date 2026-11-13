@@ -106,20 +106,118 @@ export const DEFAULT_CONFIG: SiteConfig = {
     program: {
       title: "Nuestra Programación",
       description: "La mejor selección musical y entretenimiento para llenar tu día de buena vibra.",
-      layoutStyle: 'grid',
+      layoutStyle: 'cards',
       autoPlay: true,
-      interval: 5000,
+      scrollMode: 'continuous',
+      speed: 38,
+      interval: 4000,
       direction: 'horizontal',
+      infiniteLoop: true,
+      pauseOnHover: true,
+      scrollStep: 320,
       programs: [
         {
           id: 'prog-1',
           title: "Amanecer con Buena Vibra",
-          description: "Inicia tu día con la mejor música y buena energía.",
+          description: "Inicia tu día con la mejor música, noticias positivas y buena energía.",
           schedule: "Lunes a Viernes - 6:00 AM",
-          announcerImage: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400&auto=format&fit=crop"
+          announcerName: "Kenny García",
+          announcerImage: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400&auto=format&fit=crop",
+          socialLinks: {
+            instagram: "https://instagram.com/buenisima877fm",
+            tiktok: "https://tiktok.com/@buenisima877fm",
+            whatsapp: "https://wa.me/584241555789"
+          }
+        },
+        {
+          id: 'prog-2',
+          title: "La Mañana Buenísimas",
+          description: "Entretenimiento, notas de actualidad, entrevistas y los hits del momento.",
+          schedule: "Lunes a Viernes - 9:00 AM",
+          announcerName: "Glendy García",
+          announcerImage: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400&auto=format&fit=crop",
+          socialLinks: {
+            instagram: "https://instagram.com/buenisima877fm",
+            facebook: "https://facebook.com/buenisima877fm",
+            whatsapp: "https://wa.me/584241555789"
+          }
+        },
+        {
+          id: 'prog-3',
+          title: "El Conteo & Éxitos",
+          description: "El ranking de las canciones más pedidas y sonadas en toda la región.",
+          schedule: "Lunes a Viernes - 12:00 PM",
+          announcerName: "Carlos Méndez",
+          announcerImage: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=400&auto=format&fit=crop",
+          socialLinks: {
+            instagram: "https://instagram.com/buenisima877fm",
+            twitter: "https://x.com/buenisima877fm"
+          }
+        },
+        {
+          id: 'prog-4',
+          title: "Tardes de Buena Vibra",
+          description: "Acompaña tu tarde con la mejor selección musical y complacencias en vivo.",
+          schedule: "Lunes a Viernes - 3:00 PM",
+          announcerName: "Mariana Rivas",
+          announcerImage: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=400&auto=format&fit=crop",
+          socialLinks: {
+            instagram: "https://instagram.com/buenisima877fm",
+            tiktok: "https://tiktok.com/@buenisima877fm",
+            whatsapp: "https://wa.me/584241555789"
+          }
+        },
+        {
+          id: 'prog-5',
+          title: "Conexión Tropical & Urbana",
+          description: "El ritmo y la potencia de los grandes géneros latinos para activar tu día.",
+          schedule: "Lunes a Viernes - 6:00 PM",
+          announcerName: "DJ Alexander",
+          announcerImage: "https://images.unsplash.com/photo-1517841905240-472988babdf9?q=80&w=400&auto=format&fit=crop",
+          socialLinks: {
+            instagram: "https://instagram.com/buenisima877fm",
+            youtube: "https://youtube.com/@buenisima877fm"
+          }
+        },
+        {
+          id: 'prog-6',
+          title: "Baladas & Recuerdos de Oro",
+          description: "Los clásicos que marcaron tu vida en una noche íntima e inolvidable.",
+          schedule: "Lunes a Viernes - 9:00 PM",
+          announcerName: "Héctor Valero",
+          announcerImage: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?q=80&w=400&auto=format&fit=crop",
+          socialLinks: {
+            instagram: "https://instagram.com/buenisima877fm",
+            facebook: "https://facebook.com/buenisima877fm"
+          }
         }
       ],
-      weekendPrograms: []
+      weekendPrograms: [
+        {
+          id: 'prog-we-1',
+          title: "Fiesta Fin de Semana",
+          description: "Música bailable, mezclas exclusivas y la mejor energía para el sábado.",
+          schedule: "Sábados - 10:00 AM",
+          announcerName: "DJ Alexander",
+          announcerImage: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?q=80&w=400&auto=format&fit=crop",
+          socialLinks: {
+            instagram: "https://instagram.com/buenisima877fm",
+            tiktok: "https://tiktok.com/@buenisima877fm"
+          }
+        },
+        {
+          id: 'prog-we-2',
+          title: "Domingos de Clásicos",
+          description: "Las melodías que trascienden generaciones para disfrutar en familia.",
+          schedule: "Domingos - 8:00 AM",
+          announcerName: "Kenny García",
+          announcerImage: "https://images.unsplash.com/photo-1489424731084-a5d8b219a5bb?q=80&w=400&auto=format&fit=crop",
+          socialLinks: {
+            instagram: "https://instagram.com/buenisima877fm",
+            whatsapp: "https://wa.me/584241555789"
+          }
+        }
+      ]
     },
     gallery: {
       title: "Galería",
@@ -251,10 +349,39 @@ export const DEFAULT_CONFIG: SiteConfig = {
       { id: 'contact', visible: true }
     ]
   },
+  advertising: {
+    enabled: true,
+    position: 'left',
+    title: "Publicidad & Aliados",
+    banners: [
+      {
+        id: "ad-banner-1",
+        title: "Publicidad Vertical Buenísima",
+        imageUrl: "https://images.unsplash.com/photo-1557804506-669a67965ba0?q=80&w=800&auto=format&fit=crop",
+        linkUrl: "https://wa.me/584241555789?text=Hola%20Buen%C3%ADsima%20Radio,%20deseo%20pautar%20publicidad",
+        format: "vertical",
+        active: true
+      },
+      {
+        id: "ad-banner-2",
+        title: "Espacio Publicitario Cuadrado",
+        imageUrl: "https://images.unsplash.com/photo-1542744094-3a31f272c490?q=80&w=600&auto=format&fit=crop",
+        linkUrl: "https://wa.me/584241555789?text=Hola%20Buen%C3%ADsima%20Radio,%20deseo%20informaci%C3%B3n%20publicitaria",
+        format: "square",
+        active: true
+      }
+    ]
+  },
+  songRequest: {
+    enabled: true,
+    whatsappNumber: "0424 1555789",
+    title: "Pide tu Canción",
+    subtitle: "Directo a nuestra cabina por WhatsApp"
+  },
   social: {
     instagram: "https://instagram.com",
     tiktok: "https://tiktok.com",
     youtube: "https://youtube.com",
-    whatsapp: "https://whatsapp.com"
+    whatsapp: "https://wa.me/584241555789"
   }
 };

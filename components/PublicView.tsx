@@ -6,9 +6,11 @@ import { ClientGallery } from './ClientGallery';
 import { SocialEmbed } from './SocialEmbed';
 import { SocialCarousel } from './SocialCarousel';
 import { WidgetEmbed } from './WidgetEmbed';
-import { Menu, X, Facebook, Instagram, Youtube, Phone, Mail, MapPin, Radio, ChevronLeft, ChevronRight, Sun, Moon, PlayCircle, Video, Heart, CreditCard, Tv, Play, MessageSquare, Users, Mic2, Newspaper, Calendar, User, ArrowRight, ChevronDown } from 'lucide-react';
+import { Menu, X, Facebook, Instagram, Youtube, Phone, Mail, MapPin, Radio, ChevronLeft, ChevronRight, Sun, Moon, PlayCircle, Video, Heart, CreditCard, Tv, Play, MessageSquare, Users, Mic2, Newspaper, Calendar, User, ArrowRight, ChevronDown, MessageCircle } from 'lucide-react';
 import { TikTok } from './TikTokIcon';
 import { ProgramCarousel } from './ProgramCarousel';
+import { SongRequestForm } from './SongRequestForm';
+import { AdvertisingSidebar } from './AdvertisingSidebar';
 import { NewsItem, ProgramItem } from '../types';
 
 interface NavLinkProps {
@@ -192,6 +194,7 @@ const PublicView: React.FC = () => {
 
   const [playingVideo, setPlayingVideo] = useState<{url: string; title: string} | null>(null);
   const [selectedProgramEpisodes, setSelectedProgramEpisodes] = useState<ProgramItem | null>(null);
+  const [showSongModal, setShowSongModal] = useState(false);
 
   useEffect(() => {
       const feeds = config.content.news?.rssFeeds || [];
@@ -274,6 +277,30 @@ const PublicView: React.FC = () => {
 
   const prevSlide = () => {
     setCurrentSlide((prev) => (prev === 0 ? config.content.hero.length - 1 : prev - 1));
+  };
+
+  const touchStartXRef = useRef<number | null>(null);
+  const touchEndXRef = useRef<number | null>(null);
+
+  const handleHeroTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.targetTouches[0].clientX;
+  };
+
+  const handleHeroTouchMove = (e: React.TouchEvent) => {
+    touchEndXRef.current = e.targetTouches[0].clientX;
+  };
+
+  const handleHeroTouchEnd = () => {
+    if (touchStartXRef.current !== null && touchEndXRef.current !== null) {
+      const distance = touchStartXRef.current - touchEndXRef.current;
+      if (distance > 45) {
+        nextSlide();
+      } else if (distance < -45) {
+        prevSlide();
+      }
+    }
+    touchStartXRef.current = null;
+    touchEndXRef.current = null;
   };
 
   const toggleTheme = () => {
@@ -474,9 +501,18 @@ const PublicView: React.FC = () => {
           </div>
 
           {/* Desktop Menu */}
-          <div className="hidden md:flex items-center space-x-8">
+          <div className="hidden md:flex items-center space-x-6">
             {renderNavItems()}
             
+            <a
+                href="#/pantalla"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/15 hover:bg-secondary/30 text-secondary border border-secondary/30 text-xs font-bold transition-all shadow-sm active:scale-95"
+                title="Modo Pantalla de Google / TV"
+            >
+                <Tv size={14} />
+                <span>Pantalla Google</span>
+            </a>
+
             <button 
                 onClick={toggleTheme}
                 className="opacity-80 hover:opacity-100 transition-colors p-2 rounded-full hover:bg-white/10"
@@ -487,16 +523,24 @@ const PublicView: React.FC = () => {
             </button>
           </div>
 
-          <div className="flex items-center space-x-4 md:hidden flex-shrink-0">
+          <div className="flex items-center space-x-3 md:hidden flex-shrink-0">
+            <a
+                href="#/pantalla"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary/15 text-secondary border border-secondary/30 text-[11px] font-bold"
+                title="Modo Pantalla de Google / TV"
+            >
+                <Tv size={13} />
+                <span>Pantalla</span>
+            </a>
             <button 
                 onClick={toggleTheme}
-                className="opacity-80 hover:opacity-100"
+                className="opacity-80 hover:opacity-100 p-1"
                 style={{ color: navStyle.color }}
             >
-                {config.appearance.themeMode === 'light' ? <Moon size={24} /> : <Sun size={24} />}
+                {config.appearance.themeMode === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
             <button style={{ color: navStyle.color }} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-                {mobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+                {mobileMenuOpen ? <X size={26} /> : <Menu size={26} />}
             </button>
           </div>
         </div>
@@ -508,47 +552,47 @@ const PublicView: React.FC = () => {
         )}
       </nav>
 
-      {/* Main Radio Player */}
-      <div style={{ paddingTop: `${dynamicNavHeight}px` }}>
-        <RadioPlayer />
+      {/* Main Radio Player & Song Request Band */}
+      <div style={{ paddingTop: `${dynamicNavHeight}px` }} className="w-full bg-[#060608] border-b border-white/10 relative z-20">
+        <div className="w-full max-w-[1600px] mx-auto p-2 sm:p-4 lg:p-6 flex flex-col xl:flex-row items-stretch gap-4">
+          <div className="flex-1 min-w-0">
+            <RadioPlayer onOpenSongRequest={() => setShowSongModal(true)} />
+          </div>
+          {config.songRequest?.enabled !== false && (
+            <div className="w-full xl:w-[380px] 2xl:w-[420px] flex-shrink-0 flex flex-col justify-center">
+              <SongRequestForm 
+                whatsappNumber={config.songRequest?.whatsappNumber || "0424 1555789"} 
+                compact={true} 
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {(() => {
-        // Build the layout array. Fallback to hardcoded order if missing.
-        const defaultOrder = ['hero', 'topvideos', 'ribbons', 'podcast', 'program', 'gallery', 'news', 'clients', 'chat', 'contact'];
-        let sectionsToRender = config.layout?.sections || defaultOrder.map(id => ({ id, visible: true }));
-        
-        return sectionsToRender.map((sectionConfig) => {
-            if (!sectionConfig.visible) return null;
-            
-            switch (sectionConfig.id) {
+        const renderSectionById = (id: string) => {
+            switch (id) {
                 case 'hero':
                     return activeSections.hero ? (
                         <section 
                             id="hero" 
                             key="hero"
-                            className="relative w-full overflow-hidden bg-gray-900 group animate-fade-in"
-                            style={{ height: '400px' }}
+                            className="relative w-full overflow-hidden bg-gray-950 group animate-fade-in flex flex-col justify-center items-center min-h-[300px] sm:min-h-[380px] md:min-h-[460px] lg:min-h-[540px] xl:min-h-[600px] transition-all duration-300 select-none"
+                            onTouchStart={handleHeroTouchStart}
+                            onTouchMove={handleHeroTouchMove}
+                            onTouchEnd={handleHeroTouchEnd}
                         >
             {config.content.hero.map((slide, index) => {
-              // Determine alignment classes
-              const hAlignClass = slide.alignment === 'left' 
-                ? 'items-start text-left pl-10 md:pl-20' 
-                : slide.alignment === 'right' 
-                  ? 'items-end text-right pr-10 md:pr-20' 
-                  : 'items-center text-center px-4';
-
+              // Determine vertical alignment classes
               const vAlignClass = slide.verticalAlignment === 'top'
-                ? 'justify-start pt-20'
+                ? 'justify-start pt-6 sm:pt-10 md:pt-14'
                 : slide.verticalAlignment === 'bottom'
-                  ? 'justify-end pb-20'
+                  ? 'justify-end pb-14 sm:pb-16 md:pb-20'
                   : 'justify-center';
-
-              const alignClass = `${hAlignClass} ${vAlignClass}`;
 
               // Text Style Helpers
               const getShadowClass = (shadow?: string) => {
-                 if (shadow === 'strong') return 'drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)]';
+                 if (shadow === 'strong') return 'drop-shadow-[0_4px_6px_rgba(0,0,0,0.85)]';
                  if (shadow === 'soft') return 'drop-shadow-md';
                  return '';
               };
@@ -569,100 +613,141 @@ const PublicView: React.FC = () => {
               return (
                 <div 
                     key={slide.id}
-                    className={`absolute inset-0 transition-opacity duration-1000 ease-in-out flex flex-col ${alignClass} ${
-                    index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'
+                    className={`absolute inset-0 w-full h-full flex flex-col ${vAlignClass} items-center justify-center transition-opacity duration-700 ease-in-out px-4 sm:px-8 md:px-14 lg:px-20 py-8 sm:py-12 md:py-16 ${
+                    index === currentSlide ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'
                     }`}
                 >
-                    <div 
-                        className={`absolute inset-0 bg-cover bg-center transition-transform duration-[8000ms] -z-10 ${
-                        index === currentSlide ? 'scale-105' : 'scale-100'
-                        }`}
-                        style={{ backgroundImage: `url(${getDirectImageUrl(slide.image)})` }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/40 to-black/30 -z-10" />
+                    {/* Background Graphic Box with responsive scaling */}
+                    <div className="absolute inset-0 w-full h-full -z-10 overflow-hidden bg-gray-950">
+                        <img 
+                            src={getDirectImageUrl(slide.image)} 
+                            alt={slide.title} 
+                            className={`w-full h-full object-cover object-center transition-transform duration-[8000ms] ease-out ${
+                                index === currentSlide ? 'scale-105' : 'scale-100'
+                            }`}
+                            loading={index === 0 ? "eager" : "lazy"}
+                        />
+                        {/* Gradients ensuring ultra-clear text contrast on mobile and desktop */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/65 to-black/35 -z-10" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/40 to-black/85 -z-10" />
+                    </div>
                     
                     {index === currentSlide && (
+                        /* Flexbox Content Card: Adapts automatically across screen sizes */
                         <div 
-                            className="animate-fade-in-up w-full"
+                            className={`animate-fade-in-up w-full max-w-5xl mx-auto flex flex-col ${
+                                slide.alignment === 'left' 
+                                    ? 'items-center sm:items-start text-center sm:text-left' 
+                                    : slide.alignment === 'right' 
+                                        ? 'items-center sm:items-end text-center sm:text-right' 
+                                        : 'items-center text-center'
+                            } transition-all duration-300`}
                             style={{ 
-                                maxWidth: slide.contentMaxWidth ? `${slide.contentMaxWidth}px` : '100%',
-                                transform: `translate(${slide.offsetX || 0}px, ${slide.offsetY || 0}px)`
+                                maxWidth: slide.contentMaxWidth ? `${slide.contentMaxWidth}px` : undefined,
                             }}
                         >
+                            {/* Live Radio Badge */}
+                            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-secondary text-xs sm:text-sm font-bold uppercase tracking-wider mb-2.5 sm:mb-3.5 shadow-lg">
+                                <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+                                <span>BUENÍSIMA 87.7 FM</span>
+                                <span className="text-white/40">•</span>
+                                <span className="text-white/90">La Radio de la Buena Vibra</span>
+                            </div>
+
+                            {/* Main Title with responsive fluid typography */}
                             <h1 
-                                className={`mb-4 tracking-wide ${getShadowClass(slide.titleShadow || slide.textShadow)}`}
+                                className={`mb-2 sm:mb-3.5 tracking-wide leading-tight break-words max-w-full ${getShadowClass(slide.titleShadow || slide.textShadow)}`}
                                 style={{ 
                                     fontFamily: slide.titleFont ? `"${slide.titleFont}", sans-serif` : undefined,
                                     fontWeight: slide.titleBold ? 'bold' : 'normal',
                                     backgroundColor: slide.titleHighlight ? slide.titleHighlightColor || 'rgba(251, 191, 36, 0.4)' : 'transparent',
-                                    padding: slide.titleHighlight ? '0.1em 0.3em' : '0',
-                                    borderRadius: slide.titleHighlight ? '0.2em' : '0',
+                                    padding: slide.titleHighlight ? '0.1em 0.35em' : '0',
+                                    borderRadius: slide.titleHighlight ? '0.25em' : '0',
                                     display: slide.titleHighlight ? 'inline-block' : 'block',
                                     color: slide.titleColor || slide.textColor || '#ffffff',
-                                    fontSize: slide.titleSize ? `clamp(${Math.max(20, Math.round(slide.titleSize * 0.45))}px, 5vw + 0.5rem, ${slide.titleSize}px)` : 'clamp(28px, 6vw, 48px)',
-                                    lineHeight: '1.2',
+                                    fontSize: slide.titleSize ? `clamp(22px, 5vw + 0.5rem, ${slide.titleSize}px)` : 'clamp(24px, 5.5vw, 52px)',
                                     ...getOutlineStyle(slide.titleOutline || slide.textOutline, slide.titleOutlineColor, slide.titleOutlineWidth)
                                 }}
                             >
                                 {slide.title}
                             </h1>
+
+                            {/* Subtitle */}
                             <p 
-                                className={`opacity-90 mb-8 ${getShadowClass(slide.subtitleShadow || slide.textShadow)}`}
+                                className={`opacity-95 mb-4 sm:mb-6 leading-relaxed break-words max-w-3xl ${getShadowClass(slide.subtitleShadow || slide.textShadow)}`}
                                 style={{ 
                                     fontFamily: slide.subtitleFont ? `"${slide.subtitleFont}", sans-serif` : undefined,
                                     fontWeight: slide.subtitleBold ? 'bold' : 'normal',
                                     backgroundColor: slide.subtitleHighlight ? slide.subtitleHighlightColor || 'rgba(251, 191, 36, 0.2)' : 'transparent',
-                                    padding: slide.subtitleHighlight ? '0.1em 0.3em' : '0',
-                                    borderRadius: slide.subtitleHighlight ? '0.2em' : '0',
+                                    padding: slide.subtitleHighlight ? '0.1em 0.35em' : '0',
+                                    borderRadius: slide.subtitleHighlight ? '0.25em' : '0',
                                     display: slide.subtitleHighlight ? 'inline-block' : 'block',
                                     color: slide.subtitleColor || slide.textColor || '#ffffff',
-                                    fontSize: slide.subtitleSize ? `clamp(${Math.max(14, Math.round(slide.subtitleSize * 0.6))}px, 3vw + 0.5rem, ${slide.subtitleSize}px)` : 'clamp(14px, 3vw, 20px)',
-                                    lineHeight: '1.4',
+                                    fontSize: slide.subtitleSize ? `clamp(13px, 2.2vw + 0.25rem, ${slide.subtitleSize}px)` : 'clamp(14px, 2.5vw, 22px)',
                                     ...getOutlineStyle(slide.subtitleOutline || slide.textOutline, slide.subtitleOutlineColor, slide.subtitleOutlineWidth)
                                 }}
                             >
                                 {slide.subtitle}
                             </p>
                             
-                            {/* Call to Action Button */}
-                            {slide.showButton && (
-                                <a 
-                                    href={slide.buttonLink || '#'}
-                                    className="inline-block px-8 py-3 rounded-full font-bold text-lg shadow-lg transform hover:scale-105 transition-all hover:shadow-xl"
-                                    style={{ 
-                                        backgroundColor: slide.buttonColor || config.appearance.secondaryColor,
-                                        color: slide.buttonTextColor || config.appearance.primaryColor
-                                    }}
+                            {/* Flexbox Action Buttons Row */}
+                            <div className={`flex flex-wrap items-center gap-3 sm:gap-4 mt-2 sm:mt-4 ${
+                                slide.alignment === 'left' ? 'justify-center sm:justify-start' : slide.alignment === 'right' ? 'justify-center sm:justify-end' : 'justify-center'
+                            }`}>
+                                {slide.showButton && (
+                                    <a 
+                                        href={slide.buttonLink || '#podcast'}
+                                        className="inline-flex items-center justify-center gap-2 px-6 sm:px-8 py-2.5 sm:py-3.5 rounded-full font-bold text-sm sm:text-base shadow-xl transform hover:scale-105 active:scale-95 transition-all hover:shadow-2xl"
+                                        style={{ 
+                                            backgroundColor: slide.buttonColor || config.appearance.secondaryColor,
+                                            color: slide.buttonTextColor || config.appearance.primaryColor
+                                        }}
+                                    >
+                                        <Play size={18} className="fill-current" />
+                                        {slide.buttonText || "Escuchar en Vivo"}
+                                    </a>
+                                )}
+
+                                <button
+                                    type="button"
+                                    onClick={() => setShowSongModal(true)}
+                                    className="inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3.5 rounded-full font-bold text-sm sm:text-base bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/20 shadow-lg transform hover:scale-105 active:scale-95 transition-all"
                                 >
-                                    {slide.buttonText || "Más Información"}
-                                </a>
-                            )}
+                                    <MessageCircle size={18} className="text-emerald-400" />
+                                    Pedir Canción WhatsApp
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
               );
             })}
 
+            {/* Navigation Arrows */}
             <button 
                 onClick={prevSlide}
-                className="absolute left-4 top-1/2 -translate-y-1/2 z-20 bg-black/30 hover:bg-secondary hover:text-primary text-white p-2 rounded-full backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100"
+                aria-label="Slide anterior"
+                className="absolute left-2 sm:left-4 md:left-6 top-1/2 -translate-y-1/2 z-20 bg-black/60 hover:bg-secondary hover:text-primary text-white p-2.5 sm:p-3 rounded-full backdrop-blur-md transition-all opacity-80 sm:opacity-0 group-hover:opacity-100 shadow-xl border border-white/10 active:scale-95"
             >
-                <ChevronLeft size={32} />
+                <ChevronLeft size={24} />
             </button>
             <button 
                 onClick={nextSlide}
-                className="absolute right-4 top-1/2 -translate-y-1/2 z-20 bg-black/30 hover:bg-secondary hover:text-primary text-white p-2 rounded-full backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100"
+                aria-label="Siguiente slide"
+                className="absolute right-2 sm:right-4 md:right-6 top-1/2 -translate-y-1/2 z-20 bg-black/60 hover:bg-secondary hover:text-primary text-white p-2.5 sm:p-3 rounded-full backdrop-blur-md transition-all opacity-80 sm:opacity-0 group-hover:opacity-100 shadow-xl border border-white/10 active:scale-95"
             >
-                <ChevronRight size={32} />
+                <ChevronRight size={24} />
             </button>
 
-            <div className="absolute bottom-4 left-0 right-0 z-20 flex justify-center space-x-2">
+            {/* Slide Indicators */}
+            <div className="absolute bottom-3 sm:bottom-6 left-0 right-0 z-20 flex justify-center items-center space-x-2">
                 {config.content.hero.map((_, idx) => (
                     <button 
                         key={idx}
                         onClick={() => setCurrentSlide(idx)}
-                        className={`w-3 h-3 rounded-full transition-all ${
-                            idx === currentSlide ? 'bg-secondary w-8' : 'bg-white/50 hover:bg-white'
+                        aria-label={`Ir a slide ${idx + 1}`}
+                        className={`h-2.5 rounded-full transition-all duration-300 shadow-md ${
+                            idx === currentSlide ? 'bg-secondary w-8 sm:w-10' : 'bg-white/40 hover:bg-white w-2.5'
                         }`}
                     />
                 ))}
@@ -1000,6 +1085,8 @@ const PublicView: React.FC = () => {
                     infiniteLoop={config.content.program.infiniteLoop}
                     scrollStep={config.content.program.scrollStep}
                     pauseOnHover={config.content.program.pauseOnHover}
+                    scrollMode={config.content.program.scrollMode}
+                    speed={config.content.program.speed}
                 />
             </div>
         </section>
@@ -1208,7 +1295,46 @@ const PublicView: React.FC = () => {
                 default:
                     return null;
             }
-        });
+        };
+
+        const defaultOrder = ['hero', 'topvideos', 'ribbons', 'podcast', 'program', 'gallery', 'news', 'clients', 'chat', 'contact'];
+        const sectionsToRender = config.layout?.sections || defaultOrder.map(id => ({ id, visible: true }));
+        const visibleSections = sectionsToRender.filter(s => s.visible);
+
+        const heroSection = visibleSections.find(s => s.id === 'hero');
+        const ribbonSection = visibleSections.find(s => s.id === 'ribbons');
+        const contactSection = visibleSections.find(s => s.id === 'contact');
+        const bodySections = visibleSections.filter(s => s.id !== 'hero' && s.id !== 'ribbons' && s.id !== 'contact');
+
+        const isAdActive = config.advertising?.enabled !== false;
+        const isAdLeft = (config.advertising?.position || 'left') === 'left';
+
+        return (
+          <>
+            {heroSection && renderSectionById('hero')}
+            {ribbonSection && renderSectionById('ribbons')}
+
+            {bodySections.length > 0 && (
+              <div className="w-full max-w-[1600px] mx-auto px-2 sm:px-4 lg:px-6 py-6 sm:py-8">
+                <div className={`flex flex-col ${isAdLeft ? 'lg:flex-row' : 'lg:flex-row-reverse'} gap-6 lg:gap-8 items-start`}>
+                  {isAdActive && (
+                    <aside className="w-full lg:w-72 xl:w-80 flex-shrink-0 lg:sticky lg:top-24 self-start">
+                      <AdvertisingSidebar 
+                        advertising={config.advertising} 
+                        whatsappContact={config.songRequest?.whatsappNumber || "0424 1555789"} 
+                      />
+                    </aside>
+                  )}
+                  <div className="flex-1 min-w-0 w-full space-y-12">
+                    {bodySections.map(s => renderSectionById(s.id))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {contactSection && renderSectionById('contact')}
+          </>
+        );
       })()}
 
       {/* News Detail Modal */}
@@ -1306,14 +1432,95 @@ const PublicView: React.FC = () => {
                   className="bg-surface w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl relative border border-white/10 flex flex-col max-h-[90vh]"
                   onClick={e => e.stopPropagation()}
               >
-                  <div className="flex justify-between items-center p-6 bg-surface-alt border-b border-white/5">
-                      <div>
-                          <h3 className="font-bold text-2xl text-on-surface line-clamp-1">{selectedProgramEpisodes.title}</h3>
-                          <p className="text-secondary text-sm font-bold uppercase tracking-widest">{selectedProgramEpisodes.schedule}</p>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 bg-surface-alt border-b border-white/5 gap-4">
+                      <div className="flex items-center gap-4">
+                          {selectedProgramEpisodes.announcerImage ? (
+                              <img 
+                                  src={selectedProgramEpisodes.announcerImage} 
+                                  alt={selectedProgramEpisodes.title} 
+                                  className="w-14 h-14 rounded-2xl object-cover border-2 border-secondary/30 shadow-md flex-shrink-0"
+                                  referrerPolicy="no-referrer"
+                              />
+                          ) : (
+                              <div className="w-14 h-14 rounded-2xl bg-primary/20 flex items-center justify-center text-primary flex-shrink-0">
+                                  <Mic2 size={24} />
+                              </div>
+                          )}
+                          <div>
+                              <h3 className="font-bold text-2xl text-on-surface line-clamp-1">{selectedProgramEpisodes.title}</h3>
+                              <div className="flex items-center flex-wrap gap-2 mt-0.5">
+                                  <span className="text-secondary text-xs font-black uppercase tracking-wider">{selectedProgramEpisodes.schedule}</span>
+                                  {selectedProgramEpisodes.announcerName && (
+                                      <span className="text-gray-300 text-xs font-bold bg-white/5 px-2 py-0.5 rounded-full border border-white/10 flex items-center gap-1">
+                                          <User size={11} className="text-secondary" />
+                                          {selectedProgramEpisodes.announcerName}
+                                      </span>
+                                  )}
+                              </div>
+                              {selectedProgramEpisodes.socialLinks && Object.values(selectedProgramEpisodes.socialLinks).some(Boolean) && (
+                                  <div className="flex items-center gap-1.5 mt-2">
+                                      {selectedProgramEpisodes.socialLinks.instagram && (
+                                          <a 
+                                              href={selectedProgramEpisodes.socialLinks.instagram.startsWith('http') ? selectedProgramEpisodes.socialLinks.instagram : `https://instagram.com/${selectedProgramEpisodes.socialLinks.instagram.replace(/^@/, '')}`}
+                                              target="_blank" 
+                                              rel="noopener noreferrer" 
+                                              className="w-6 h-6 rounded-full bg-pink-500/20 text-pink-400 hover:bg-pink-600 hover:text-white flex items-center justify-center transition-all border border-pink-500/30"
+                                              title="Instagram del Locutor"
+                                          >
+                                              <Instagram size={12} />
+                                          </a>
+                                      )}
+                                      {selectedProgramEpisodes.socialLinks.tiktok && (
+                                          <a 
+                                              href={selectedProgramEpisodes.socialLinks.tiktok.startsWith('http') ? selectedProgramEpisodes.socialLinks.tiktok : `https://tiktok.com/@${selectedProgramEpisodes.socialLinks.tiktok.replace(/^@/, '')}`}
+                                              target="_blank" 
+                                              rel="noopener noreferrer" 
+                                              className="w-6 h-6 rounded-full bg-cyan-500/20 text-cyan-400 hover:bg-black hover:text-cyan-400 flex items-center justify-center transition-all border border-cyan-500/30"
+                                              title="TikTok del Locutor"
+                                          >
+                                              <TikTok className="w-3 h-3 fill-current" />
+                                          </a>
+                                      )}
+                                      {selectedProgramEpisodes.socialLinks.facebook && (
+                                          <a 
+                                              href={selectedProgramEpisodes.socialLinks.facebook.startsWith('http') ? selectedProgramEpisodes.socialLinks.facebook : `https://facebook.com/${selectedProgramEpisodes.socialLinks.facebook}`}
+                                              target="_blank" 
+                                              rel="noopener noreferrer" 
+                                              className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 hover:bg-blue-600 hover:text-white flex items-center justify-center transition-all border border-blue-500/30"
+                                              title="Facebook del Locutor"
+                                          >
+                                              <Facebook size={12} />
+                                          </a>
+                                      )}
+                                      {selectedProgramEpisodes.socialLinks.whatsapp && (
+                                          <a 
+                                              href={selectedProgramEpisodes.socialLinks.whatsapp.startsWith('http') ? selectedProgramEpisodes.socialLinks.whatsapp : `https://wa.me/${selectedProgramEpisodes.socialLinks.whatsapp.replace(/[^0-9]/g, '')}`}
+                                              target="_blank" 
+                                              rel="noopener noreferrer" 
+                                              className="w-6 h-6 rounded-full bg-green-500/20 text-green-400 hover:bg-green-600 hover:text-white flex items-center justify-center transition-all border border-green-500/30"
+                                              title="WhatsApp del Locutor"
+                                          >
+                                              <MessageCircle size={12} />
+                                          </a>
+                                      )}
+                                      {selectedProgramEpisodes.socialLinks.youtube && (
+                                          <a 
+                                              href={selectedProgramEpisodes.socialLinks.youtube.startsWith('http') ? selectedProgramEpisodes.socialLinks.youtube : `https://youtube.com/@${selectedProgramEpisodes.socialLinks.youtube.replace(/^@/, '')}`}
+                                              target="_blank" 
+                                              rel="noopener noreferrer" 
+                                              className="w-6 h-6 rounded-full bg-red-500/20 text-red-400 hover:bg-red-600 hover:text-white flex items-center justify-center transition-all border border-red-500/30"
+                                              title="YouTube del Locutor"
+                                          >
+                                              <Youtube size={12} />
+                                          </a>
+                                      )}
+                                  </div>
+                              )}
+                          </div>
                       </div>
                       <button 
                           onClick={() => setSelectedProgramEpisodes(null)}
-                          className="text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-2 ml-4 flex-shrink-0"
+                          className="text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-2 self-start sm:self-center flex-shrink-0"
                       >
                           <X size={24} />
                       </button>
@@ -1358,6 +1565,28 @@ const PublicView: React.FC = () => {
                           </div>
                       )}
                   </div>
+              </div>
+          </div>
+      )}
+
+      {/* Song Request Modal */}
+      {showSongModal && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in" onClick={() => setShowSongModal(false)}>
+              <div 
+                  className="w-full max-w-lg relative animate-fade-in-up"
+                  onClick={e => e.stopPropagation()}
+              >
+                  <button 
+                      onClick={() => setShowSongModal(false)}
+                      className="absolute -top-3 -right-3 z-20 bg-gray-800 hover:bg-gray-700 text-white p-2 rounded-full shadow-lg border border-white/20 transition-colors"
+                      title="Cerrar"
+                  >
+                      <X size={18} />
+                  </button>
+                  <SongRequestForm 
+                      whatsappNumber={config.songRequest?.whatsappNumber || "0424 1555789"}
+                      onSuccess={() => setTimeout(() => setShowSongModal(false), 2500)}
+                  />
               </div>
           </div>
       )}

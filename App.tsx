@@ -3,6 +3,7 @@ import { ConfigProvider, useConfig } from './context/ConfigContext';
 import PublicView from './components/PublicView';
 import { AdminPanel } from './admin/AdminPanel';
 import { Login } from './admin/Login';
+import { SmartDisplayView } from './components/SmartDisplayView';
 
 // Component to handle global style injection based on config
 const ThemeApplicator: React.FC = () => {
@@ -76,6 +77,8 @@ const AppContent: React.FC = () => {
             <AdminPanel />
         ) : route.startsWith('#/login') ? (
             <Login />
+        ) : route.startsWith('#/pantalla') || route.startsWith('#/display') || route.startsWith('#/tv') || route.startsWith('#/player') || route.startsWith('#/google') ? (
+            <SmartDisplayView />
         ) : (
             <PublicView />
         )}

@@ -21,14 +21,25 @@ export interface ProgramEpisode {
   audioUrl: string;
 }
 
+export interface AnnouncerSocialLinks {
+  instagram?: string;
+  tiktok?: string;
+  facebook?: string;
+  twitter?: string;
+  whatsapp?: string;
+  youtube?: string;
+}
+
 export interface ProgramItem {
   id: string;
   title: string;
   description: string;
   schedule: string;
+  announcerName?: string; // Announcer name (e.g. Kenny García)
+  announcerImage?: string; // Image of the announcer
+  socialLinks?: AnnouncerSocialLinks; // Direct social media for the announcer
   icon?: string; // Optional icon name from lucide
-  announcerImage?: string; // New: Image of the announcer
-  episodes?: ProgramEpisode[]; // New: Recorded audio episodes
+  episodes?: ProgramEpisode[]; // Recorded audio episodes
 }
 
 export interface ProgramConfig {
@@ -43,6 +54,8 @@ export interface ProgramConfig {
   infiniteLoop?: boolean;
   scrollStep?: number;
   pauseOnHover?: boolean;
+  scrollMode?: 'continuous' | 'step'; // Continuous infinite glide vs step-by-step
+  speed?: number; // Glide speed in px/s for continuous mode
 }
 
 export interface PodcastConfig {
@@ -275,6 +288,29 @@ export interface AutoDJTrack {
   title: string;
 }
 
+export interface AdBannerItem {
+  id: string;
+  title: string;
+  imageUrl: string;
+  linkUrl?: string;
+  format: 'vertical' | 'square'; // 'vertical' (e.g. 160x600, 300x600) or 'square' (e.g. 300x250, 300x300)
+  active: boolean;
+}
+
+export interface AdvertisingConfig {
+  enabled: boolean; // activar o desactivar
+  position: 'left' | 'right'; // lado izquierdo o derecho
+  title?: string;
+  banners: AdBannerItem[];
+}
+
+export interface SongRequestConfig {
+  enabled: boolean;
+  whatsappNumber: string; // e.g. "04241555789"
+  title?: string;
+  subtitle?: string;
+}
+
 export interface RadioPlayerConfig {
   showAnalyzer: boolean;
   showMetadata: boolean;
@@ -332,5 +368,7 @@ export interface SiteConfig {
       visible: boolean;
     }[];
   };
+  advertising?: AdvertisingConfig;
+  songRequest?: SongRequestConfig;
   social: SocialLinks;
 }

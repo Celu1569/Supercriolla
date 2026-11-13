@@ -299,6 +299,27 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
     });
   }
 
+  // Advertising Panel settings
+  if (!c.advertising) {
+    c.advertising = { ...DEFAULT_CONFIG.advertising! };
+  } else {
+    if (c.advertising.enabled === undefined) c.advertising.enabled = true;
+    if (!c.advertising.position) c.advertising.position = 'left';
+    if (!c.advertising.title) c.advertising.title = "Publicidad & Aliados";
+    if (!Array.isArray(c.advertising.banners)) {
+      c.advertising.banners = DEFAULT_CONFIG.advertising?.banners ? [...DEFAULT_CONFIG.advertising.banners] : [];
+    }
+  }
+
+  // Song Request WhatsApp settings
+  if (!c.songRequest) {
+    c.songRequest = { ...DEFAULT_CONFIG.songRequest! };
+  } else {
+    if (c.songRequest.enabled === undefined) c.songRequest.enabled = true;
+    if (!c.songRequest.whatsappNumber) c.songRequest.whatsappNumber = "0424 1555789";
+    if (!c.songRequest.title) c.songRequest.title = "Pide tu Canción";
+  }
+
   return c;
 };
 
