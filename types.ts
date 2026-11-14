@@ -337,6 +337,7 @@ export interface SiteConfig {
     contactPhone: string;
     city?: string;
     country?: string;
+    metaDescription?: string;
   };
   navigation: NavigationConfig;
   appearance: {

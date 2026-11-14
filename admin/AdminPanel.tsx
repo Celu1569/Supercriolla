@@ -5384,6 +5384,17 @@ export const AdminPanel: React.FC = () => {
                     <InputGroup label="País">
                     <input type="text" value={formData.general.country || ''} onChange={e => setFormData(prev => ({...prev, general: {...prev.general, country: e.target.value}}))} className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg" />
                     </InputGroup>
+                    <div className="md:col-span-2 lg:col-span-4">
+                        <InputGroup label="Descripción SEO (Meta Description para buscadores y redes)">
+                        <textarea 
+                          rows={2}
+                          value={formData.general.metaDescription || ''} 
+                          onChange={e => setFormData(prev => ({...prev, general: {...prev.general, metaDescription: e.target.value}}))} 
+                          className="w-full bg-gray-800 border border-gray-600 text-white p-2.5 rounded-lg text-sm" 
+                          placeholder="Ej: Escucha BUENÍSIMA en vivo, la radio de la buena vibra. Música, programación, noticias y entretenimiento las 24 horas." 
+                        />
+                        </InputGroup>
+                    </div>
                 </div>
                 <h3 className="text-md font-bold text-gray-300 uppercase tracking-wide border-b border-gray-700 pb-2 mb-4 mt-8">Redes Sociales</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

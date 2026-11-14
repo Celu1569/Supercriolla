@@ -10,6 +10,7 @@ export const DEFAULT_CONFIG: SiteConfig = {
     contactPhone: "+584144105077",
     city: "Valencia",
     country: "Venezuela",
+    metaDescription: "Escucha BUENÍSIMA en vivo, la radio de la buena vibra. Música, programación, noticias, podcasts y entretenimiento las 24 horas.",
   },
   navigation: {
     logoUrl: "https://i.ibb.co/ZptWRz8G/LOGO-2.png",

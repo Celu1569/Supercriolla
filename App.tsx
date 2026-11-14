@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { HelmetProvider } from 'react-helmet-async';
 import { ConfigProvider, useConfig } from './context/ConfigContext';
 import PublicView from './components/PublicView';
 import { AdminPanel } from './admin/AdminPanel';
 import { Login } from './admin/Login';
 import { SmartDisplayView } from './components/SmartDisplayView';
+import { SeoHelmet } from './components/SeoHelmet';
 
 // Component to handle global style injection based on config
 const ThemeApplicator: React.FC = () => {
@@ -72,6 +74,7 @@ const AppContent: React.FC = () => {
 
   return (
     <>
+        <SeoHelmet route={route} />
         <ThemeApplicator />
         {route.startsWith('#/admin') ? (
             <AdminPanel />
@@ -88,9 +91,11 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <ConfigProvider>
-      <AppContent />
-    </ConfigProvider>
+    <HelmetProvider>
+      <ConfigProvider>
+        <AppContent />
+      </ConfigProvider>
+    </HelmetProvider>
   );
 };
 
