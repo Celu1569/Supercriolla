@@ -559,12 +559,12 @@ const PublicView: React.FC = () => {
 
       {/* Main Radio Player & Song Request Band */}
       <div style={{ paddingTop: `${dynamicNavHeight}px` }} className="w-full bg-[#060608] border-b border-white/10 relative z-20">
-        <div className="w-full max-w-[1600px] mx-auto p-2 sm:p-4 lg:p-6 flex flex-col xl:flex-row items-stretch gap-4">
-          <div className="flex-1 min-w-0">
+        <div className="w-full max-w-[1800px] mx-auto px-2 py-3 sm:p-4 lg:px-8 lg:py-5 flex flex-col xl:flex-row items-stretch gap-4 lg:gap-6">
+          <div className="flex-1 min-w-0 flex items-center">
             <RadioPlayer onOpenSongRequest={() => setShowSongModal(true)} />
           </div>
           {config.songRequest?.enabled !== false && (
-            <div className="w-full xl:w-[380px] 2xl:w-[420px] flex-shrink-0 flex flex-col justify-center">
+            <div className="w-full xl:w-[350px] 2xl:w-[380px] flex-shrink-0 flex flex-col justify-center">
               <SongRequestForm 
                 whatsappNumber={config.songRequest?.whatsappNumber || "0424 1555789"} 
                 songRequestConfig={config.songRequest}

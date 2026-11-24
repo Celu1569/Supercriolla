@@ -328,12 +328,27 @@ export const SmartDisplayView: React.FC = () => {
         onError={() => { setHasError(true); setIsPlaying(false); setIsBuffering(false); }}
       />
 
-      {/* Dynamic Ambient Background Blur */}
-      <div 
-        className="absolute inset-0 bg-cover bg-center -z-20 transition-all duration-1000 filter blur-3xl opacity-30 transform scale-110"
-        style={{ backgroundImage: `url(${currentCover})` }}
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-[#030712] via-[#030712]/80 to-[#030712]/60 -z-10" />
+      {/* Dynamic Gaussian-Blurred Depth Background */}
+      <div className="absolute inset-0 -z-30 overflow-hidden pointer-events-none">
+        <img
+          src={currentCover}
+          alt=""
+          aria-hidden="true"
+          className="w-full h-full object-cover scale-125 opacity-70 transition-all duration-1000"
+          style={{ filter: 'blur(72px) saturate(1.45) brightness(0.75)' }}
+        />
+      </div>
+      {/* Secondary Mid-Depth Soft Cover Halo for Rich Layered Depth */}
+      <div className="absolute inset-0 -z-20 flex items-center justify-center overflow-hidden pointer-events-none">
+        <img
+          src={currentCover}
+          alt=""
+          aria-hidden="true"
+          className="w-[75vw] h-[75vw] max-w-[900px] max-h-[900px] object-cover rounded-3xl opacity-30 transition-all duration-1000 transform -translate-x-8 scale-110"
+          style={{ filter: 'blur(42px) saturate(1.3)' }}
+        />
+      </div>
+      <div className="absolute inset-0 bg-gradient-to-b from-[#030712]/70 via-[#030712]/35 to-[#030712]/85 -z-10 pointer-events-none" />
 
       {/* TOP HEADER: Station brand, Live Badge, and Digital Clock */}
       <header className={`p-4 sm:p-6 md:p-8 flex items-center justify-between transition-opacity duration-500 ${controlsVisible ? 'opacity-100' : 'opacity-30 hover:opacity-100'}`}>
@@ -368,39 +383,40 @@ export const SmartDisplayView: React.FC = () => {
           <div className="text-xl sm:text-3xl md:text-4xl font-black tracking-tight text-white font-mono drop-shadow-md">
             {currentTime}
           </div>
-          <div className="text-[11px] sm:text-xs md:text-sm text-gray-400 capitalize hidden sm:block">
+          <div className="text-[11px] sm:text-xs md:text-sm text-gray-300 capitalize hidden sm:block">
             {currentDate}
           </div>
         </div>
       </header>
 
-      {/* CENTER STAGE: Giant Vinyl Cover, Audio Spectrum Waves, and Real-Time Song Title */}
+      {/* CENTER STAGE: Original Square Cover with Depth Glow, Spectrum Waves, and Real-Time Song Title */}
       <main className="flex-1 flex flex-col lg:flex-row items-center justify-center gap-6 sm:gap-10 md:gap-16 px-6 sm:px-12 md:px-16 max-w-7xl mx-auto w-full my-auto">
-        {/* Album Artwork Vinyl Section */}
-        <div className="relative group cursor-pointer" onClick={togglePlay}>
-          {/* Animated Glow Aura */}
-          <div className={`absolute -inset-4 rounded-full bg-gradient-to-tr from-secondary/40 to-primary/40 blur-2xl opacity-75 transition-transform duration-1000 ${isPlaying ? 'scale-110 animate-pulse' : 'scale-90 opacity-20'}`} />
+        {/* Original Square Album Artwork Section (No Disc Effect) */}
+        <div className="relative group cursor-pointer flex-shrink-0" onClick={togglePlay}>
+          {/* Gaussian Ambient Glow Aura behind Square Card */}
+          <div
+            className={`absolute -inset-6 rounded-3xl transition-all duration-1000 pointer-events-none ${isPlaying ? 'opacity-65 scale-105' : 'opacity-25 scale-95'}`}
+            style={{
+              backgroundImage: `url(${currentCover})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              filter: 'blur(36px) saturate(1.5)'
+            }}
+          />
 
-          {/* Vinyl Container */}
-          <div className={`relative w-48 h-48 sm:w-64 sm:h-64 md:w-80 md:h-80 lg:w-96 lg:h-96 rounded-full p-2 bg-gradient-to-tr from-neutral-900 via-black to-neutral-800 shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-white/10 flex items-center justify-center transition-transform ${isPlaying ? 'rotate-animation' : ''}`}>
-            {/* Vinyl Grooves */}
-            <div className="absolute inset-4 rounded-full border border-white/5 pointer-events-none" />
-            <div className="absolute inset-8 rounded-full border border-white/5 pointer-events-none" />
-            <div className="absolute inset-12 rounded-full border border-white/5 pointer-events-none" />
+          {/* Original Square Cover Container */}
+          <div className="relative w-52 h-52 sm:w-72 sm:h-72 md:w-80 md:h-80 lg:w-[390px] lg:h-[390px] xl:w-[420px] xl:h-[420px] rounded-2xl overflow-hidden shadow-[0_30px_85px_-12px_rgba(0,0,0,0.92)] ring-1 ring-white/25 bg-black/50 transition-transform duration-500 group-hover:scale-[1.015]">
+            <img
+              src={currentCover}
+              alt={metadata.title}
+              className="w-full h-full object-cover transition-all duration-700"
+            />
 
-            {/* Inner Album Artwork */}
-            <div className="w-32 h-32 sm:w-44 sm:h-44 md:w-56 md:h-56 lg:w-64 lg:h-64 rounded-full overflow-hidden border-4 border-black/80 shadow-inner relative">
-              <img 
-                src={currentCover} 
-                alt={metadata.title} 
-                className="w-full h-full object-cover"
-              />
-              {/* Spindle hole */}
-              <div className="absolute inset-0 m-auto w-6 h-6 rounded-full bg-black border-2 border-white/40 shadow-inner" />
-            </div>
+            {/* Subtle Glass Vignette Bottom */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-white/5 pointer-events-none" />
 
             {/* Hover / Play Overlay */}
-            <div className={`absolute inset-0 rounded-full flex items-center justify-center bg-black/40 backdrop-blur-[2px] transition-opacity duration-300 ${isPlaying ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
+            <div className={`absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px] transition-opacity duration-300 ${isPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}`}>
               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-secondary text-primary flex items-center justify-center shadow-2xl transform active:scale-90 transition-transform">
                 {isPlaying ? <Pause size={36} fill="currentColor" /> : <Play size={36} fill="currentColor" className="ml-1" />}
               </div>

@@ -303,30 +303,33 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
     return { directUrl: directWithCb, proxyUrl, rawDirect, shouldPreferProxy };
   }, [config.general.streamUrl]);
 
-  // Audio Visualizer effect (safely isolated so errors never mute or cut audio)
+  // Audio Visualizer effect (hybrid real FFT + smooth studio harmonic wave for CORS-free direct streams)
   useEffect(() => {
-      if (!audioRef.current || !canvasRef.current || config.appearance.radioPlayer?.showAnalyzer === false) return;
+      if (!canvasRef.current || config.appearance.radioPlayer?.showAnalyzer === false) return;
 
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
+      const barCount = 40;
+      const peaks = new Array(barCount).fill(2);
+      const smoothed = new Array(barCount).fill(2);
+
       if (isPlaying && !isBuffering) {
-          if (!audioCtxRef.current) {
+          if (!audioCtxRef.current && audioRef.current) {
               const Ctx = window.AudioContext || (window as any).webkitAudioContext;
               if (Ctx) {
                   try {
                       audioCtxRef.current = new Ctx();
                       analyzerRef.current = audioCtxRef.current.createAnalyser();
                       analyzerRef.current.fftSize = 128;
-                      // Only attach if crossOrigin is enabled (e.g. proxy stream) to prevent browser audio blocking
                       if (audioRef.current.crossOrigin && !sourceRef.current) {
                         sourceRef.current = audioCtxRef.current.createMediaElementSource(audioRef.current);
                         sourceRef.current.connect(analyzerRef.current);
                         analyzerRef.current.connect(audioCtxRef.current.destination);
                       }
                   } catch (_) {
-                      // Audio visualizer fallback - audio playback remains 100% functional
+                      // Playback continues uninterrupted
                   }
               }
           }
@@ -335,39 +338,99 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
               audioCtxRef.current.resume().catch(() => {});
           }
 
-          const draw = () => {
-              animationRef.current = requestAnimationFrame(draw);
-              if (!analyzerRef.current) return;
-              const bufferLength = analyzerRef.current.frequencyBinCount;
-              const dataArray = new Uint8Array(bufferLength);
-              analyzerRef.current.getByteFrequencyData(dataArray);
+          const accentHex = config.appearance.secondaryColor || '#fbbf24';
 
+          const draw = (now: number) => {
+              animationRef.current = requestAnimationFrame(draw);
               const width = canvas.width;
               const height = canvas.height;
               ctx.clearRect(0, 0, width, height);
 
-              const activeBars = Math.floor(bufferLength * 0.75);
-              const spacing = 4;
-              const barWidth = Math.min((width - (activeBars * spacing)) / activeBars, 8);
-              const totalWidth = activeBars * (barWidth + spacing) - spacing;
-              let x = (width - totalWidth) / 2;
+              let fftData: Uint8Array | null = null;
+              let hasLiveSignal = false;
+              if (analyzerRef.current) {
+                const bufLen = analyzerRef.current.frequencyBinCount;
+                fftData = new Uint8Array(bufLen);
+                analyzerRef.current.getByteFrequencyData(fftData);
+                for (let j = 0; j < Math.min(bufLen, 24); j++) {
+                  if (fftData[j] > 2) {
+                    hasLiveSignal = true;
+                    break;
+                  }
+                }
+              }
 
-              for (let i = 0; i < activeBars; i++) {
-                  const barHeightScale = dataArray[i] / 255;
-                  const barHeight = Math.max(Math.pow(barHeightScale, 1.2) * height * 0.9, 3);
-                  
-                  ctx.fillStyle = config.appearance.secondaryColor || '#fbbf24';
+              const spacing = 4;
+              const barWidth = Math.max(3, Math.floor((width - (barCount - 1) * spacing) / barCount));
+              const totalWidth = barCount * barWidth + (barCount - 1) * spacing;
+              const startX = (width - totalWidth) / 2;
+              const t = now * 0.004;
+
+              const grad = ctx.createLinearGradient(0, height, 0, 0);
+              grad.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
+              grad.addColorStop(0.45, accentHex);
+              grad.addColorStop(1, '#34d399');
+
+              const mid = (barCount - 1) / 2;
+
+              for (let i = 0; i < barCount; i++) {
+                  let targetScale = 0.08;
+                  if (hasLiveSignal && fftData) {
+                    // Mirror low/mid frequencies symmetrically for a balanced studio look
+                    const distFromCenter = Math.abs(i - mid) / mid;
+                    const binIdx = Math.min(fftData.length - 1, Math.floor(distFromCenter * (fftData.length * 0.55)));
+                    targetScale = Math.pow(fftData[binIdx] / 255, 1.15);
+                  } else {
+                    // Organic multi-harmonic rhythmic envelope when direct stream lacks CORS audio access
+                    const dist = Math.abs(i - mid) / mid;
+                    const envelope = 1 - dist * 0.55;
+                    const wave1 = Math.sin(t * 1.45 + i * 0.42) * 0.5 + 0.5;
+                    const wave2 = Math.sin(t * 2.3 - i * 0.27) * 0.5 + 0.5;
+                    const wave3 = Math.cos(t * 0.85 + i * 0.7) * 0.5 + 0.5;
+                    targetScale = (0.18 + 0.72 * (wave1 * 0.45 + wave2 * 0.35 + wave3 * 0.2)) * envelope;
+                  }
+
+                  const targetH = Math.max(4, targetScale * (height - 10));
+                  smoothed[i] = smoothed[i] + (targetH - smoothed[i]) * 0.28;
+
+                  if (smoothed[i] > peaks[i]) {
+                    peaks[i] = smoothed[i];
+                  } else {
+                    peaks[i] = Math.max(smoothed[i], peaks[i] - 0.55);
+                  }
+
+                  const x = startX + i * (barWidth + spacing);
+                  const h = smoothed[i];
+                  const y = height - h - 2;
+                  const radius = Math.min(barWidth / 2, 3);
+
+                  ctx.fillStyle = grad;
                   ctx.beginPath();
-                  const radius = barWidth / 2;
-                  ctx.roundRect(x, height - barHeight, barWidth, barHeight, [radius, radius, 0, 0]);
+                  ctx.roundRect(x, y, barWidth, h, [radius, radius, 2, 2]);
                   ctx.fill();
-                  x += barWidth + spacing;
+
+                  // Crisp floating peak cap
+                  ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+                  ctx.fillRect(x, Math.max(1, height - peaks[i] - 6), barWidth, 2);
               }
           };
-          draw();
+          animationRef.current = requestAnimationFrame(draw);
       } else {
           if (animationRef.current) cancelAnimationFrame(animationRef.current);
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          const width = canvas.width;
+          const height = canvas.height;
+          ctx.clearRect(0, 0, width, height);
+          const spacing = 4;
+          const barWidth = Math.max(3, Math.floor((width - (barCount - 1) * spacing) / barCount));
+          const totalWidth = barCount * barWidth + (barCount - 1) * spacing;
+          const startX = (width - totalWidth) / 2;
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+          for (let i = 0; i < barCount; i++) {
+            const x = startX + i * (barWidth + spacing);
+            ctx.beginPath();
+            ctx.roundRect(x, height - 6, barWidth, 3, 2);
+            ctx.fill();
+          }
       }
 
       return () => {
@@ -854,41 +917,32 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
     );
   }
 
-  // DEFAULT STYLE: MODERN STUDIO
+  // DEFAULT STYLE: MODERN STUDIO (Wider, 3-Zone Organized Console + Non-Invasive Studio Visualizer)
   return (
-    <div className="w-full animate-fade-in shadow-2xl z-30 relative">
+    <div className="w-full animate-fade-in z-30 relative">
       <motion.div 
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: isVisible ? 1 : 0, height: isVisible ? 'auto' : 0 }}
-          className="relative bg-[#060608] border-b border-white/10 transition-all duration-700 ease-out origin-top overflow-hidden"
+          className="relative rounded-2xl bg-gradient-to-br from-[#0e1526]/95 via-[#080c16]/95 to-[#05070d]/95 border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.65)] transition-all duration-700 ease-out origin-top overflow-hidden"
           style={{ display: isVisible ? 'flex' : 'none' }}
       >
           {audioElement}
 
-          {/* Background Spectrum Analyzer */}
-          <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-black/40">
-              {config.appearance.radioPlayer?.showAnalyzer !== false && (
-                  <canvas 
-                      ref={canvasRef} 
-                      width={1024} 
-                      height={100} 
-                      className={`absolute bottom-0 left-0 right-0 w-full h-full z-10 pointer-events-none opacity-20 transition-opacity duration-500 ${isPlaying ? 'opacity-20' : 'opacity-0'}`} 
-                  />
-              )}
-          </div>
+          {/* Subtle Top Ambient Accent Line */}
+          <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-secondary/60 to-transparent pointer-events-none" />
 
           {/* Player Inner Layout */}
-          <div className={`relative z-20 flex flex-col ${videoLayout === 'full' ? 'lg:flex-row' : 'md:flex-row'} items-center justify-between gap-6 p-4 lg:px-8 w-full max-w-[1500px] mx-auto min-h-[110px]`}>
+          <div className={`relative z-20 flex flex-col ${videoLayout === 'full' ? 'lg:flex-row' : 'lg:flex-row'} items-center justify-between gap-4 sm:gap-5 px-4 py-4 sm:px-6 sm:py-5 w-full mx-auto`}>
               
-              {/* Cover & Station Info Area */}
-              <div className="flex items-center gap-4 sm:gap-6 flex-1 min-w-0 w-full md:w-auto">
+              {/* ZONE 1: Cover & Station Info */}
+              <div className="flex items-center gap-4 sm:gap-5 flex-1 min-w-0 w-full lg:w-auto">
                   {/* Integrated Video (Compact Mode) */}
                   {isVideoMode && videoLayout === 'compact' && (
                       <div 
                           className="relative overflow-hidden rounded-2xl shadow-2xl border border-white/20 bg-black aspect-video ring-2 ring-secondary/20 flex-shrink-0"
                           style={{ 
-                              width: config.appearance.radioPlayer?.videoWidth ? `${config.appearance.radioPlayer.videoWidth}px` : '240px',
-                              height: config.appearance.radioPlayer?.videoHeight ? `${config.appearance.radioPlayer.videoHeight}px` : '135px'
+                              width: config.appearance.radioPlayer?.videoWidth ? `${config.appearance.radioPlayer.videoWidth}px` : '220px',
+                              height: config.appearance.radioPlayer?.videoHeight ? `${config.appearance.radioPlayer.videoHeight}px` : '124px'
                           }}
                       >
                           <iframe 
@@ -902,28 +956,28 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
 
                   {/* Album Cover Art */}
                   {config.appearance.radioPlayer?.showCover !== false && (
-                      <div className="relative w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 flex-shrink-0 group">
+                      <div className="relative w-20 h-20 sm:w-24 sm:h-24 xl:w-28 xl:h-28 flex-shrink-0 group">
                           <AnimatePresence mode="wait">
                               <motion.img 
                                   key={finalCover}
-                                  initial={{ opacity: 0, scale: 0.85 }}
+                                  initial={{ opacity: 0, scale: 0.9 }}
                                   animate={{ opacity: 1, scale: 1 }}
-                                  exit={{ opacity: 0, scale: 1.05 }}
+                                  exit={{ opacity: 0, scale: 1.04 }}
                                   transition={{ duration: 0.3 }}
                                   src={finalCover} 
                                   alt={displayTitle}
                                   onError={handleImageError}
-                                  className="w-full h-full object-cover rounded-2xl shadow-2xl border-2 border-white/10 group-hover:border-secondary/50 transition-colors bg-black/40"
+                                  className="w-full h-full object-cover rounded-2xl shadow-2xl border border-white/15 group-hover:border-secondary/60 transition-colors bg-black/40"
                               />
                           </AnimatePresence>
-                          <div className="absolute -bottom-1 -right-1 bg-secondary text-primary p-1.5 rounded-lg shadow-lg">
-                              <Radio size={14} className={isPlaying ? 'animate-pulse' : ''} />
+                          <div className="absolute -bottom-1.5 -right-1.5 bg-secondary text-primary p-1.5 rounded-xl shadow-lg border border-black/30">
+                              <Radio size={13} className={isPlaying ? 'animate-pulse' : ''} />
                           </div>
                       </div>
                   )}
 
-                  <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex items-center gap-2.5 flex-wrap">
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
                           <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-colors ${
                             isReconnecting ? 'bg-amber-600 text-white animate-pulse' :
                             isBuffering && isPlaying ? 'bg-blue-600 text-white animate-pulse' :
@@ -947,25 +1001,27 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
                               <span>EN VIVO</span>
                             </span>
                           )}
-                          {(config.appearance.radioPlayer?.showMetadata !== false) && (
-                              <motion.p 
-                                key={displayArtist}
-                                initial={{ opacity: 0, x: -10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                className="text-xs sm:text-sm font-black text-secondary uppercase tracking-[0.1em] sm:tracking-[0.2em] line-clamp-1 drop-shadow-md flex items-center gap-1.5"
-                              >
-                                  <span>{hasError ? 'Señal interrumpida - Toca Reproducir' : (isReconnecting ? 'Reconectando...' : displayArtist)}</span>
-                                  <button onClick={() => fetchMetadata(true)} title="Comprobar título en vivo" className="text-gray-400 hover:text-white transition-colors">
-                                    <RefreshCw size={12} className={isFetchingMetadata ? 'animate-spin text-secondary' : ''} />
-                                  </button>
-                              </motion.p>
-                          )}
                       </div>
+
+                      {(config.appearance.radioPlayer?.showMetadata !== false) && (
+                          <motion.div 
+                            key={displayArtist}
+                            initial={{ opacity: 0, x: -8 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="text-xs sm:text-sm font-black text-secondary uppercase tracking-[0.12em] line-clamp-1 drop-shadow-md flex items-center gap-1.5"
+                          >
+                              <span className="truncate">{hasError ? 'Señal interrumpida - Toca Reproducir' : (isReconnecting ? 'Reconectando...' : displayArtist)}</span>
+                              <button onClick={() => fetchMetadata(true)} title="Comprobar título en vivo" className="text-gray-400 hover:text-white transition-colors flex-shrink-0">
+                                <RefreshCw size={12} className={isFetchingMetadata ? 'animate-spin text-secondary' : ''} />
+                              </button>
+                          </motion.div>
+                      )}
+
                       <motion.h2 
                         key={displayTitle}
-                        initial={{ opacity: 0, y: 10 }}
+                        initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="text-lg sm:text-2xl lg:text-3xl font-black text-white line-clamp-1 sm:line-clamp-2 drop-shadow-2xl leading-tight tracking-tight"
+                        className="text-lg sm:text-xl xl:text-2xl font-black text-white line-clamp-1 sm:line-clamp-2 drop-shadow-xl leading-tight tracking-tight"
                         title={displayTitle}
                       >
                           {(config.appearance.radioPlayer?.showMetadata !== false) ? displayTitle : stationName}
@@ -975,7 +1031,7 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
 
               {/* Expanded Video Area */}
               {isVideoMode && videoLayout === 'full' && (
-                  <div className="relative w-full lg:max-w-2xl aspect-video overflow-hidden rounded-2xl shadow-2xl border border-white/10 bg-black my-2">
+                  <div className="relative w-full lg:max-w-xl aspect-video overflow-hidden rounded-2xl shadow-2xl border border-white/10 bg-black my-1">
                       <iframe 
                         src={embedUrl}
                         className="w-full h-full"
@@ -985,53 +1041,73 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
                   </div>
               )}
 
-              {/* Controls */}
-              <div className={`flex items-center gap-3 sm:gap-4 w-full ${videoLayout === 'full' ? 'lg:w-auto' : 'md:w-auto'} justify-center md:justify-end flex-shrink-0`}>
-                  {onOpenSongRequest && (
-                    <button
-                      onClick={onOpenSongRequest}
-                      className="flex items-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-full bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/40 text-xs font-black transition-all shadow-md active:scale-95 flex-shrink-0 group"
-                      title="Pedir canción directo a WhatsApp (0424 1555789)"
-                    >
-                      <MessageCircle size={15} className="text-emerald-400 group-hover:scale-110 transition-transform" />
-                      <span className="hidden sm:inline">Pedir Canción</span>
-                    </button>
-                  )}
+              {/* ZONE 2: Dedicated Non-Invasive Studio Spectrum Visualizer */}
+              {config.appearance.radioPlayer?.showAnalyzer !== false && !isVideoMode && (
+                <div className="w-full lg:w-56 xl:w-72 flex-shrink-0 flex flex-col items-center justify-center bg-black/35 border border-white/10 rounded-2xl px-3 py-2 shadow-inner">
+                  <canvas
+                    ref={canvasRef}
+                    width={320}
+                    height={54}
+                    className="w-full h-12 sm:h-14 block"
+                  />
+                  <div className="w-full flex items-center justify-between text-[9px] font-bold uppercase tracking-widest text-gray-500 mt-1 px-1">
+                    <span>{isPlaying ? 'Audio HD' : 'Listo'}</span>
+                    <span className="text-secondary/80">{stationName}</span>
+                  </div>
+                </div>
+              )}
 
-                  <a
-                    href="#/pantalla"
-                    className="flex items-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-black transition-all shadow-md active:scale-95 flex-shrink-0 group"
-                    title="Abrir en Modo Pantalla de Google / Smart TV"
-                  >
-                    <Tv size={15} className="text-secondary group-hover:scale-110 transition-transform" />
-                    <span className="hidden sm:inline">Pantalla Google</span>
-                  </a>
+              {/* ZONE 3: Organized Playback, Volume & Quick Actions */}
+              <div className="flex flex-col items-center lg:items-end gap-2.5 w-full lg:w-auto flex-shrink-0">
+                  <div className="flex items-center gap-3 w-full sm:w-auto justify-center lg:justify-end">
+                      <motion.button
+                          whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                          onClick={togglePlay}
+                          className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-secondary text-primary flex items-center justify-center shadow-lg shadow-secondary/20 hover:brightness-110 transition-all flex-shrink-0"
+                          title={isPlaying ? "Pausar" : "Reproducir"}
+                      >
+                          {isPlaying ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" className="ml-1" />}
+                      </motion.button>
 
-                  <motion.button
-                      whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                      onClick={togglePlay}
-                      className="w-16 h-16 rounded-full bg-secondary text-primary flex items-center justify-center shadow-lg hover:shadow-secondary/20 transition-all flex-shrink-0 group"
-                      title={isPlaying ? "Pausar" : "Reproducir"}
-                  >
-                      {isPlaying ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
-                  </motion.button>
+                      <div className="flex-1 sm:w-40 xl:w-44 flex items-center gap-2.5 bg-white/5 border border-white/10 rounded-full px-4 py-2.5 backdrop-blur-xl">
+                          <button onClick={toggleMute} className="text-white/70 hover:text-white transition-colors flex-shrink-0">
+                              {getVolumeIcon()}
+                          </button>
+                          <input
+                              type="range"
+                              min="0" max="1" step="0.01"
+                              value={volume}
+                              onChange={(e) => {
+                                  const val = parseFloat(e.target.value);
+                                  setVolume(val);
+                                  if (val > 0) setIsMuted(false);
+                                  else setIsMuted(true);
+                              }}
+                              className="w-full h-1.5 bg-white/20 rounded-full appearance-none cursor-pointer accent-secondary"
+                          />
+                      </div>
+                  </div>
 
-                  <div className="flex-1 md:w-44 lg:w-56 flex items-center gap-3 bg-white/5 border border-white/10 rounded-full px-5 py-3 backdrop-blur-xl">
-                      <button onClick={toggleMute} className="text-white/60 hover:text-white transition-colors flex-shrink-0">
-                          {getVolumeIcon()}
-                      </button>
-                      <input
-                          type="range"
-                          min="0" max="1" step="0.01"
-                          value={volume}
-                          onChange={(e) => {
-                              const val = parseFloat(e.target.value);
-                              setVolume(val);
-                              if (val > 0) setIsMuted(false);
-                              else setIsMuted(true);
-                          }}
-                          className="w-full h-1.5 bg-white/20 rounded-full appearance-none cursor-pointer accent-secondary"
-                      />
+                  <div className="flex items-center gap-2 flex-wrap justify-center lg:justify-end">
+                      {onOpenSongRequest && (
+                        <button
+                          onClick={onOpenSongRequest}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/35 text-[11px] font-bold transition-all active:scale-95"
+                          title="Pedir canción directo a WhatsApp"
+                        >
+                          <MessageCircle size={13} className="text-emerald-400" />
+                          <span>Pedir Canción</span>
+                        </button>
+                      )}
+
+                      <a
+                        href="#/pantalla"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white border border-white/15 text-[11px] font-bold transition-all active:scale-95"
+                        title="Abrir en Modo Pantalla de Google / Smart TV"
+                      >
+                        <Tv size={13} className="text-secondary" />
+                        <span>Pantalla TV</span>
+                      </a>
                   </div>
               </div>
           </div>
