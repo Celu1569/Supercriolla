@@ -4,7 +4,8 @@ import { useConfig } from '../context/ConfigContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { resolveDirectImageUrl } from '../utils/imageUrl';
 import { io, Socket } from 'socket.io-client';
-import { parseAndResolveStreamMetadata, isRealMusicCover, DEFAULT_RADIO_COVER } from '../utils/musicMetadata';
+import { parseAndResolveStreamMetadata, resolveMusicArtwork, fetchIcecastStatusFromBrowser, isRealMusicCover, DEFAULT_RADIO_COVER } from '../utils/musicMetadata';
+import { recordListenerSession, recordPeakListenerCount } from '../utils/listenerAnalytics';
 
 const DEFAULT_COVER = DEFAULT_RADIO_COVER;
 
@@ -46,7 +47,8 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
         const cached = localStorage.getItem('last_radio_metadata');
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (parsed && (parsed.title || parsed.artist)) {
+          const isRecent = parsed?.updatedAt && Date.now() - Number(parsed.updatedAt) < 5 * 60 * 1000;
+          if (parsed && isRecent && parsed.title && parsed.title !== 'Sintonizando...' && isRealMusicCover(parsed.cover)) {
             return {
               title: parsed.title || stationName,
               artist: parsed.artist || defaultSlogan,
@@ -61,108 +63,101 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
 
   // Universal music metadata & high-resolution cover resolver
-  const applyMetadata = useCallback(async (data: { title?: string; artist?: string; cover?: string }) => {
+  const applyMetadata = useCallback(async (data: { title?: string; artist?: string; cover?: string; rawTitle?: string; listeners?: number }) => {
     if (!data) return;
 
-    let { title = '', artist = '', cover = DEFAULT_COVER } = data;
+    if (typeof data.listeners === 'number' && data.listeners > 0) {
+      recordPeakListenerCount(data.listeners);
+    }
 
-    // If cover is already a real music cover, apply immediately
-    if (cover && isRealMusicCover(cover)) {
-      const sanitized = {
-        title: title || stationName,
-        artist: artist || defaultSlogan,
-        cover: cover
-      };
+    const { title = '', artist = '', cover = DEFAULT_COVER, rawTitle = '' } = data;
+    if (title === 'Sintonizando...' && !rawTitle) return;
+
+    const persistMeta = (nextMeta: { title: string; artist: string; cover: string }) => {
       setMetadata(prev => {
-        if (prev.title === sanitized.title && prev.artist === sanitized.artist && prev.cover === sanitized.cover) {
+        if (prev.title === nextMeta.title && prev.artist === nextMeta.artist && prev.cover === nextMeta.cover) {
           return prev;
         }
         try {
           if (typeof window !== 'undefined') {
-            localStorage.setItem('last_radio_metadata', JSON.stringify(sanitized));
+            localStorage.setItem('last_radio_metadata', JSON.stringify({ ...nextMeta, updatedAt: Date.now() }));
           }
         } catch (_) {}
-        return sanitized;
+        return nextMeta;
+      });
+    };
+
+    // 1. If server/function already provided a real music cover, apply immediately
+    if (cover && isRealMusicCover(cover)) {
+      persistMeta({
+        title: title || stationName,
+        artist: artist || defaultSlogan,
+        cover
       });
       return;
     }
 
-    // If no real cover or only raw title received, resolve using universal engine
+    // 2. Otherwise resolve client-side WITHOUT discarding artist/title pair
+    const isGenericArtist = !artist || artist === defaultSlogan || artist === stationName || artist === 'Buenísima 87.7 FM';
+    if (rawTitle) {
+      const resolved = await parseAndResolveStreamMetadata(rawTitle, stationName, defaultSlogan);
+      persistMeta({ title: resolved.title, artist: resolved.artist, cover: resolved.cover });
+      return;
+    }
+
+    if (title && !isGenericArtist) {
+      const resolved = await resolveMusicArtwork(artist, title);
+      if (resolved) {
+        persistMeta({ title: resolved.title, artist: resolved.artist, cover: resolved.cover });
+        return;
+      }
+      persistMeta({ title, artist, cover: DEFAULT_COVER });
+      return;
+    }
+
     const rawToResolve = title || artist;
     if (rawToResolve) {
       const resolved = await parseAndResolveStreamMetadata(rawToResolve, stationName, defaultSlogan);
-      setMetadata(prev => {
-        if (prev.title === resolved.title && prev.artist === resolved.artist && prev.cover === resolved.cover) {
-          return prev;
-        }
-        try {
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('last_radio_metadata', JSON.stringify(resolved));
-          }
-        } catch (_) {}
-        return resolved;
-      });
+      persistMeta({ title: resolved.title, artist: resolved.artist, cover: resolved.cover });
     }
   }, [stationName, defaultSlogan]);
 
-  // Fetch metadata via HTTP polling API or Direct Fallback
+  // Fetch metadata via API (/api/metadata on Node or Netlify Function) + Browser Fallback
   const fetchMetadata = useCallback(async (force = false) => {
     setIsFetchingMetadata(true);
     const streamUrl = config.general.streamUrl || 'https://redradioypc.com:8010/live';
-    
-    // 1. Try internal API first
+
+    // 1. Try internal API / Netlify Function first (verify JSON response, ignore HTML SPA rewrites)
     try {
-      const response = await fetch(`/api/metadata?url=${encodeURIComponent(streamUrl)}&_t=${Date.now()}${force ? '&refresh=true' : ''}`);
-      if (response.ok) {
+      const response = await fetch(`/api/metadata?url=${encodeURIComponent(streamUrl)}&_t=${Date.now()}${force ? '&refresh=true' : ''}`, {
+        headers: { Accept: 'application/json' }
+      });
+      const contentType = response.headers.get('content-type') || '';
+      if (response.ok && contentType.includes('application/json')) {
         const data = await response.json();
-        if (data && (data.title || data.artist)) {
+        const isGeneric = !data?.title || data.title === 'Sintonizando...' || (data.title === 'BUENÍSIMA 87.7 FM' && !isRealMusicCover(data.cover));
+        if (data && !isGeneric) {
           await applyMetadata(data);
           setIsFetchingMetadata(false);
           return;
         }
       }
-    } catch (err) {
-      // Internal API might be unreachable if static deployment without Node proxy
+    } catch (_) {
+      // Static deploy without Node/Netlify function falls through to browser fallback
     }
 
-    // 2. Direct Browser-side Fallback (CORS Proxy for static deployment)
+    // 2. Direct Browser-side Multi-Proxy Fallback for static deployments
     try {
-      const host = new URL(streamUrl).host;
-      const statusUrl = `https://${host}/status-json.xsl`;
-      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(statusUrl)}`;
-      
-      const response = await fetch(proxyUrl);
-      if (response.ok) {
-        const text = await response.text();
-        // Aggressive cleanup for malformed JSON with trailing commas
-        let cleaned = text.trim()
-          .replace(/,\s*\]\s*\}\s*\}\s*$/, ']}}')
-          .replace(/,\s*\]/g, ']');
-        
-        let extractedTitle = "";
-        try {
-          const data = JSON.parse(cleaned);
-          const source = data.icestats?.source;
-          const srcArray = Array.isArray(source) ? source : [source];
-          const bestSrc = srcArray.find((s: any) => s && s.title && s.title !== "-") || srcArray[0];
-          
-          if (bestSrc && (bestSrc.title || bestSrc.yp_currently_playing)) {
-            extractedTitle = bestSrc.title || bestSrc.yp_currently_playing;
-          }
-        } catch (_) {
-          // Regex fallback if JSON still malformed
-          const titleMatch = text.match(/"(?:title|yp_currently_playing|StreamTitle)"\s*:\s*"([^"]+)"/i);
-          if (titleMatch && titleMatch[1]) {
-            extractedTitle = titleMatch[1];
-          }
-        }
-
-        if (extractedTitle) {
-          await applyMetadata({ title: extractedTitle });
-        }
+      const liveStatus = await fetchIcecastStatusFromBrowser(streamUrl);
+      if (liveStatus?.rawTitle) {
+        await applyMetadata({
+          rawTitle: liveStatus.rawTitle,
+          title: liveStatus.rawTitle,
+          listeners: liveStatus.listeners
+        });
       }
     } catch (err) {
-      console.warn("[Player] Direct metadata fallback failed:", err);
+      console.warn('[Player] Direct metadata fallback failed:', err);
     } finally {
       setIsFetchingMetadata(false);
     }
@@ -226,10 +221,11 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
     };
   }, [applyMetadata]);
 
-  // 3. Regular Polling Interval (every 15 seconds) to guarantee no stagnation
+  // 3. Regular Polling Interval (every 15 seconds) to guarantee no stagnation + record listener visit
   useEffect(() => {
-    fetchMetadata();
-    const interval = setInterval(fetchMetadata, 15000); // Increased interval to reduce redundant calls
+    recordListenerSession('visit');
+    fetchMetadata(true);
+    const interval = setInterval(() => fetchMetadata(false), 15000);
 
     const handleVisibilityChange = () => {
       if (!document.hidden) {
@@ -471,7 +467,8 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
               setIsReconnecting(false);
               setHasError(false);
               retryCountRef.current = 0;
-              fetchMetadata();
+              recordListenerSession('play');
+              fetchMetadata(true);
           } catch (e: any) {
               if (e.name !== 'AbortError') {
                   console.warn(`[Player] ${useSource} playback failed:`, e.message);

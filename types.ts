@@ -309,6 +309,41 @@ export interface SongRequestConfig {
   whatsappNumber: string; // e.g. "04241555789"
   title?: string;
   subtitle?: string;
+  showLocationField?: boolean;
+  requireLocation?: boolean;
+  locationLabel?: string;
+  locationPlaceholder?: string;
+  suggestedLocations?: string;
+}
+
+export type PushCategory = 'live' | 'promo' | 'contest' | 'news' | 'alert';
+
+export interface LivePushNotification {
+  id: string;
+  title: string;
+  message: string;
+  category?: PushCategory;
+  badgeText?: string;
+  imageUrl?: string;
+  actionLabel?: string;
+  actionUrl?: string;
+  playSound?: boolean;
+  durationSeconds?: number;
+  sentAt: string;
+  active: boolean;
+}
+
+export interface PushNotificationsConfig {
+  enabled: boolean;
+  showOptInPrompt: boolean;
+  optInTitle?: string;
+  optInSubtitle?: string;
+  optInButtonText?: string;
+  defaultIconUrl?: string;
+  playSound?: boolean;
+  defaultDurationSeconds?: number;
+  activeNotification?: LivePushNotification | null;
+  history?: LivePushNotification[];
 }
 
 export interface RadioPlayerConfig {
@@ -326,6 +361,47 @@ export interface RadioPlayerConfig {
   autoDJTracks?: AutoDJTrack[];
   autoDJMode?: 'alphabetical' | 'random';
   enableAutoMetadata?: boolean;
+}
+
+export type SeasonThemeId =
+  | 'default'
+  | 'christmas'
+  | 'new_year'
+  | 'valentine'
+  | 'carnival'
+  | 'summer'
+  | 'autumn'
+  | 'halloween'
+  | 'custom';
+
+export type VisualEffectId =
+  | 'snow'
+  | 'christmas_lights'
+  | 'confetti'
+  | 'sparkles'
+  | 'fireworks'
+  | 'hearts'
+  | 'leaves'
+  | 'bubbles'
+  | 'aurora'
+  | 'bats';
+
+export type BackgroundStyleType = 'theme' | 'solid' | 'gradient' | 'image';
+
+export interface SeasonalBackgroundConfig {
+  enabled: boolean;
+  season: SeasonThemeId;
+  backgroundType: BackgroundStyleType;
+  backgroundColor?: string;
+  gradientStart?: string;
+  gradientEnd?: string;
+  gradientDirection?: string;
+  backgroundImageUrl?: string;
+  backgroundFixed?: boolean;
+  overlayOpacity?: number;
+  overlayColor?: string;
+  effects: VisualEffectId[];
+  effectIntensity?: 'low' | 'medium' | 'high';
 }
 
 export interface SiteConfig {
@@ -350,6 +426,7 @@ export interface SiteConfig {
     headingFont: FontFamily;
     bodyFont: FontFamily;
     radioPlayer?: RadioPlayerConfig; // New: Advanced styling for Radio Player
+    seasonal?: SeasonalBackgroundConfig; // Seasonal themes, backgrounds & visual effects
   };
   content: {
     hero: HeroSlide[]; 
@@ -371,5 +448,15 @@ export interface SiteConfig {
   };
   advertising?: AdvertisingConfig;
   songRequest?: SongRequestConfig;
+  pushNotifications?: PushNotificationsConfig;
   social: SocialLinks;
+}
+
+export interface DailyListenerStat {
+  date: string;           // 'YYYY-MM-DD'
+  totalListeners: number; // Recorded listener sessions/plays
+  peakListeners: number;  // Highest simultaneous listener count observed
+  songRequests: number;   // WhatsApp song requests sent
+  chatMessages: number;   // Chat messages logged that day
+  updatedAt: string;      // ISO string
 }

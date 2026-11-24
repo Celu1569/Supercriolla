@@ -20,15 +20,17 @@ const ThemeApplicator: React.FC = () => {
         root.style.setProperty('--color-secondary', appearance.secondaryColor);
         root.style.setProperty('--color-heading', appearance.headingColor || appearance.primaryColor);
         
+        const hasCustomBg = !!(appearance.seasonal?.enabled && appearance.seasonal.backgroundType !== 'theme');
+
         // Theme Mode Colors (Dark/Light)
         if (appearance.themeMode === 'light') {
-            root.style.setProperty('--color-surface', appearance.backgroundColor || '#ffffff');
-            root.style.setProperty('--color-surface-alt', '#f3f4f6'); // gray-100
+            root.style.setProperty('--color-surface', hasCustomBg ? 'rgba(255, 255, 255, 0.72)' : (appearance.backgroundColor || '#ffffff'));
+            root.style.setProperty('--color-surface-alt', hasCustomBg ? 'rgba(243, 244, 246, 0.76)' : '#f3f4f6'); // gray-100
             root.style.setProperty('--color-text', appearance.textColor || '#1f2937'); // gray-800
             root.style.setProperty('--color-text-muted', '#4b5563'); // gray-600
         } else {
-            root.style.setProperty('--color-surface', '#030712'); // gray-950
-            root.style.setProperty('--color-surface-alt', '#111827'); // gray-900
+            root.style.setProperty('--color-surface', hasCustomBg ? 'rgba(3, 7, 18, 0.55)' : '#030712'); // gray-950
+            root.style.setProperty('--color-surface-alt', hasCustomBg ? 'rgba(17, 24, 39, 0.62)' : '#111827'); // gray-900
             root.style.setProperty('--color-text', '#f9fafb'); // gray-50
             root.style.setProperty('--color-text-muted', '#9ca3af'); // gray-400
         }

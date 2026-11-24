@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useConfig } from '../context/ConfigContext';
-import { SiteConfig, HeroSlide, PodcastEpisode, GalleryItem, NavItemConfig, FontFamily, Client, AutoDJTrack, AdBannerItem } from '../types';
-import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2, ListOrdered, Sparkles, Play, CheckCircle2, ExternalLink, Rss, FileText, X, Disc, ShieldCheck, Tv, Copy } from 'lucide-react';
+import { SiteConfig, HeroSlide, PodcastEpisode, GalleryItem, NavItemConfig, FontFamily, Client, AutoDJTrack, AdBannerItem, SeasonalBackgroundConfig, SeasonThemeId, VisualEffectId, BackgroundStyleType, LivePushNotification, PushCategory } from '../types';
+import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2, ListOrdered, Sparkles, Play, CheckCircle2, ExternalLink, Rss, FileText, X, Disc, ShieldCheck, Tv, Copy, Palette, Bell, BellRing, Send, Gift, Megaphone, Clock, BarChart3 } from 'lucide-react';
+import { SEASON_PRESETS, VISUAL_EFFECT_OPTIONS } from '../utils/seasonalPresets';
+import { BackgroundEffects } from '../components/BackgroundEffects';
+import { ListenerTrendsDashboard } from '../components/ListenerTrendsDashboard';
 
 // --- CONSTANTS ---
 const FONT_OPTIONS: { value: FontFamily; label: string }[] = [
@@ -1194,7 +1197,7 @@ export const AdminPanel: React.FC = () => {
   const { config, updateConfig, logout, isAuthenticated, isConfigLoaded } = useConfig();
   const [formData, setFormData] = useState<SiteConfig>(config);
   
-  const [activeTab, setActiveTab] = useState<string>('appearance');
+  const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [adminProgramTab, setAdminProgramTab] = useState<'week' | 'weekend'>('week');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [collapsedItems, setCollapsedItems] = useState<Record<string, boolean>>({});
@@ -1219,6 +1222,127 @@ export const AdminPanel: React.FC = () => {
     } finally {
       setIsTestingMetadata(false);
     }
+  };
+
+  // --- LIVE PUSH NOTIFICATIONS STATE & HANDLERS ---
+  const [pushDraft, setPushDraft] = useState<{
+    title: string;
+    message: string;
+    category: PushCategory;
+    badgeText: string;
+    imageUrl: string;
+    actionLabel: string;
+    actionUrl: string;
+    playSound: boolean;
+    durationSeconds: number;
+  }>({
+    title: '',
+    message: '',
+    category: 'live',
+    badgeText: '',
+    imageUrl: '',
+    actionLabel: 'Escuchar Ahora',
+    actionUrl: '#hero',
+    playSound: true,
+    durationSeconds: 18
+  });
+  const [pushSendStatus, setPushSendStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [pushFeedbackMsg, setPushFeedbackMsg] = useState('');
+
+  const handleSendLivePush = async (reemitNotif?: LivePushNotification) => {
+    const title = (reemitNotif ? reemitNotif.title : pushDraft.title).trim();
+    const message = (reemitNotif ? reemitNotif.message : pushDraft.message).trim();
+    if (!title || !message) {
+      setPushSendStatus('error');
+      setPushFeedbackMsg('Escribe un título y un mensaje antes de enviar.');
+      return;
+    }
+
+    setPushSendStatus('sending');
+    setPushFeedbackMsg('');
+
+    const newPush: LivePushNotification = {
+      id: `push-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      title,
+      message,
+      category: reemitNotif ? (reemitNotif.category || 'live') : pushDraft.category,
+      badgeText: (reemitNotif ? reemitNotif.badgeText : pushDraft.badgeText)?.trim() || undefined,
+      imageUrl: (reemitNotif ? reemitNotif.imageUrl : pushDraft.imageUrl)?.trim() || undefined,
+      actionLabel: (reemitNotif ? reemitNotif.actionLabel : pushDraft.actionLabel)?.trim() || undefined,
+      actionUrl: (reemitNotif ? reemitNotif.actionUrl : pushDraft.actionUrl)?.trim() || undefined,
+      playSound: reemitNotif ? (reemitNotif.playSound !== false) : pushDraft.playSound,
+      durationSeconds: reemitNotif ? (reemitNotif.durationSeconds || 18) : pushDraft.durationSeconds,
+      sentAt: new Date().toISOString(),
+      active: true
+    };
+
+    const currentPushCfg = formData.pushNotifications || {
+      enabled: true,
+      showOptInPrompt: true,
+      optInTitle: '¡Activa las Alertas En Vivo!',
+      optInSubtitle: 'Entérate al instante de estrenos, concursos, saludos y programas en vivo.',
+      optInButtonText: 'Activar Alertas',
+      playSound: true,
+      defaultDurationSeconds: 18,
+      history: []
+    };
+
+    const nextHistory = [newPush, ...(currentPushCfg.history || [])].slice(0, 10);
+    const nextConfig: SiteConfig = {
+      ...formData,
+      pushNotifications: {
+        ...currentPushCfg,
+        enabled: true,
+        activeNotification: newPush,
+        history: nextHistory
+      }
+    };
+
+    setFormData(nextConfig);
+
+    // 1. Broadcast via Socket.IO / REST endpoint if Node server is active
+    try {
+      await fetch('/api/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newPush)
+      });
+    } catch {
+      // Static deploy relies on Firestore sync below
+    }
+
+    // 2. Persist immediately to Firestore so every connected browser receives it via onSnapshot
+    const ok = await updateConfig(nextConfig);
+    if (ok) {
+      setPushSendStatus('sent');
+      setPushFeedbackMsg('¡Notificación enviada en vivo a todos los visitantes conectados!');
+      if (!reemitNotif) {
+        setPushDraft(prev => ({ ...prev, title: '', message: '' }));
+      }
+      setTimeout(() => setPushSendStatus('idle'), 4000);
+    } else {
+      setPushSendStatus('error');
+      setPushFeedbackMsg('Se transmitió en vivo, pero hubo un problema al guardar el historial.');
+    }
+  };
+
+  const handleClearActivePush = async () => {
+    const currentPushCfg = formData.pushNotifications;
+    if (!currentPushCfg) return;
+    const nextConfig: SiteConfig = {
+      ...formData,
+      pushNotifications: {
+        ...currentPushCfg,
+        activeNotification: null
+      }
+    };
+    setFormData(nextConfig);
+    try {
+      await fetch('/api/push', { method: 'DELETE' });
+    } catch {
+      // Ignore
+    }
+    await updateConfig(nextConfig);
   };
 
   const getYouTubeIdAndThumb = (url: string) => {
@@ -2299,7 +2423,9 @@ export const AdminPanel: React.FC = () => {
       
       {/* Horizontal Tabs Navigation */}
       <nav className="bg-gray-900/95 backdrop-blur-md border-b border-gray-800 flex overflow-x-auto custom-scrollbar px-6 py-3 space-x-3 z-20 sticky top-[80px] w-full">
+          <TabButton id="dashboard" activeTab={activeTab} onClick={setActiveTab} icon={BarChart3} label="Dashboard" />
           <TabButton id="appearance" activeTab={activeTab} onClick={setActiveTab} icon={Layout} label="Apariencia" />
+          <TabButton id="seasonal" activeTab={activeTab} onClick={setActiveTab} icon={Sparkles} label="Fondos y Temporadas" />
           <TabButton id="player" activeTab={activeTab} onClick={setActiveTab} icon={Volume2} label="Reproductor" />
           <TabButton id="header" activeTab={activeTab} onClick={setActiveTab} icon={Compass} label="Menú" />
           <TabButton id="layout" activeTab={activeTab} onClick={setActiveTab} icon={ListOrdered} label="Orden de Secciones" />
@@ -2307,6 +2433,7 @@ export const AdminPanel: React.FC = () => {
           <TabButton id="hero" activeTab={activeTab} onClick={setActiveTab} icon={Home} label="Banner" />
           <TabButton id="advertising" activeTab={activeTab} onClick={setActiveTab} icon={RectangleVertical} label="Publicidad Lateral" />
           <TabButton id="songrequest" activeTab={activeTab} onClick={setActiveTab} icon={MessageCircle} label="Pedidos WhatsApp" />
+          <TabButton id="push" activeTab={activeTab} onClick={setActiveTab} icon={Bell} label="Push En Vivo" />
           <TabButton id="ribbon" activeTab={activeTab} onClick={setActiveTab} icon={Type} label="Cintillos" />
           <TabButton id="topvideos" activeTab={activeTab} onClick={setActiveTab} icon={PlayCircle} label="Más Viral y Comentado" />
           <TabButton id="podcast" activeTab={activeTab} onClick={setActiveTab} icon={Mic2} label="Podcast" />
@@ -2325,6 +2452,8 @@ export const AdminPanel: React.FC = () => {
       <main className="flex-1 w-full bg-gray-950 p-4 lg:p-8 mb-20">
         <div className="w-full bg-gray-900/50 backdrop-blur-sm rounded-3xl shadow-2xl border border-gray-800 p-6 xl:p-12 min-h-full">
             
+            {activeTab === 'dashboard' && <ListenerTrendsDashboard />}
+
             {activeTab === 'appearance' && (
               <div className="space-y-6 animate-fade-in">
                  <SectionHeader title="Apariencia y Marca" subtitle="Personaliza los colores y fuentes de tu sitio web." />
@@ -2367,9 +2496,481 @@ export const AdminPanel: React.FC = () => {
                         </select>
                     </InputGroup>
                   </div>
+
+                  {/* Quick link to Fondos, Temporadas y Efectos */}
+                  <div className="bg-gradient-to-r from-indigo-950/60 via-purple-950/50 to-gray-900 border border-purple-500/30 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2.5 rounded-xl bg-purple-500/20 text-purple-300 flex-shrink-0">
+                        <Sparkles size={22} />
+                      </div>
+                      <div>
+                        <h4 className="text-white font-bold text-sm sm:text-base">Fondos Personalizados, Temporadas del Año y Efectos Visuales</h4>
+                        <p className="text-xs text-gray-300 mt-0.5">
+                          Cambia el fondo de toda la web (Navidad, Año Nuevo, Verano, o Cambio Libre) y activa múltiples efectos animados como nieve, luces, confeti o fuegos artificiales.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('seasonal')}
+                      className="px-4 py-2.5 rounded-xl bg-secondary text-primary font-black text-xs sm:text-sm hover:bg-yellow-400 transition-all shadow-lg flex items-center gap-2 flex-shrink-0"
+                    >
+                      <Palette size={16} />
+                      <span>Configurar Fondos y Temporadas</span>
+                    </button>
+                  </div>
+
                   <SaveAction />
                </div>
              )}
+
+             {activeTab === 'seasonal' && (() => {
+               const currentSeasonal: SeasonalBackgroundConfig = formData.appearance.seasonal || {
+                 enabled: false,
+                 season: 'default',
+                 backgroundType: 'theme',
+                 backgroundColor: '#030712',
+                 gradientStart: '#071b16',
+                 gradientEnd: '#2a080e',
+                 gradientDirection: '135deg',
+                 backgroundImageUrl: '',
+                 backgroundFixed: true,
+                 overlayOpacity: 0.4,
+                 overlayColor: '#000000',
+                 effects: [],
+                 effectIntensity: 'medium',
+               };
+
+               const updateSeasonal = (patch: Partial<SeasonalBackgroundConfig>) => {
+                 setFormData(prev => ({
+                   ...prev,
+                   appearance: {
+                     ...prev.appearance,
+                     seasonal: {
+                       ...currentSeasonal,
+                       ...patch,
+                     },
+                   },
+                 }));
+               };
+
+               const toggleEffect = (effectId: VisualEffectId) => {
+                 const exists = currentSeasonal.effects.includes(effectId);
+                 const nextEffects = exists
+                   ? currentSeasonal.effects.filter(id => id !== effectId)
+                   : [...currentSeasonal.effects, effectId];
+                 updateSeasonal({
+                   enabled: nextEffects.length > 0 || currentSeasonal.backgroundType !== 'theme' ? true : currentSeasonal.enabled,
+                   effects: nextEffects,
+                 });
+               };
+
+               const applySeasonPreset = (seasonId: SeasonThemeId) => {
+                 const preset = SEASON_PRESETS.find(s => s.id === seasonId);
+                 if (!preset) return;
+                 if (seasonId === 'custom') {
+                   updateSeasonal({
+                     enabled: true,
+                     season: 'custom',
+                   });
+                   return;
+                 }
+                 updateSeasonal({
+                   ...currentSeasonal,
+                   ...preset.defaults,
+                   season: seasonId,
+                 });
+               };
+
+               return (
+                 <div className="space-y-8 animate-fade-in">
+                   <SectionHeader
+                     title="Fondos, Temporadas del Año y Efectos"
+                     subtitle="Transforma la página web por temporadas (Navidad, Año Nuevo, Carnaval, Verano, etc.) o realiza cambios libres con fondos y múltiples efectos combinables."
+                   />
+
+                   {/* Master Switch + Live Mini Preview */}
+                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                     <div className="lg:col-span-5 bg-gray-800/80 border border-gray-700 rounded-2xl p-6 flex flex-col justify-between space-y-5">
+                       <div className="flex items-start justify-between gap-4">
+                         <div>
+                           <h3 className="text-white font-bold text-base flex items-center gap-2">
+                             <Sparkles size={18} className="text-secondary" />
+                             Estado del Modo Temporada / Fondo
+                           </h3>
+                           <p className="text-xs text-gray-400 mt-1">
+                             Activa o desactiva los fondos personalizados y efectos animados en toda la página pública.
+                           </p>
+                         </div>
+                         <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                           <input
+                             type="checkbox"
+                             checked={currentSeasonal.enabled}
+                             onChange={(e) => updateSeasonal({ enabled: e.target.checked })}
+                             className="sr-only peer"
+                           />
+                           <div className="w-12 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                         </label>
+                       </div>
+
+                       <div className="bg-gray-900/80 border border-gray-700/80 rounded-xl p-4 space-y-2 text-xs">
+                         <div className="flex items-center justify-between text-gray-300">
+                           <span>Temporada activa:</span>
+                           <span className="font-bold text-secondary">
+                             {SEASON_PRESETS.find(p => p.id === currentSeasonal.season)?.emoji}{' '}
+                             {SEASON_PRESETS.find(p => p.id === currentSeasonal.season)?.name || 'Personalizado'}
+                           </span>
+                         </div>
+                         <div className="flex items-center justify-between text-gray-300">
+                           <span>Tipo de fondo:</span>
+                           <span className="font-semibold text-white uppercase">
+                             {currentSeasonal.backgroundType === 'theme'
+                               ? 'Estándar del Tema'
+                               : currentSeasonal.backgroundType === 'solid'
+                                 ? 'Color Sólido'
+                                 : currentSeasonal.backgroundType === 'gradient'
+                                   ? 'Degradado Dual'
+                                   : 'Imagen Personalizada'}
+                           </span>
+                         </div>
+                         <div className="flex items-center justify-between text-gray-300">
+                           <span>Efectos activos ({currentSeasonal.effects.length}):</span>
+                           <span className="font-semibold text-emerald-400">
+                             {currentSeasonal.effects.length > 0
+                               ? currentSeasonal.effects
+                                   .map(ef => VISUAL_EFFECT_OPTIONS.find(o => o.id === ef)?.emoji)
+                                   .join(' ')
+                               : 'Ninguno'}
+                           </span>
+                         </div>
+                       </div>
+
+                       {/* Intensity Control */}
+                       <div>
+                         <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">
+                           Intensidad de los Efectos
+                         </label>
+                         <div className="grid grid-cols-3 gap-2">
+                           {[
+                             { id: 'low', label: 'Suave' },
+                             { id: 'medium', label: 'Normal' },
+                             { id: 'high', label: 'Intenso' },
+                           ].map((lvl) => (
+                             <button
+                               key={lvl.id}
+                               type="button"
+                               onClick={() => updateSeasonal({ effectIntensity: lvl.id as any })}
+                               className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all ${
+                                 (currentSeasonal.effectIntensity || 'medium') === lvl.id
+                                   ? 'bg-secondary text-primary border-secondary shadow'
+                                   : 'bg-gray-900 text-gray-300 border-gray-700 hover:border-gray-500'
+                               }`}
+                             >
+                               {lvl.label}
+                             </button>
+                           ))}
+                         </div>
+                       </div>
+                     </div>
+
+                     {/* Live Interactive Preview */}
+                     <div className="lg:col-span-7 relative min-h-[240px] rounded-2xl overflow-hidden border border-gray-700 bg-gray-950 shadow-2xl flex flex-col items-center justify-center p-6">
+                       <BackgroundEffects config={currentSeasonal} previewMode={true} />
+                       <div className="relative z-20 text-center space-y-2 max-w-md bg-black/45 backdrop-blur-md px-6 py-4 rounded-2xl border border-white/15">
+                         <span className="inline-block px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-secondary/20 text-secondary border border-secondary/30">
+                           Vista Previa en Vivo
+                         </span>
+                         <h4 className="text-lg sm:text-xl font-black text-white">
+                           {formData.general.stationName || 'BUENÍSIMA'}
+                         </h4>
+                         <p className="text-xs text-gray-200">
+                           {currentSeasonal.enabled
+                             ? 'Así lucirá tu fondo y la combinación de efectos visuales en la página principal.'
+                             : 'Activa el interruptor de la izquierda para previsualizar el fondo y los efectos.'}
+                         </p>
+                       </div>
+                     </div>
+                   </div>
+
+                   {/* Step 1: Temporadas del Año / Cambio Libre */}
+                   <div className="bg-gray-800/70 border border-gray-700 rounded-2xl p-6 space-y-4">
+                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                       <div>
+                         <h3 className="text-white font-bold text-base flex items-center gap-2">
+                           <Calendar size={18} className="text-secondary" />
+                           1. Selecciona una Temporada del Año o Cambio Libre
+                         </h3>
+                         <p className="text-xs text-gray-400">
+                           Haz clic en cualquier temporada para aplicar automáticamente su ambiente y efectos, o elige "Cambio Libre" para personalizarlo todo desde cero.
+                         </p>
+                       </div>
+                     </div>
+
+                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                       {SEASON_PRESETS.map((preset) => {
+                         const isSelected = currentSeasonal.season === preset.id;
+                         return (
+                           <button
+                             key={preset.id}
+                             type="button"
+                             onClick={() => applySeasonPreset(preset.id)}
+                             className={`p-4 rounded-xl border text-left transition-all relative ${
+                               isSelected
+                                 ? 'bg-secondary/15 border-secondary ring-2 ring-secondary/40 shadow-lg'
+                                 : 'bg-gray-900/70 border-gray-700 hover:border-gray-500'
+                             }`}
+                           >
+                             <div className="flex items-center justify-between mb-1.5">
+                               <span className="font-bold text-sm text-white flex items-center gap-2">
+                                 <span className="text-lg">{preset.emoji}</span>
+                                 {preset.name}
+                               </span>
+                               {isSelected && <CheckCircle2 size={16} className="text-secondary flex-shrink-0" />}
+                             </div>
+                             <p className="text-[11px] text-gray-400 leading-relaxed">{preset.description}</p>
+                           </button>
+                         );
+                       })}
+                     </div>
+                   </div>
+
+                   {/* Step 2: Background Type & Customization (Cambios Libres) */}
+                   <div className="bg-gray-800/70 border border-gray-700 rounded-2xl p-6 space-y-5">
+                     <div>
+                       <h3 className="text-white font-bold text-base flex items-center gap-2">
+                         <ImageIcon size={18} className="text-secondary" />
+                         2. Cambio de Fondo de la Página (Libre o Sobre Temporada)
+                       </h3>
+                       <p className="text-xs text-gray-400">
+                         Elige si quieres mantener los colores del tema o aplicar un color sólido, un degradado o una imagen de fondo personalizada en toda la web.
+                       </p>
+                     </div>
+
+                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                       {[
+                         { id: 'theme', label: 'Estándar del Tema', desc: 'Fondo claro/obscuro normal' },
+                         { id: 'solid', label: 'Color Sólido', desc: 'Un color único en toda la web' },
+                         { id: 'gradient', label: 'Degradado Dual', desc: 'Mezcla fluida de 2 colores' },
+                         { id: 'image', label: 'Imagen de Fondo', desc: 'Foto por URL o subida desde PC' },
+                       ].map((opt) => {
+                         const active = currentSeasonal.backgroundType === opt.id;
+                         return (
+                           <button
+                             key={opt.id}
+                             type="button"
+                             onClick={() =>
+                               updateSeasonal({
+                                 enabled: opt.id !== 'theme' ? true : currentSeasonal.enabled,
+                                 backgroundType: opt.id as BackgroundStyleType,
+                                 season: currentSeasonal.season === 'default' && opt.id !== 'theme' ? 'custom' : currentSeasonal.season,
+                               })
+                             }
+                             className={`p-3.5 rounded-xl border text-left transition-all ${
+                               active
+                                 ? 'bg-primary/25 border-secondary text-white ring-1 ring-secondary/50'
+                                 : 'bg-gray-900/60 border-gray-700 text-gray-300 hover:border-gray-500'
+                             }`}
+                           >
+                             <div className="font-bold text-xs sm:text-sm text-white">{opt.label}</div>
+                             <div className="text-[11px] text-gray-400 mt-0.5">{opt.desc}</div>
+                           </button>
+                         );
+                       })}
+                     </div>
+
+                     {/* Solid Color Options */}
+                     {currentSeasonal.backgroundType === 'solid' && (
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-gray-700/60">
+                         <InputGroup label="Color de Fondo Sólido">
+                           <div className="flex gap-2">
+                             <input
+                               type="color"
+                               value={currentSeasonal.backgroundColor || '#030712'}
+                               onChange={(e) => updateSeasonal({ enabled: true, backgroundColor: e.target.value })}
+                               className="h-11 w-20 rounded-lg cursor-pointer border border-gray-600 bg-transparent"
+                             />
+                             <input
+                               type="text"
+                               value={currentSeasonal.backgroundColor || '#030712'}
+                               onChange={(e) => updateSeasonal({ enabled: true, backgroundColor: e.target.value })}
+                               className="flex-1 bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg uppercase text-sm"
+                             />
+                           </div>
+                         </InputGroup>
+                       </div>
+                     )}
+
+                     {/* Gradient Options */}
+                     {currentSeasonal.backgroundType === 'gradient' && (
+                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-gray-700/60">
+                         <InputGroup label="Color Inicial del Degradado">
+                           <div className="flex gap-2">
+                             <input
+                               type="color"
+                               value={currentSeasonal.gradientStart || '#071b16'}
+                               onChange={(e) => updateSeasonal({ enabled: true, gradientStart: e.target.value })}
+                               className="h-11 w-16 rounded-lg cursor-pointer border border-gray-600 bg-transparent"
+                             />
+                             <input
+                               type="text"
+                               value={currentSeasonal.gradientStart || '#071b16'}
+                               onChange={(e) => updateSeasonal({ enabled: true, gradientStart: e.target.value })}
+                               className="flex-1 bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg uppercase text-sm"
+                             />
+                           </div>
+                         </InputGroup>
+                         <InputGroup label="Color Final del Degradado">
+                           <div className="flex gap-2">
+                             <input
+                               type="color"
+                               value={currentSeasonal.gradientEnd || '#2a080e'}
+                               onChange={(e) => updateSeasonal({ enabled: true, gradientEnd: e.target.value })}
+                               className="h-11 w-16 rounded-lg cursor-pointer border border-gray-600 bg-transparent"
+                             />
+                             <input
+                               type="text"
+                               value={currentSeasonal.gradientEnd || '#2a080e'}
+                               onChange={(e) => updateSeasonal({ enabled: true, gradientEnd: e.target.value })}
+                               className="flex-1 bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg uppercase text-sm"
+                             />
+                           </div>
+                         </InputGroup>
+                         <InputGroup label="Dirección del Degradado">
+                           <select
+                             value={currentSeasonal.gradientDirection || '135deg'}
+                             onChange={(e) => updateSeasonal({ enabled: true, gradientDirection: e.target.value })}
+                             className="w-full bg-gray-900 border border-gray-600 text-white p-2.5 rounded-lg text-sm"
+                           >
+                             <option value="135deg">Diagonal (↘ 135°)</option>
+                             <option value="180deg">Vertical (↓ Arriba a Abajo)</option>
+                             <option value="90deg">Horizontal (→ Izquierda a Derecha)</option>
+                             <option value="45deg">Diagonal Inversa (↗ 45°)</option>
+                           </select>
+                         </InputGroup>
+                       </div>
+                     )}
+
+                     {/* Image Background Options */}
+                     {currentSeasonal.backgroundType === 'image' && (
+                       <div className="space-y-4 pt-2 border-t border-gray-700/60">
+                         <MediaUploader
+                           label="Imagen de Fondo (URL o subir desde tu PC)"
+                           value={currentSeasonal.backgroundImageUrl || ''}
+                           onChange={(val) => updateSeasonal({ enabled: true, backgroundImageUrl: resolveDirectImageUrl(val) })}
+                           type="image"
+                         />
+                         <div className="flex items-center gap-3">
+                           <input
+                             id="bgFixedToggle"
+                             type="checkbox"
+                             checked={currentSeasonal.backgroundFixed !== false}
+                             onChange={(e) => updateSeasonal({ backgroundFixed: e.target.checked })}
+                             className="w-4 h-4 accent-secondary rounded"
+                           />
+                           <label htmlFor="bgFixedToggle" className="text-sm text-gray-300 font-medium cursor-pointer">
+                             Mantener imagen fija al hacer scroll (Efecto Parallax)
+                           </label>
+                         </div>
+                       </div>
+                     )}
+
+                     {/* Contrast Overlay Slider (for solid, gradient, or image) */}
+                     {currentSeasonal.backgroundType !== 'theme' && (
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-gray-700/60">
+                         <InputGroup label={`Velo de Contraste (${Math.round((currentSeasonal.overlayOpacity ?? 0.4) * 100)}% para legibilidad)`}>
+                           <input
+                             type="range"
+                             min="0"
+                             max="0.85"
+                             step="0.05"
+                             value={currentSeasonal.overlayOpacity ?? 0.4}
+                             onChange={(e) => updateSeasonal({ overlayOpacity: parseFloat(e.target.value) })}
+                             className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-secondary"
+                           />
+                         </InputGroup>
+                         <InputGroup label="Color del Velo">
+                           <div className="flex gap-2">
+                             <input
+                               type="color"
+                               value={currentSeasonal.overlayColor || '#000000'}
+                               onChange={(e) => updateSeasonal({ overlayColor: e.target.value })}
+                               className="h-10 w-16 rounded-lg cursor-pointer border border-gray-600 bg-transparent"
+                             />
+                             <input
+                               type="text"
+                               value={currentSeasonal.overlayColor || '#000000'}
+                               onChange={(e) => updateSeasonal({ overlayColor: e.target.value })}
+                               className="flex-1 bg-gray-900 border border-gray-600 text-white p-2 rounded-lg uppercase text-xs"
+                             />
+                           </div>
+                         </InputGroup>
+                       </div>
+                     )}
+                   </div>
+
+                   {/* Step 3: Multi-Select Visual Effects */}
+                   <div className="bg-gray-800/70 border border-gray-700 rounded-2xl p-6 space-y-4">
+                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                       <div>
+                         <h3 className="text-white font-bold text-base flex items-center gap-2">
+                           <Sparkles size={18} className="text-secondary" />
+                           3. Opciones Múltiples de Efectos Visuales (Combinables)
+                         </h3>
+                         <p className="text-xs text-gray-400">
+                           Puedes activar uno o varios efectos al mismo tiempo (por ejemplo: Nieve + Luces Navideñas + Estrellas).
+                         </p>
+                       </div>
+                       {currentSeasonal.effects.length > 0 && (
+                         <button
+                           type="button"
+                           onClick={() => updateSeasonal({ effects: [] })}
+                           className="px-3 py-1.5 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 text-xs font-bold self-start sm:self-auto"
+                         >
+                           Quitar todos los efectos
+                         </button>
+                       )}
+                     </div>
+
+                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                       {VISUAL_EFFECT_OPTIONS.map((effect) => {
+                         const isChecked = currentSeasonal.effects.includes(effect.id);
+                         return (
+                           <button
+                             key={effect.id}
+                             type="button"
+                             onClick={() => toggleEffect(effect.id)}
+                             className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                               isChecked
+                                 ? 'bg-emerald-500/15 border-emerald-400 text-white shadow-md ring-1 ring-emerald-400/50'
+                                 : 'bg-gray-900/60 border-gray-700 text-gray-300 hover:border-gray-500'
+                             }`}
+                           >
+                             <div className="flex items-center justify-between mb-1.5">
+                               <span className="text-xl">{effect.emoji}</span>
+                               <span
+                                 className={`w-5 h-5 rounded-md flex items-center justify-center text-xs font-black border ${
+                                   isChecked
+                                     ? 'bg-emerald-500 border-emerald-400 text-black'
+                                     : 'bg-gray-800 border-gray-600 text-transparent'
+                                 }`}
+                               >
+                                 ✓
+                               </span>
+                             </div>
+                             <div>
+                               <div className="font-bold text-xs text-white">{effect.name}</div>
+                               <div className="text-[11px] text-gray-400 mt-0.5 leading-snug">{effect.description}</div>
+                             </div>
+                           </button>
+                         );
+                       })}
+                     </div>
+                   </div>
+
+                   <SaveAction />
+                 </div>
+               );
+             })()}
 
              {activeTab === 'player' && (
               <div className="space-y-6 animate-fade-in">
@@ -3660,7 +4261,7 @@ export const AdminPanel: React.FC = () => {
               <div className="space-y-8 animate-fade-in">
                 <SectionHeader 
                   title="Pedidos de Canciones por WhatsApp" 
-                  subtitle="Configura el formulario interactivo para que tus oyentes soliciten canciones directamente a tu WhatsApp oficial."
+                  subtitle="Configura el formulario interactivo, el número oficial y el campo de Zona / Municipio para tus oyentes."
                 />
 
                 <div className="bg-gray-800/80 border border-gray-700/80 p-6 rounded-2xl shadow-xl space-y-6">
@@ -3687,50 +4288,615 @@ export const AdminPanel: React.FC = () => {
                     </label>
                   </div>
 
-                  {/* WhatsApp Number Input */}
-                  <div className="space-y-2">
-                    <InputGroup label="Número de WhatsApp para Pedidos">
-                      <div className="relative">
+                  {/* WhatsApp Number & Title */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <InputGroup label="Número de WhatsApp para Pedidos">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={formData.songRequest?.whatsappNumber || '0424 1555789'}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              songRequest: {
+                                ...(prev.songRequest || { enabled: true, title: 'Pide tu Canción' }),
+                                whatsappNumber: e.target.value
+                              }
+                            }))}
+                            placeholder="0424 1555789"
+                            className="w-full bg-gray-900 border border-gray-700 text-emerald-400 font-mono font-bold p-3 pl-10 rounded-xl focus:border-emerald-500 focus:outline-none"
+                          />
+                          <MessageCircle size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-400" />
+                        </div>
+                      </InputGroup>
+                      <p className="text-xs text-gray-400">
+                        Ejemplo: <strong className="text-white">0424 1555789</strong>. Se normaliza automáticamente al formato internacional de WhatsApp.
+                      </p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <InputGroup label="Título del Formulario">
                         <input
                           type="text"
-                          value={formData.songRequest?.whatsappNumber || '0424 1555789'}
+                          value={formData.songRequest?.title || 'Pide tu Canción'}
                           onChange={(e) => setFormData(prev => ({
                             ...prev,
                             songRequest: {
-                              ...(prev.songRequest || { enabled: true, title: 'Pide tu Canción' }),
-                              whatsappNumber: e.target.value
+                              ...(prev.songRequest || { enabled: true, whatsappNumber: '0424 1555789' }),
+                              title: e.target.value
                             }
                           }))}
-                          placeholder="0424 1555789"
-                          className="w-full bg-gray-900 border border-gray-700 text-emerald-400 font-mono font-bold p-3 pl-10 rounded-xl focus:border-emerald-500 focus:outline-none"
+                          placeholder="Ej. Pide tu Canción"
+                          className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:border-amber-400 focus:outline-none"
                         />
-                        <MessageCircle size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-400" />
-                      </div>
-                    </InputGroup>
-                    <p className="text-xs text-gray-400">
-                      Formato actual configurado: <strong className="text-white">0424 1555789</strong>. Los pedidos se abrirán en WhatsApp automáticamente formateados con el nombre del oyente, canción solicitada y dedicatoria.
-                    </p>
+                      </InputGroup>
+
+                      <InputGroup label="Subtítulo / Etiqueta WhatsApp">
+                        <input
+                          type="text"
+                          value={formData.songRequest?.subtitle || 'Directo al WhatsApp:'}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            songRequest: {
+                              ...(prev.songRequest || { enabled: true, whatsappNumber: '0424 1555789' }),
+                              subtitle: e.target.value
+                            }
+                          }))}
+                          placeholder="Ej. Directo al WhatsApp:"
+                          className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:border-amber-400 focus:outline-none"
+                        />
+                      </InputGroup>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Location / Zona / Municipio Configuration */}
+                <div className="bg-gray-800/80 border border-emerald-500/30 p-6 rounded-2xl shadow-xl space-y-6">
+                  <div className="flex items-center gap-3 border-b border-gray-700 pb-4">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                      <MapPin size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-white">Lugar / Zona / Municipio del Oyente</h3>
+                      <p className="text-xs text-gray-400">Permite saber desde qué sector, ciudad o municipio te escriben al aire.</p>
+                    </div>
                   </div>
 
-                  {/* Title of Form */}
-                  <InputGroup label="Título del Formulario">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-center justify-between p-4 bg-gray-900/60 rounded-xl border border-gray-700">
+                      <div>
+                        <h4 className="text-sm font-bold text-white">Mostrar campo Zona / Municipio</h4>
+                        <p className="text-xs text-gray-400">Incluye el campo de ubicación en el formulario público</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.songRequest?.showLocationField !== false}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            songRequest: {
+                              ...(prev.songRequest || { enabled: true, whatsappNumber: '0424 1555789' }),
+                              showLocationField: e.target.checked
+                            }
+                          }))}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                      </label>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 bg-gray-900/60 rounded-xl border border-gray-700">
+                      <div>
+                        <h4 className="text-sm font-bold text-white">Hacer Campo Obligatorio</h4>
+                        <p className="text-xs text-gray-400">Exigir que indiquen su zona/municipio antes de enviar</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(formData.songRequest?.requireLocation)}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            songRequest: {
+                              ...(prev.songRequest || { enabled: true, whatsappNumber: '0424 1555789' }),
+                              requireLocation: e.target.checked
+                            }
+                          }))}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <InputGroup label="Etiqueta del Campo">
+                      <input
+                        type="text"
+                        value={formData.songRequest?.locationLabel ?? 'Lugar / Zona / Municipio'}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          songRequest: {
+                            ...(prev.songRequest || { enabled: true, whatsappNumber: '0424 1555789' }),
+                            locationLabel: e.target.value
+                          }
+                        }))}
+                        placeholder="Lugar / Zona / Municipio"
+                        className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:border-emerald-400 focus:outline-none"
+                      />
+                    </InputGroup>
+
+                    <InputGroup label="Texto de Ejemplo (Placeholder)">
+                      <input
+                        type="text"
+                        value={formData.songRequest?.locationPlaceholder ?? 'Ej. Valencia, Naguanagua, San Diego, Tocuyito...'}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          songRequest: {
+                            ...(prev.songRequest || { enabled: true, whatsappNumber: '0424 1555789' }),
+                            locationPlaceholder: e.target.value
+                          }
+                        }))}
+                        placeholder="Ej. Valencia, Naguanagua, San Diego..."
+                        className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:border-emerald-400 focus:outline-none"
+                      />
+                    </InputGroup>
+                  </div>
+
+                  <InputGroup label="Botones de Zonas / Municipios Sugeridos (separados por coma)">
                     <input
                       type="text"
-                      value={formData.songRequest?.title || 'Pide tu Canción'}
+                      value={formData.songRequest?.suggestedLocations ?? 'Valencia, Naguanagua, San Diego, Guacara, Los Guayos, Tocuyito'}
                       onChange={(e) => setFormData(prev => ({
                         ...prev,
                         songRequest: {
                           ...(prev.songRequest || { enabled: true, whatsappNumber: '0424 1555789' }),
-                          title: e.target.value
+                          suggestedLocations: e.target.value
                         }
                       }))}
-                      placeholder="Ej. Pide tu Canción"
-                      className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:border-amber-400 focus:outline-none"
+                      placeholder="Valencia, Naguanagua, San Diego, Guacara (dejar vacío para ocultar botones rápidos)"
+                      className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:border-emerald-400 focus:outline-none"
                     />
                   </InputGroup>
+
+                  {/* WhatsApp Message Preview */}
+                  <div className="bg-gray-950/80 border border-gray-700/80 rounded-xl p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-2">
+                      Vista Previa del Mensaje que llega a Cabina:
+                    </p>
+                    <pre className="text-xs text-gray-300 font-sans whitespace-pre-wrap leading-relaxed">
+{`🎶 ¡HOLA BUENÍSIMA RADIO! 🎶
+📻 Quiero pedir una canción para escuchar en vivo:
+
+👤 Nombre: Carlos Pérez
+${formData.songRequest?.showLocationField !== false ? '📍 Zona / Municipio: Naguanagua\n' : ''}🎵 Canción y Artista: Juanes - La Camisa Negra
+💌 Dedicatoria: Un saludo para todos en sintonía`}
+                    </pre>
+                  </div>
                 </div>
 
                 <SaveAction />
+              </div>
+            )}
+
+            {/* Live Push Notifications Tab */}
+            {activeTab === 'push' && (
+              <div className="space-y-8 animate-fade-in">
+                <SectionHeader
+                  title="Notificaciones Push En Vivo"
+                  subtitle="Envía alertas instantáneas a todos los visitantes conectados para anunciar estrenos, concursos, sorteos o programas en vivo."
+                />
+
+                {/* Active Broadcast Status Banner */}
+                {formData.pushNotifications?.activeNotification?.active && (
+                  <div className="bg-gradient-to-r from-emerald-950/80 to-gray-900 border border-emerald-500/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
+                        <BellRing size={20} className="animate-pulse" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full">
+                            Alerta Activa Ahora
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {new Date(formData.pushNotifications.activeNotification.sentAt).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-bold text-white mt-1">
+                          {formData.pushNotifications.activeNotification.title}
+                        </h4>
+                        <p className="text-xs text-gray-300">
+                          {formData.pushNotifications.activeNotification.message}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleClearActivePush}
+                      className="px-4 py-2 rounded-xl bg-red-500/15 hover:bg-red-500/30 border border-red-500/30 text-red-300 text-xs font-bold transition-colors flex items-center gap-1.5 self-start sm:self-center"
+                    >
+                      <X size={14} />
+                      <span>Desactivar Alerta Activa</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* 1. Composer: Send Live Push Now */}
+                <div className="bg-gray-800/80 border border-amber-500/30 p-6 rounded-2xl shadow-xl space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-700 pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-slate-950 flex items-center justify-center shadow-lg">
+                        <Send size={20} />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-white">Enviar Notificación En Vivo Ahora</h3>
+                        <p className="text-xs text-gray-400">Se muestra al instante en pantalla y como notificación push del navegador.</p>
+                      </div>
+                    </div>
+
+                    {/* Quick Radio Engagement Templates */}
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPushDraft(prev => ({
+                          ...prev,
+                          category: 'live',
+                          badgeText: 'EN VIVO',
+                          title: '¡Ya estamos AL AIRE con el show!',
+                          message: 'Conéctate ahora, envía tus saludos y pide tu canción favorita por WhatsApp.',
+                          actionLabel: 'Ir al Reproductor',
+                          actionUrl: '#hero'
+                        }))}
+                        className="text-xs bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 px-2.5 py-1.5 rounded-lg font-semibold transition-colors"
+                      >
+                        🎙️ Programa en Vivo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPushDraft(prev => ({
+                          ...prev,
+                          category: 'contest',
+                          badgeText: 'CONCURSO',
+                          title: '🎁 ¡Concurso Relámpago en Cabina!',
+                          message: 'Participa ahora enviando tu mensaje con tu nombre y municipio al WhatsApp.',
+                          actionLabel: 'Participar Ahora',
+                          actionUrl: '#hero'
+                        }))}
+                        className="text-xs bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 px-2.5 py-1.5 rounded-lg font-semibold transition-colors"
+                      >
+                        🎁 Concurso
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPushDraft(prev => ({
+                          ...prev,
+                          category: 'promo',
+                          badgeText: 'ESTRENO',
+                          title: '🔥 ¡Estreno Exclusivo en Buenísima!',
+                          message: 'Escucha lo más nuevo que está sonando ahora mismo en nuestra señal.',
+                          actionLabel: 'Ver Programación',
+                          actionUrl: '#program'
+                        }))}
+                        className="text-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 px-2.5 py-1.5 rounded-lg font-semibold transition-colors"
+                      >
+                        🎵 Estreno
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <InputGroup label="Categoría Visual">
+                      <select
+                        value={pushDraft.category}
+                        onChange={(e) => setPushDraft(prev => ({ ...prev, category: e.target.value as PushCategory }))}
+                        className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:border-amber-400 focus:outline-none"
+                      >
+                        <option value="live">🔴 En Vivo (Programa / Transmisión)</option>
+                        <option value="contest">🎁 Concurso / Premio</option>
+                        <option value="promo">✨ Promo / Estreno Musical</option>
+                        <option value="news">📰 Noticia de Última Hora</option>
+                        <option value="alert">📣 Aviso General</option>
+                      </select>
+                    </InputGroup>
+
+                    <InputGroup label="Etiqueta Badge (Opcional)">
+                      <input
+                        type="text"
+                        value={pushDraft.badgeText}
+                        onChange={(e) => setPushDraft(prev => ({ ...prev, badgeText: e.target.value }))}
+                        placeholder="Ej. EN VIVO, SORTEO, HOY"
+                        maxLength={24}
+                        className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:border-amber-400 focus:outline-none"
+                      />
+                    </InputGroup>
+
+                    <InputGroup label="Duración en pantalla (segundos)">
+                      <input
+                        type="number"
+                        min={5}
+                        max={120}
+                        value={pushDraft.durationSeconds}
+                        onChange={(e) => setPushDraft(prev => ({ ...prev, durationSeconds: Number(e.target.value) || 18 }))}
+                        className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:border-amber-400 focus:outline-none"
+                      />
+                    </InputGroup>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <InputGroup label="Título de la Notificación *">
+                      <input
+                        type="text"
+                        value={pushDraft.title}
+                        onChange={(e) => setPushDraft(prev => ({ ...prev, title: e.target.value }))}
+                        placeholder="Ej. ¡Gana entradas participando ahora!"
+                        maxLength={120}
+                        className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:border-amber-400 focus:outline-none"
+                      />
+                    </InputGroup>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <InputGroup label="Texto del Botón (CTA)">
+                        <input
+                          type="text"
+                          value={pushDraft.actionLabel}
+                          onChange={(e) => setPushDraft(prev => ({ ...prev, actionLabel: e.target.value }))}
+                          placeholder="Escuchar Ahora"
+                          maxLength={40}
+                          className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:border-amber-400 focus:outline-none"
+                        />
+                      </InputGroup>
+
+                      <InputGroup label="Destino al hacer clic">
+                        <input
+                          type="text"
+                          value={pushDraft.actionUrl}
+                          onChange={(e) => setPushDraft(prev => ({ ...prev, actionUrl: e.target.value }))}
+                          placeholder="#hero, #podcast, #program o URL"
+                          className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:border-amber-400 focus:outline-none"
+                        />
+                      </InputGroup>
+                    </div>
+                  </div>
+
+                  <InputGroup label="Mensaje para los Visitantes *">
+                    <textarea
+                      rows={3}
+                      value={pushDraft.message}
+                      onChange={(e) => setPushDraft(prev => ({ ...prev, message: e.target.value }))}
+                      placeholder="Escribe un mensaje atractivo para enganchar a tu audiencia en vivo..."
+                      maxLength={350}
+                      className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl focus:border-amber-400 focus:outline-none"
+                    />
+                  </InputGroup>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                    <MediaUploader
+                      label="Imagen / Miniatura de la Alerta (Opcional)"
+                      value={pushDraft.imageUrl}
+                      onChange={(val) => setPushDraft(prev => ({ ...prev, imageUrl: val }))}
+                      type="image"
+                    />
+
+                    <div className="space-y-4">
+                      <label className="flex items-center justify-between p-3.5 bg-gray-900/70 rounded-xl border border-gray-700 cursor-pointer">
+                        <div>
+                          <span className="text-sm font-bold text-white block">Reproducir sonido de aviso</span>
+                          <span className="text-xs text-gray-400">Suena un tono suave cuando aparece la tarjeta en vivo</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={pushDraft.playSound}
+                          onChange={(e) => setPushDraft(prev => ({ ...prev, playSound: e.target.checked }))}
+                          className="h-5 w-5 accent-amber-500 rounded"
+                        />
+                      </label>
+
+                      <button
+                        type="button"
+                        disabled={pushSendStatus === 'sending'}
+                        onClick={() => handleSendLivePush()}
+                        className="w-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black py-3.5 px-6 rounded-xl shadow-lg shadow-amber-900/30 flex items-center justify-center gap-2 transition-all transform active:scale-98 disabled:opacity-60"
+                      >
+                        {pushSendStatus === 'sending' ? (
+                          <Loader2 size={18} className="animate-spin" />
+                        ) : (
+                          <Send size={18} />
+                        )}
+                        <span>
+                          {pushSendStatus === 'sending' ? 'Enviando a todos los oyentes...' : 'Enviar Notificación Push En Vivo'}
+                        </span>
+                      </button>
+
+                      {pushFeedbackMsg && (
+                        <div className={`text-xs font-semibold px-3.5 py-2.5 rounded-xl border ${
+                          pushSendStatus === 'error'
+                            ? 'bg-red-950/60 border-red-500/40 text-red-300'
+                            : 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
+                        }`}>
+                          {pushFeedbackMsg}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Opt-In & General Push Settings */}
+                <div className="bg-gray-800/80 border border-gray-700/80 p-6 rounded-2xl shadow-xl space-y-6">
+                  <h3 className="text-base font-bold text-white border-b border-gray-700 pb-3 flex items-center gap-2">
+                    <Bell size={18} className="text-amber-400" />
+                    <span>Configuración de Invitación y Alertas del Navegador</span>
+                  </h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-center justify-between p-4 bg-gray-900/60 rounded-xl border border-gray-700">
+                      <div>
+                        <h4 className="text-sm font-bold text-white">Sistema Push Habilitado</h4>
+                        <p className="text-xs text-gray-400">Permite mostrar notificaciones en vivo en la web pública</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.pushNotifications?.enabled !== false}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            pushNotifications: {
+                              ...(prev.pushNotifications || { enabled: true, showOptInPrompt: true }),
+                              enabled: e.target.checked
+                            }
+                          }))}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                      </label>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 bg-gray-900/60 rounded-xl border border-gray-700">
+                      <div>
+                        <h4 className="text-sm font-bold text-white">Mostrar Aviso de Suscripción</h4>
+                        <p className="text-xs text-gray-400">Invita a los visitantes nuevos a activar alertas del navegador</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.pushNotifications?.showOptInPrompt !== false}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            pushNotifications: {
+                              ...(prev.pushNotifications || { enabled: true, showOptInPrompt: true }),
+                              showOptInPrompt: e.target.checked
+                            }
+                          }))}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <InputGroup label="Título del Aviso de Invitación">
+                      <input
+                        type="text"
+                        value={formData.pushNotifications?.optInTitle ?? '¡Activa las Alertas En Vivo!'}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          pushNotifications: {
+                            ...(prev.pushNotifications || { enabled: true, showOptInPrompt: true }),
+                            optInTitle: e.target.value
+                          }
+                        }))}
+                        className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl"
+                      />
+                    </InputGroup>
+
+                    <InputGroup label="Descripción Corta del Aviso">
+                      <input
+                        type="text"
+                        value={formData.pushNotifications?.optInSubtitle ?? 'Entérate al instante de estrenos, concursos, saludos y programas en vivo.'}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          pushNotifications: {
+                            ...(prev.pushNotifications || { enabled: true, showOptInPrompt: true }),
+                            optInSubtitle: e.target.value
+                          }
+                        }))}
+                        className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl"
+                      />
+                    </InputGroup>
+
+                    <InputGroup label="Texto del Botón de Activar">
+                      <input
+                        type="text"
+                        value={formData.pushNotifications?.optInButtonText ?? 'Activar Alertas'}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          pushNotifications: {
+                            ...(prev.pushNotifications || { enabled: true, showOptInPrompt: true }),
+                            optInButtonText: e.target.value
+                          }
+                        }))}
+                        className="w-full bg-gray-900 border border-gray-700 text-white p-3 rounded-xl"
+                      />
+                    </InputGroup>
+                  </div>
+
+                  <MediaUploader
+                    label="Logo / Ícono por Defecto para Notificaciones"
+                    value={formData.pushNotifications?.defaultIconUrl || ''}
+                    onChange={(val) => setFormData(prev => ({
+                      ...prev,
+                      pushNotifications: {
+                        ...(prev.pushNotifications || { enabled: true, showOptInPrompt: true }),
+                        defaultIconUrl: val
+                      }
+                    }))}
+                    type="image"
+                  />
+
+                  <SaveAction />
+                </div>
+
+                {/* 3. Recent History */}
+                <div className="bg-gray-800/80 border border-gray-700/80 p-6 rounded-2xl shadow-xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <Clock size={18} className="text-amber-400" />
+                      <span>Historial Reciente de Envíos (Últimos 10)</span>
+                    </h3>
+                  </div>
+
+                  {(!formData.pushNotifications?.history || formData.pushNotifications.history.length === 0) ? (
+                    <p className="text-sm text-gray-400 py-4 text-center">
+                      Aún no has enviado notificaciones en vivo. Usa el formulario superior para enviar la primera.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {formData.pushNotifications.history.map((item) => (
+                        <div key={item.id} className="bg-gray-900/70 border border-gray-700 rounded-xl p-4 flex flex-col justify-between gap-3">
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                {item.badgeText || item.category || 'LIVE'}
+                              </span>
+                              <span className="text-[11px] text-gray-500">
+                                {new Date(item.sentAt).toLocaleString()}
+                              </span>
+                            </div>
+                            <h4 className="text-sm font-bold text-white">{item.title}</h4>
+                            <p className="text-xs text-gray-300 mt-1 line-clamp-2">{item.message}</p>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-800">
+                            <button
+                              type="button"
+                              onClick={() => handleSendLivePush(item)}
+                              className="px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1 transition-colors"
+                            >
+                              <RefreshCw size={12} />
+                              <span>Reenviar En Vivo</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  pushNotifications: {
+                                    ...(prev.pushNotifications || { enabled: true, showOptInPrompt: true }),
+                                    history: (prev.pushNotifications?.history || []).filter(h => h.id !== item.id)
+                                  }
+                                }));
+                              }}
+                              className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                              title="Eliminar del historial"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

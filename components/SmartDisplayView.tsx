@@ -3,7 +3,8 @@ import { useConfig } from '../context/ConfigContext';
 import { Radio, Play, Pause, Volume2, VolumeX, Maximize, Minimize, Clock, Copy, Check, MessageCircle, ArrowLeft, Tv, RefreshCw, Sparkles } from 'lucide-react';
 import { resolveDirectImageUrl } from '../utils/imageUrl';
 import { io, Socket } from 'socket.io-client';
-import { parseAndResolveStreamMetadata, isRealMusicCover, DEFAULT_RADIO_COVER } from '../utils/musicMetadata';
+import { parseAndResolveStreamMetadata, resolveMusicArtwork, fetchIcecastStatusFromBrowser, isRealMusicCover, DEFAULT_RADIO_COVER } from '../utils/musicMetadata';
+import { recordListenerSession, recordPeakListenerCount } from '../utils/listenerAnalytics';
 
 interface MetadataState {
   title: string;
@@ -42,7 +43,17 @@ export const SmartDisplayView: React.FC = () => {
   const [metadata, setMetadata] = useState<MetadataState>(() => {
     try {
       const cached = localStorage.getItem('last_radio_metadata');
-      if (cached) return JSON.parse(cached);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const isRecent = parsed?.updatedAt && Date.now() - Number(parsed.updatedAt) < 5 * 60 * 1000;
+        if (parsed && isRecent && parsed.title && parsed.title !== 'Sintonizando...' && isRealMusicCover(parsed.cover)) {
+          return {
+            title: parsed.title,
+            artist: parsed.artist || defaultSlogan,
+            cover: parsed.cover
+          };
+        }
+      }
     } catch (_) {}
     return {
       title: stationName,
@@ -110,79 +121,82 @@ export const SmartDisplayView: React.FC = () => {
   };
 
   // Smoothly apply metadata and resolve cover art if needed
-  const applyMetadata = useCallback(async (data: { title?: string; artist?: string; cover?: string }) => {
+  const applyMetadata = useCallback(async (data: { title?: string; artist?: string; cover?: string; rawTitle?: string; listeners?: number }) => {
     if (!data) return;
-    const { title = '', artist = '', cover = DEFAULT_COVER } = data;
+    if (typeof data.listeners === 'number' && data.listeners > 0) {
+      recordPeakListenerCount(data.listeners);
+    }
 
-    if (cover && isRealMusicCover(cover)) {
-      const sanitized = {
-        title: title || stationName,
-        artist: artist || defaultSlogan,
-        cover: cover
-      };
+    const { title = '', artist = '', cover = DEFAULT_COVER, rawTitle = '' } = data;
+    if (title === 'Sintonizando...' && !rawTitle) return;
+
+    const persistMeta = (sanitized: MetadataState) => {
       setMetadata(sanitized);
       try {
-        localStorage.setItem('last_radio_metadata', JSON.stringify(sanitized));
+        localStorage.setItem('last_radio_metadata', JSON.stringify({ ...sanitized, updatedAt: Date.now() }));
       } catch (_) {}
+    };
+
+    if (cover && isRealMusicCover(cover)) {
+      persistMeta({
+        title: title || stationName,
+        artist: artist || defaultSlogan,
+        cover
+      });
+      return;
+    }
+
+    const isGenericArtist = !artist || artist === defaultSlogan || artist === stationName || artist === 'Buenísima 87.7 FM';
+    if (rawTitle) {
+      const resolved = await parseAndResolveStreamMetadata(rawTitle, stationName, defaultSlogan);
+      persistMeta({ title: resolved.title, artist: resolved.artist, cover: resolved.cover });
+      return;
+    }
+
+    if (title && !isGenericArtist) {
+      const resolved = await resolveMusicArtwork(artist, title);
+      if (resolved) {
+        persistMeta({ title: resolved.title, artist: resolved.artist, cover: resolved.cover });
+        return;
+      }
+      persistMeta({ title, artist, cover: DEFAULT_COVER });
       return;
     }
 
     const rawToResolve = title || artist;
     if (rawToResolve) {
       const resolved = await parseAndResolveStreamMetadata(rawToResolve, stationName, defaultSlogan);
-      setMetadata(resolved);
-      try {
-        localStorage.setItem('last_radio_metadata', JSON.stringify(resolved));
-      } catch (_) {}
+      persistMeta({ title: resolved.title, artist: resolved.artist, cover: resolved.cover });
     }
   }, [stationName, defaultSlogan]);
 
   // Metadata fetcher with direct fallback for deployed/static environments
   const fetchMetadata = useCallback(async () => {
-    // 1. Try internal API first
+    // 1. Try internal API / Netlify Function first (verify JSON content-type)
     try {
-      const res = await fetch(`/api/metadata?url=${encodeURIComponent(streamUrl)}&_t=${Date.now()}`);
-      if (res.ok) {
+      const res = await fetch(`/api/metadata?url=${encodeURIComponent(streamUrl)}&_t=${Date.now()}`, {
+        headers: { Accept: 'application/json' }
+      });
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
         const data = await res.json();
-        if (data && (data.title || data.artist)) {
+        const isGeneric = !data?.title || data.title === 'Sintonizando...' || (data.title === 'BUENÍSIMA 87.7 FM' && !isRealMusicCover(data.cover));
+        if (data && !isGeneric) {
           await applyMetadata(data);
           return;
         }
       }
     } catch (_) {}
 
-    // 2. Direct CORS Proxy Fallback
+    // 2. Direct Multi-Proxy Browser Fallback
     try {
-      const host = new URL(streamUrl).host;
-      const statusUrl = `https://${host}/status-json.xsl`;
-      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(statusUrl)}`;
-      
-      const response = await fetch(proxyUrl);
-      if (response.ok) {
-        const text = await response.text();
-        const cleaned = text.trim()
-          .replace(/,\s*\]\s*\}\s*\}\s*$/, ']}}')
-          .replace(/,\s*\]/g, ']');
-
-        let extractedTitle = "";
-        try {
-          const data = JSON.parse(cleaned);
-          const source = data.icestats?.source;
-          const srcArray = Array.isArray(source) ? source : [source];
-          const bestSrc = srcArray.find((s: any) => s && s.title && s.title !== "-") || srcArray[0];
-          if (bestSrc && (bestSrc.title || bestSrc.yp_currently_playing)) {
-            extractedTitle = bestSrc.title || bestSrc.yp_currently_playing;
-          }
-        } catch (_) {
-          const titleMatch = text.match(/"(?:title|yp_currently_playing|StreamTitle)"\s*:\s*"([^"]+)"/i);
-          if (titleMatch && titleMatch[1]) {
-            extractedTitle = titleMatch[1];
-          }
-        }
-
-        if (extractedTitle) {
-          await applyMetadata({ title: extractedTitle });
-        }
+      const liveStatus = await fetchIcecastStatusFromBrowser(streamUrl);
+      if (liveStatus?.rawTitle) {
+        await applyMetadata({
+          rawTitle: liveStatus.rawTitle,
+          title: liveStatus.rawTitle,
+          listeners: liveStatus.listeners
+        });
       }
     } catch (_) {}
   }, [streamUrl, applyMetadata]);
@@ -225,8 +239,9 @@ export const SmartDisplayView: React.FC = () => {
     };
   }, [applyMetadata]);
 
-  // Polling fallback
+  // Polling fallback + listener stat
   useEffect(() => {
+    recordListenerSession('visit');
     fetchMetadata();
     const interval = setInterval(fetchMetadata, 8000);
     return () => clearInterval(interval);

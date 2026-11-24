@@ -11,6 +11,8 @@ import { TikTok } from './TikTokIcon';
 import { ProgramCarousel } from './ProgramCarousel';
 import { SongRequestForm } from './SongRequestForm';
 import { AdvertisingSidebar } from './AdvertisingSidebar';
+import { BackgroundEffects } from './BackgroundEffects';
+import { LivePushManager } from './LivePushManager';
 import { NewsItem, ProgramItem } from '../types';
 
 interface NavLinkProps {
@@ -478,8 +480,11 @@ const PublicView: React.FC = () => {
       });
   };
 
+  const hasCustomBackground = !!(config.appearance.seasonal?.enabled && config.appearance.seasonal.backgroundType !== 'theme');
+
   return (
-    <div className="min-h-screen font-sans bg-surface text-on-surface pb-20 transition-colors duration-300">
+    <div className={`min-h-screen font-sans ${hasCustomBackground ? 'bg-transparent' : 'bg-surface'} text-on-surface pb-20 transition-colors duration-300 relative`}>
+      <BackgroundEffects config={config.appearance.seasonal} />
       {/* Navigation */}
       <nav className="fixed top-0 w-full z-40 shadow-lg border-b border-white/10 transition-all duration-300" style={navStyle}>
         <div className="container mx-auto px-4 py-4 flex items-center justify-between min-h-[80px]">
@@ -562,6 +567,7 @@ const PublicView: React.FC = () => {
             <div className="w-full xl:w-[380px] 2xl:w-[420px] flex-shrink-0 flex flex-col justify-center">
               <SongRequestForm 
                 whatsappNumber={config.songRequest?.whatsappNumber || "0424 1555789"} 
+                songRequestConfig={config.songRequest}
                 compact={true} 
               />
             </div>
@@ -646,14 +652,6 @@ const PublicView: React.FC = () => {
                                 maxWidth: slide.contentMaxWidth ? `${slide.contentMaxWidth}px` : undefined,
                             }}
                         >
-                            {/* Live Radio Badge */}
-                            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-secondary text-xs sm:text-sm font-bold uppercase tracking-wider mb-2.5 sm:mb-3.5 shadow-lg">
-                                <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
-                                <span>BUENÍSIMA 87.7 FM</span>
-                                <span className="text-white/40">•</span>
-                                <span className="text-white/90">La Radio de la Buena Vibra</span>
-                            </div>
-
                             {/* Main Title with responsive fluid typography */}
                             <h1 
                                 className={`mb-2 sm:mb-3.5 tracking-wide leading-tight break-words max-w-full ${getShadowClass(slide.titleShadow || slide.textShadow)}`}
@@ -691,10 +689,10 @@ const PublicView: React.FC = () => {
                             </p>
                             
                             {/* Flexbox Action Buttons Row */}
-                            <div className={`flex flex-wrap items-center gap-3 sm:gap-4 mt-2 sm:mt-4 ${
-                                slide.alignment === 'left' ? 'justify-center sm:justify-start' : slide.alignment === 'right' ? 'justify-center sm:justify-end' : 'justify-center'
-                            }`}>
-                                {slide.showButton && (
+                            {slide.showButton && (
+                                <div className={`flex flex-wrap items-center gap-3 sm:gap-4 mt-2 sm:mt-4 ${
+                                    slide.alignment === 'left' ? 'justify-center sm:justify-start' : slide.alignment === 'right' ? 'justify-center sm:justify-end' : 'justify-center'
+                                }`}>
                                     <a 
                                         href={slide.buttonLink || '#podcast'}
                                         className="inline-flex items-center justify-center gap-2 px-6 sm:px-8 py-2.5 sm:py-3.5 rounded-full font-bold text-sm sm:text-base shadow-xl transform hover:scale-105 active:scale-95 transition-all hover:shadow-2xl"
@@ -706,17 +704,8 @@ const PublicView: React.FC = () => {
                                         <Play size={18} className="fill-current" />
                                         {slide.buttonText || "Escuchar en Vivo"}
                                     </a>
-                                )}
-
-                                <button
-                                    type="button"
-                                    onClick={() => setShowSongModal(true)}
-                                    className="inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3.5 rounded-full font-bold text-sm sm:text-base bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/20 shadow-lg transform hover:scale-105 active:scale-95 transition-all"
-                                >
-                                    <MessageCircle size={18} className="text-emerald-400" />
-                                    Pedir Canción WhatsApp
-                                </button>
-                            </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -1585,11 +1574,14 @@ const PublicView: React.FC = () => {
                   </button>
                   <SongRequestForm 
                       whatsappNumber={config.songRequest?.whatsappNumber || "0424 1555789"}
+                      songRequestConfig={config.songRequest}
                       onSuccess={() => setTimeout(() => setShowSongModal(false), 2500)}
                   />
               </div>
           </div>
       )}
+
+      <LivePushManager onNavigateSection={(sectionId) => toggleSection(sectionId as any)} />
     </div>
   );
 };

@@ -20,6 +20,11 @@ service cloud.firestore {
     match /oyentes/{oyenteId} {
       allow read, write: if true;
     }
+
+    // Daily listener trend statistics (7-day Dashboard)
+    match /listener_stats/{statDate} {
+      allow read, write: if true;
+    }
     
     // Default catch-all for any other collections
     match /{document=**} {

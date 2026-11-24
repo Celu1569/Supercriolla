@@ -73,45 +73,45 @@ export const AdvertisingSidebar: React.FC<AdvertisingSidebarProps> = ({
             <div
               key={banner.id}
               onClick={() => handleBannerClick(banner)}
-              className={`group relative overflow-hidden rounded-2xl bg-black/60 border border-white/10 hover:border-amber-400/50 shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-1 hover:shadow-amber-500/10 ${
-                isVertical 
-                  ? 'aspect-[9/16] min-h-[360px] sm:min-h-[420px]' 
-                  : 'aspect-square min-h-[220px]'
-              }`}
+              className="group flex flex-col overflow-hidden rounded-2xl bg-transparent border border-white/15 hover:border-amber-400/60 transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5"
             >
-              {/* Image */}
-              <img
-                src={imgSrc}
-                alt={banner.title}
-                loading="lazy"
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                onError={(e) => {
-                  const target = e.currentTarget;
-                  target.src = isVertical
-                    ? 'https://images.unsplash.com/photo-1557804506-669a67965ba0?q=80&w=800&auto=format&fit=crop'
-                    : 'https://images.unsplash.com/photo-1542744094-3a31f272c490?q=80&w=600&auto=format&fit=crop';
-                }}
-              />
-
-              {/* Gradient Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent group-hover:from-black/90 transition-colors" />
-
-              {/* Top Badge */}
-              <div className="absolute top-2.5 right-2.5 flex items-center gap-1 bg-black/70 backdrop-blur-md text-[10px] font-bold text-gray-300 px-2 py-0.5 rounded-full border border-white/10 opacity-90 group-hover:opacity-100">
-                <span>{isVertical ? 'Vertical' : 'Cuadrado'}</span>
-                <ExternalLink size={10} className="text-amber-400 ml-0.5" />
+              {/* Clean Image Container - Zero dark overlay or shadow */}
+              <div
+                className={`relative w-full overflow-hidden ${
+                  isVertical 
+                    ? 'aspect-[9/16] min-h-[360px] sm:min-h-[420px]' 
+                    : 'aspect-square min-h-[220px]'
+                }`}
+              >
+                <img
+                  src={imgSrc}
+                  alt={banner.title}
+                  loading="lazy"
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    target.src = isVertical
+                      ? 'https://images.unsplash.com/photo-1557804506-669a67965ba0?q=80&w=800&auto=format&fit=crop'
+                      : 'https://images.unsplash.com/photo-1542744094-3a31f272c490?q=80&w=600&auto=format&fit=crop';
+                  }}
+                />
               </div>
 
-              {/* Bottom Details */}
-              <div className="absolute bottom-0 left-0 right-0 p-3.5 flex flex-col justify-end">
-                <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                  <Sparkles size={10} />
-                  <span>Espacio Publicitario</span>
-                </span>
-                <h4 className="text-sm font-black text-white leading-tight drop-shadow-md group-hover:text-amber-300 transition-colors line-clamp-2">
-                  {banner.title}
-                </h4>
-              </div>
+              {/* Clean Footer Caption Below Image (Never covers the image) */}
+              {banner.title && (
+                <div className="px-3.5 py-2.5 bg-gray-900/90 border-t border-white/10 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                      <Sparkles size={10} />
+                      <span>{isVertical ? 'Banner Vertical' : 'Banner Cuadrado'}</span>
+                    </span>
+                    <h4 className="text-xs sm:text-sm font-bold text-white leading-snug group-hover:text-amber-300 transition-colors truncate">
+                      {banner.title}
+                    </h4>
+                  </div>
+                  <ExternalLink size={14} className="text-amber-400 flex-shrink-0 opacity-80 group-hover:opacity-100" />
+                </div>
+              )}
             </div>
           );
         })}

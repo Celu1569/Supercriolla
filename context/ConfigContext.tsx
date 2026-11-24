@@ -277,6 +277,20 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
     if (!rp.autoDJMode) rp.autoDJMode = 'alphabetical';
   }
 
+  // Seasonal background & visual effects defaults
+  if (!c.appearance.seasonal) {
+    c.appearance.seasonal = { ...DEFAULT_CONFIG.appearance.seasonal! };
+  } else {
+    if (c.appearance.seasonal.enabled === undefined) c.appearance.seasonal.enabled = false;
+    if (!c.appearance.seasonal.season) c.appearance.seasonal.season = 'default';
+    if (!c.appearance.seasonal.backgroundType) c.appearance.seasonal.backgroundType = 'theme';
+    if (!Array.isArray(c.appearance.seasonal.effects)) c.appearance.seasonal.effects = [];
+    if (!c.appearance.seasonal.effectIntensity) c.appearance.seasonal.effectIntensity = 'medium';
+    if (c.appearance.seasonal.overlayOpacity === undefined) c.appearance.seasonal.overlayOpacity = 0.45;
+    if (!c.appearance.seasonal.overlayColor) c.appearance.seasonal.overlayColor = '#000000';
+    if (!c.appearance.seasonal.gradientDirection) c.appearance.seasonal.gradientDirection = '135deg';
+  }
+
   // Program section
   if (!c.content.program) {
     c.content.program = { ...DEFAULT_CONFIG.content.program };
@@ -318,6 +332,30 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
     if (c.songRequest.enabled === undefined) c.songRequest.enabled = true;
     if (!c.songRequest.whatsappNumber) c.songRequest.whatsappNumber = "0424 1555789";
     if (!c.songRequest.title) c.songRequest.title = "Pide tu Canción";
+    if (c.songRequest.showLocationField === undefined) c.songRequest.showLocationField = true;
+    if (c.songRequest.requireLocation === undefined) c.songRequest.requireLocation = false;
+    if (!c.songRequest.locationLabel) c.songRequest.locationLabel = "Lugar / Zona / Municipio";
+    if (!c.songRequest.locationPlaceholder) c.songRequest.locationPlaceholder = "Ej. Valencia, Naguanagua, San Diego, Tocuyito...";
+    if (c.songRequest.suggestedLocations === undefined) {
+      c.songRequest.suggestedLocations = "Valencia, Naguanagua, San Diego, Guacara, Los Guayos, Tocuyito";
+    }
+  }
+
+  // Live Push Notifications settings
+  if (!c.pushNotifications) {
+    c.pushNotifications = { ...DEFAULT_CONFIG.pushNotifications! };
+  } else {
+    if (c.pushNotifications.enabled === undefined) c.pushNotifications.enabled = true;
+    if (c.pushNotifications.showOptInPrompt === undefined) c.pushNotifications.showOptInPrompt = true;
+    if (!c.pushNotifications.optInTitle) c.pushNotifications.optInTitle = "¡Activa las Alertas En Vivo!";
+    if (!c.pushNotifications.optInSubtitle) c.pushNotifications.optInSubtitle = "Entérate al instante de estrenos, concursos, saludos y programas en vivo.";
+    if (!c.pushNotifications.optInButtonText) c.pushNotifications.optInButtonText = "Activar Alertas";
+    if (!c.pushNotifications.defaultIconUrl) {
+      c.pushNotifications.defaultIconUrl = c.navigation?.logoUrl || DEFAULT_CONFIG.pushNotifications?.defaultIconUrl;
+    }
+    if (c.pushNotifications.playSound === undefined) c.pushNotifications.playSound = true;
+    if (c.pushNotifications.defaultDurationSeconds === undefined) c.pushNotifications.defaultDurationSeconds = 18;
+    if (!Array.isArray(c.pushNotifications.history)) c.pushNotifications.history = [];
   }
 
   return c;

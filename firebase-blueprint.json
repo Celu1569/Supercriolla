@@ -24,8 +24,52 @@
         "social": {
           "type": "object",
           "description": "Social media links"
+        },
+        "advertising": {
+          "type": "object",
+          "description": "Sidebar advertising configuration"
+        },
+        "songRequest": {
+          "type": "object",
+          "description": "WhatsApp song request form configuration"
+        },
+        "pushNotifications": {
+          "type": "object",
+          "description": "Live push notifications settings and active broadcast"
         }
       }
+    },
+    "ListenerStat": {
+      "title": "ListenerStat",
+      "description": "Daily listener engagement and trend metrics",
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string",
+          "description": "Calendar date in YYYY-MM-DD format"
+        },
+        "totalListeners": {
+          "type": "number",
+          "description": "Total listener sessions recorded for the day"
+        },
+        "peakListeners": {
+          "type": "number",
+          "description": "Highest simultaneous listener count recorded"
+        },
+        "songRequests": {
+          "type": "number",
+          "description": "WhatsApp song requests submitted"
+        },
+        "chatMessages": {
+          "type": "number",
+          "description": "Chat messages sent"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update ISO timestamp"
+        }
+      },
+      "required": ["date", "totalListeners"]
     }
   },
   "firestore": {
@@ -34,6 +78,12 @@
         "$ref": "SiteConfig"
       },
       "description": "Stores site wide settings"
+    },
+    "/listener_stats/{statDate}": {
+      "schema": {
+        "$ref": "ListenerStat"
+      },
+      "description": "Stores daily listener trends for the last 7 days dashboard"
     }
   }
 }

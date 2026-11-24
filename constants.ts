@@ -57,6 +57,21 @@ export const DEFAULT_CONFIG: SiteConfig = {
       autoDJTracks: [],
       autoDJMode: 'alphabetical',
       enableAutoMetadata: true,
+    },
+    seasonal: {
+      enabled: false,
+      season: 'default',
+      backgroundType: 'theme',
+      backgroundColor: '#030712',
+      gradientStart: '#071b1e',
+      gradientEnd: '#1a0b1c',
+      gradientDirection: '135deg',
+      backgroundImageUrl: '',
+      backgroundFixed: true,
+      overlayOpacity: 0.45,
+      overlayColor: '#000000',
+      effects: [],
+      effectIntensity: 'medium',
     }
   },
   content: {
@@ -377,7 +392,24 @@ export const DEFAULT_CONFIG: SiteConfig = {
     enabled: true,
     whatsappNumber: "0424 1555789",
     title: "Pide tu Canción",
-    subtitle: "Directo a nuestra cabina por WhatsApp"
+    subtitle: "Directo a nuestra cabina por WhatsApp",
+    showLocationField: true,
+    requireLocation: false,
+    locationLabel: "Lugar / Zona / Municipio",
+    locationPlaceholder: "Ej. Valencia, Naguanagua, San Diego, Tocuyito...",
+    suggestedLocations: "Valencia, Naguanagua, San Diego, Guacara, Los Guayos, Tocuyito"
+  },
+  pushNotifications: {
+    enabled: true,
+    showOptInPrompt: true,
+    optInTitle: "¡Activa las Alertas En Vivo!",
+    optInSubtitle: "Entérate al instante de estrenos, concursos, saludos y programas en vivo.",
+    optInButtonText: "Activar Alertas",
+    defaultIconUrl: "https://i.ibb.co/kVQLN1F1/Logo-Buenisima-esfera-512x256.png",
+    playSound: true,
+    defaultDurationSeconds: 18,
+    activeNotification: null,
+    history: []
   },
   social: {
     instagram: "https://instagram.com",
