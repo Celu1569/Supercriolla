@@ -1,4 +1,69 @@
-import { SiteConfig } from './types';
+import { SiteConfig, VisualizerProfile } from './types';
+
+export const DEFAULT_VISUALIZER_PROFILES: VisualizerProfile[] = [
+  {
+    id: 'linea-clasica',
+    name: 'Línea Corrida Clásica (Verde → Amarillo → Rojo)',
+    mode: 'continuous_line',
+    baseColor: '#22c55e',
+    midColor: '#facc15',
+    peakColor: '#ef4444',
+    lineThickness: 3,
+    sensitivity: 1.15,
+    heightPx: 48,
+    showPeakLine: true,
+  },
+  {
+    id: 'barras-lisas',
+    name: 'Barras Lisas Sin Divisiones',
+    mode: 'smooth_bars',
+    baseColor: '#22c55e',
+    midColor: '#facc15',
+    peakColor: '#ef4444',
+    lineThickness: 3,
+    sensitivity: 1.15,
+    heightPx: 50,
+    showPeakLine: true,
+  },
+  {
+    id: 'onda-neon',
+    name: 'Onda Neón Cibernética',
+    mode: 'neon_glow',
+    baseColor: '#06b6d4',
+    midColor: '#a855f7',
+    peakColor: '#f43f5e',
+    lineThickness: 3,
+    sensitivity: 1.2,
+    heightPx: 52,
+    showPeakLine: true,
+  },
+  {
+    id: 'dorado-buenisima',
+    name: 'Onda Espejo Buenísima FM',
+    mode: 'mirror_wave',
+    baseColor: '#10b981',
+    midColor: '#fbbf24',
+    peakColor: '#ef4444',
+    lineThickness: 3,
+    sensitivity: 1.15,
+    heightPx: 54,
+    showPeakLine: true,
+  },
+  {
+    id: 'consola-vu',
+    name: 'Consola VU Segmentada',
+    mode: 'classic_vu',
+    baseColor: '#22c55e',
+    midColor: '#facc15',
+    peakColor: '#ef4444',
+    lineThickness: 3,
+    sensitivity: 1.1,
+    heightPx: 48,
+    showPeakLine: true,
+  },
+];
+
+export const DEFAULT_VISUALIZER_PROFILE: VisualizerProfile = DEFAULT_VISUALIZER_PROFILES[0];
 
 export const DEFAULT_CONFIG: SiteConfig = {
   general: {
@@ -57,6 +122,9 @@ export const DEFAULT_CONFIG: SiteConfig = {
       autoDJTracks: [],
       autoDJMode: 'alphabetical',
       enableAutoMetadata: true,
+      visualizer: { ...DEFAULT_VISUALIZER_PROFILE },
+      visualizerProfiles: DEFAULT_VISUALIZER_PROFILES.map((p) => ({ ...p })),
+      activeVisualizerProfileId: DEFAULT_VISUALIZER_PROFILE.id,
     },
     seasonal: {
       enabled: false,

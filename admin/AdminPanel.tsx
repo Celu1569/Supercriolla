@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useConfig } from '../context/ConfigContext';
 import { SiteConfig, HeroSlide, PodcastEpisode, GalleryItem, NavItemConfig, FontFamily, Client, AutoDJTrack, AdBannerItem, SeasonalBackgroundConfig, SeasonThemeId, VisualEffectId, BackgroundStyleType, LivePushNotification, PushCategory } from '../types';
-import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2, ListOrdered, Sparkles, Play, CheckCircle2, ExternalLink, Rss, FileText, X, Disc, ShieldCheck, Tv, Copy, Palette, Bell, BellRing, Send, Gift, Megaphone, Clock, BarChart3 } from 'lucide-react';
+import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2, ListOrdered, Sparkles, Play, CheckCircle2, ExternalLink, Rss, FileText, X, Disc, ShieldCheck, Tv, Copy, Palette, Bell, BellRing, Send, Gift, Megaphone, Clock, BarChart3, Activity } from 'lucide-react';
 import { SEASON_PRESETS, VISUAL_EFFECT_OPTIONS } from '../utils/seasonalPresets';
 import { BackgroundEffects } from '../components/BackgroundEffects';
 import { ListenerTrendsDashboard } from '../components/ListenerTrendsDashboard';
+import { VisualizerManagerPanel } from '../components/VisualizerManagerPanel';
 
 // --- CONSTANTS ---
 const FONT_OPTIONS: { value: FontFamily; label: string }[] = [
@@ -2427,6 +2428,7 @@ export const AdminPanel: React.FC = () => {
           <TabButton id="appearance" activeTab={activeTab} onClick={setActiveTab} icon={Layout} label="Apariencia" />
           <TabButton id="seasonal" activeTab={activeTab} onClick={setActiveTab} icon={Sparkles} label="Fondos y Temporadas" />
           <TabButton id="player" activeTab={activeTab} onClick={setActiveTab} icon={Volume2} label="Reproductor" />
+          <TabButton id="visualizer" activeTab={activeTab} onClick={setActiveTab} icon={Activity} label="Visualizadores" />
           <TabButton id="header" activeTab={activeTab} onClick={setActiveTab} icon={Compass} label="Menú" />
           <TabButton id="layout" activeTab={activeTab} onClick={setActiveTab} icon={ListOrdered} label="Orden de Secciones" />
           <TabButton id="sections" activeTab={activeTab} onClick={setActiveTab} icon={Grid} label="Estructura Menú" />
@@ -3133,9 +3135,21 @@ export const AdminPanel: React.FC = () => {
                             />
                             <div className="flex flex-col">
                                 <span className="text-white font-medium">Mostrar Analizador Musical</span>
-                                <span className="text-[11px] text-gray-400">Ecualizador de audio visual animado en el fondo del reproductor.</span>
+                                <span className="text-[11px] text-gray-400">Línea de visualizador continuo en la parte inferior del reproductor.</span>
                             </div>
                         </label>
+
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('visualizer')}
+                            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-secondary/10 hover:bg-secondary/20 border border-secondary/30 text-secondary text-xs font-bold transition-all"
+                        >
+                            <span className="flex items-center gap-2">
+                                <Activity size={15} />
+                                Configurar Estilos, Colores y Perfiles del Visualizador
+                            </span>
+                            <span>&rarr;</span>
+                        </button>
 
                         <label className="flex items-center space-x-3 cursor-pointer">
                             <input 
@@ -3393,6 +3407,15 @@ export const AdminPanel: React.FC = () => {
                  </div>
                  <SaveAction />
               </div>
+            )}
+
+            {activeTab === 'visualizer' && (
+              <VisualizerManagerPanel
+                formData={formData}
+                setFormData={setFormData}
+                onSave={handleSave}
+                saveStatus={saveStatus}
+              />
             )}
 
             {activeTab === 'ribbon' && (

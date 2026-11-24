@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { SiteConfig } from '../types';
-import { DEFAULT_CONFIG } from '../constants';
+import { DEFAULT_CONFIG, DEFAULT_VISUALIZER_PROFILE, DEFAULT_VISUALIZER_PROFILES } from '../constants';
 import { doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db, auth, hasFirebaseKeys } from '../firebase';
 import { signOut } from 'firebase/auth';
@@ -275,6 +275,21 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
     if (!rp.slogan) rp.slogan = "La Radio de la Buena Vibra";
     if (!rp.autoDJTracks) rp.autoDJTracks = [];
     if (!rp.autoDJMode) rp.autoDJMode = 'alphabetical';
+
+    if (!Array.isArray(rp.visualizerProfiles) || rp.visualizerProfiles.length === 0) {
+      rp.visualizerProfiles = DEFAULT_VISUALIZER_PROFILES.map((p) => ({ ...p }));
+    }
+    if (!rp.visualizer) {
+      rp.visualizer = { ...DEFAULT_VISUALIZER_PROFILE };
+    } else {
+      rp.visualizer = {
+        ...DEFAULT_VISUALIZER_PROFILE,
+        ...rp.visualizer,
+      };
+    }
+    if (!rp.activeVisualizerProfileId) {
+      rp.activeVisualizerProfileId = rp.visualizer.id || DEFAULT_VISUALIZER_PROFILE.id;
+    }
   }
 
   // Seasonal background & visual effects defaults

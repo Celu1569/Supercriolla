@@ -6,6 +6,8 @@ import { resolveDirectImageUrl } from '../utils/imageUrl';
 import { io, Socket } from 'socket.io-client';
 import { parseAndResolveStreamMetadata, resolveMusicArtwork, fetchIcecastStatusFromBrowser, isRealMusicCover, DEFAULT_RADIO_COVER } from '../utils/musicMetadata';
 import { recordListenerSession, recordPeakListenerCount } from '../utils/listenerAnalytics';
+import { AudioVisualizerCanvas } from './AudioVisualizerCanvas';
+import { DEFAULT_VISUALIZER_PROFILE } from '../constants';
 
 const DEFAULT_COVER = DEFAULT_RADIO_COVER;
 
@@ -16,11 +18,10 @@ interface RadioPlayerProps {
 export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) => {
   const { config } = useConfig();
   const audioRef = useRef<HTMLAudioElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyzerRef = useRef<AnalyserNode | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-  const animationRef = useRef<number>();
+  const [analyzerNode, setAnalyzerNode] = useState<AnalyserNode | null>(null);
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
@@ -303,204 +304,34 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
     return { directUrl: directWithCb, proxyUrl, rawDirect, shouldPreferProxy };
   }, [config.general.streamUrl]);
 
-  // Audio Visualizer effect (Full-width segmented VU spectrum: green bottom -> yellow mid -> red peak)
+  // Initialize Web Audio AnalyserNode when playback begins (CORS proxy allows live FFT)
   useEffect(() => {
-      if (!canvasRef.current || config.appearance.radioPlayer?.showAnalyzer === false) return;
+    if (!isPlaying || isBuffering || config.appearance.radioPlayer?.showAnalyzer === false) return;
 
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      const syncCanvasResolution = () => {
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        const rectWidth = canvas.clientWidth || 900;
-        const rectHeight = canvas.clientHeight || 46;
-        const targetW = Math.floor(rectWidth * dpr);
-        const targetH = Math.floor(rectHeight * dpr);
-        if (canvas.width !== targetW || canvas.height !== targetH) {
-          canvas.width = targetW;
-          canvas.height = targetH;
+    if (!audioCtxRef.current && audioRef.current) {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      if (Ctx) {
+        try {
+          audioCtxRef.current = new Ctx();
+          analyzerRef.current = audioCtxRef.current.createAnalyser();
+          analyzerRef.current.fftSize = 256;
+          analyzerRef.current.smoothingTimeConstant = 0.72;
+          if (audioRef.current.crossOrigin && !sourceRef.current) {
+            sourceRef.current = audioCtxRef.current.createMediaElementSource(audioRef.current);
+            sourceRef.current.connect(analyzerRef.current);
+            analyzerRef.current.connect(audioCtxRef.current.destination);
+          }
+          setAnalyzerNode(analyzerRef.current);
+        } catch (_) {
+          // Playback continues uninterrupted
         }
-        return { width: targetW, height: targetH, dpr };
-      };
-
-      let maxCols = 96;
-      const peaks = new Array(maxCols).fill(0);
-      const peakHoldTimers = new Array(maxCols).fill(0);
-      const smoothed = new Array(maxCols).fill(0);
-
-      const drawStaticBaseline = () => {
-        const { width, height, dpr } = syncCanvasResolution();
-        ctx.clearRect(0, 0, width, height);
-
-        const colStep = Math.max(10, Math.round(13 * dpr));
-        const barCount = Math.max(24, Math.min(maxCols, Math.floor(width / colStep)));
-        const gap = Math.max(2, Math.round(3 * dpr));
-        const barWidth = Math.max(4, (width - (barCount - 1) * gap) / barCount);
-        const segH = Math.max(2, Math.round(3 * dpr));
-        const segGap = Math.max(1, Math.round(2 * dpr));
-        const totalSegs = Math.max(4, Math.floor((height - 2 * dpr) / (segH + segGap)));
-
-        for (let i = 0; i < barCount; i++) {
-          const x = i * (barWidth + gap);
-          for (let s = 0; s < totalSegs; s++) {
-            const y = height - (s + 1) * (segH + segGap) + segGap;
-            ctx.fillStyle = s === 0 ? 'rgba(34, 197, 94, 0.45)' : 'rgba(255, 255, 255, 0.045)';
-            ctx.fillRect(x, y, barWidth, segH);
-          }
-        }
-      };
-
-      if (isPlaying && !isBuffering) {
-          if (!audioCtxRef.current && audioRef.current) {
-              const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-              if (Ctx) {
-                  try {
-                      audioCtxRef.current = new Ctx();
-                      analyzerRef.current = audioCtxRef.current.createAnalyser();
-                      analyzerRef.current.fftSize = 256;
-                      analyzerRef.current.smoothingTimeConstant = 0.72;
-                      if (audioRef.current.crossOrigin && !sourceRef.current) {
-                        sourceRef.current = audioCtxRef.current.createMediaElementSource(audioRef.current);
-                        sourceRef.current.connect(analyzerRef.current);
-                        analyzerRef.current.connect(audioCtxRef.current.destination);
-                      }
-                  } catch (_) {
-                      // Playback continues uninterrupted
-                  }
-              }
-          }
-
-          if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-              audioCtxRef.current.resume().catch(() => {});
-          }
-
-          const getSegmentColor = (ratio: number) => {
-            if (ratio < 0.48) return '#22c55e';      // Verde vibrante en la base
-            if (ratio < 0.68) return '#84cc16';      // Verde lima transición
-            if (ratio < 0.84) return '#facc15';      // Amarillo brillante al subir
-            if (ratio < 0.93) return '#f97316';      // Naranja cálido antes del pico
-            return '#ef4444';                        // Rojo intenso en el pico
-          };
-
-          const draw = (now: number) => {
-              animationRef.current = requestAnimationFrame(draw);
-              const { width, height, dpr } = syncCanvasResolution();
-              ctx.clearRect(0, 0, width, height);
-
-              let fftData: Uint8Array | null = null;
-              let hasLiveSignal = false;
-              if (analyzerRef.current) {
-                const bufLen = analyzerRef.current.frequencyBinCount;
-                fftData = new Uint8Array(bufLen);
-                analyzerRef.current.getByteFrequencyData(fftData);
-                for (let j = 0; j < Math.min(bufLen, 36); j++) {
-                  if (fftData[j] > 2) {
-                    hasLiveSignal = true;
-                    break;
-                  }
-                }
-              }
-
-              const colStep = Math.max(10, Math.round(13 * dpr));
-              const barCount = Math.max(24, Math.min(maxCols, Math.floor(width / colStep)));
-              const gap = Math.max(2, Math.round(3 * dpr));
-              const barWidth = Math.max(4, (width - (barCount - 1) * gap) / barCount);
-              const segH = Math.max(2, Math.round(3 * dpr));
-              const segGap = Math.max(1, Math.round(2 * dpr));
-              const totalSegs = Math.max(5, Math.floor((height - 2 * dpr) / (segH + segGap)));
-
-              const t = now * 0.005;
-              const beatPulse = Math.pow(Math.sin(t * 1.9) * 0.5 + 0.5, 2) * 0.22;
-              const audioActive = !isMuted && volume > 0;
-
-              for (let i = 0; i < barCount; i++) {
-                  let targetLevel = 0.06;
-                  if (audioActive) {
-                    if (hasLiveSignal && fftData) {
-                      // Distribución espectral logarítmica para sincronizar graves, medios y agudos
-                      const norm = i / Math.max(1, barCount - 1);
-                      const binIdx = Math.min(
-                        fftData.length - 1,
-                        Math.floor(Math.pow(norm, 1.35) * (fftData.length * 0.72))
-                      );
-                      const prev = fftData[Math.max(0, binIdx - 1)] || 0;
-                      const curr = fftData[binIdx] || 0;
-                      const next = fftData[Math.min(fftData.length - 1, binIdx + 1)] || 0;
-                      const avg = (prev * 0.25 + curr * 0.5 + next * 0.25) / 255;
-                      targetLevel = Math.min(1, Math.pow(avg, 0.92) * 1.12);
-                    } else {
-                      // Simulación rítmica multibanda sincronizada cuando el stream directo no expone CORS FFT
-                      const norm = i / Math.max(1, barCount - 1);
-                      const bassBoost = Math.exp(-Math.pow((norm - 0.14) * 3.2, 2)) * (0.28 + beatPulse);
-                      const midBoost = Math.exp(-Math.pow((norm - 0.48) * 2.6, 2)) * 0.22;
-                      const w1 = Math.sin(t * 1.7 + i * 0.34) * 0.5 + 0.5;
-                      const w2 = Math.sin(t * 2.85 - i * 0.23) * 0.5 + 0.5;
-                      const w3 = Math.cos(t * 1.15 + i * 0.61) * 0.5 + 0.5;
-                      const combined = w1 * 0.42 + w2 * 0.35 + w3 * 0.23;
-                      targetLevel = Math.min(1, 0.14 + combined * 0.58 + bassBoost + midBoost);
-                    }
-                  }
-
-                  const targetSegs = targetLevel * totalSegs;
-                  smoothed[i] = smoothed[i] + (targetSegs - smoothed[i]) * 0.36;
-                  const litCount = Math.max(1, Math.min(totalSegs, Math.round(smoothed[i])));
-
-                  if (litCount >= peaks[i]) {
-                    peaks[i] = litCount;
-                    peakHoldTimers[i] = 14;
-                  } else if (peakHoldTimers[i] > 0) {
-                    peakHoldTimers[i] -= 1;
-                  } else {
-                    peaks[i] = Math.max(litCount, peaks[i] - 0.22);
-                  }
-
-                  const x = i * (barWidth + gap);
-                  const peakSegIndex = Math.min(totalSegs - 1, Math.max(0, Math.round(peaks[i]) - 1));
-
-                  for (let s = 0; s < totalSegs; s++) {
-                    const y = height - (s + 1) * (segH + segGap) + segGap;
-                    const ratio = (s + 1) / totalSegs;
-
-                    if (s < litCount) {
-                      ctx.fillStyle = getSegmentColor(ratio);
-                      ctx.fillRect(x, y, barWidth, segH);
-                    } else if (s === peakSegIndex && audioActive) {
-                      // Pico flotante siempre en rojo vivo
-                      ctx.fillStyle = '#ff2e43';
-                      ctx.fillRect(x, y, barWidth, segH);
-                    } else {
-                      // Ranura apagada sutil estilo consola de estudio
-                      ctx.fillStyle = 'rgba(255, 255, 255, 0.045)';
-                      ctx.fillRect(x, y, barWidth, segH);
-                    }
-                  }
-              }
-          };
-          animationRef.current = requestAnimationFrame(draw);
-      } else {
-          if (animationRef.current) cancelAnimationFrame(animationRef.current);
-          drawStaticBaseline();
       }
+    }
 
-      const handleResize = () => {
-        if (!isPlaying || isBuffering) drawStaticBaseline();
-      };
-      window.addEventListener('resize', handleResize);
-      let resizeObserver: ResizeObserver | null = null;
-      if (typeof ResizeObserver !== 'undefined') {
-        resizeObserver = new ResizeObserver(() => {
-          if (!isPlaying || isBuffering) drawStaticBaseline();
-        });
-        resizeObserver.observe(canvas);
-      }
-
-      return () => {
-          window.removeEventListener('resize', handleResize);
-          if (resizeObserver) resizeObserver.disconnect();
-          if (animationRef.current) cancelAnimationFrame(animationRef.current);
-      };
-  }, [isPlaying, isBuffering, isMuted, volume, isVisible, config.appearance.radioPlayer?.showAnalyzer]);
+    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+      audioCtxRef.current.resume().catch(() => {});
+    }
+  }, [isPlaying, isBuffering, config.appearance.radioPlayer?.showAnalyzer]);
 
   // Handle stream errors with auto-recovery and fallback switching
   const handleStreamRecovery = useCallback((forceSource?: 'direct' | 'proxy') => {
@@ -1160,12 +991,17 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
               </div>
           </div>
 
-          {/* BOTTOM FULL-WIDTH AUDIO VISUALIZER BAR (Green -> Yellow -> Red Peak) */}
+          {/* BOTTOM FULL-WIDTH CONTINUOUS AUDIO VISUALIZER (No divider lines) */}
           {config.appearance.radioPlayer?.showAnalyzer !== false && !isVideoMode && (
-            <div className="relative z-20 w-full border-t border-white/10 bg-[#04070f]/95 px-4 sm:px-6 pt-2.5 pb-3">
-              <canvas
-                ref={canvasRef}
-                className="w-full h-11 sm:h-12 block"
+            <div className="relative z-20 w-full bg-gradient-to-t from-black/55 to-transparent pt-1">
+              <AudioVisualizerCanvas
+                isPlaying={isPlaying}
+                isBuffering={isBuffering}
+                isMuted={isMuted}
+                volume={volume}
+                isVisible={isVisible}
+                analyzer={analyzerNode}
+                profile={config.appearance.radioPlayer?.visualizer || DEFAULT_VISUALIZER_PROFILE}
               />
             </div>
           )}

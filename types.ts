@@ -346,6 +346,26 @@ export interface PushNotificationsConfig {
   history?: LivePushNotification[];
 }
 
+export type VisualizerMode =
+  | 'continuous_line'
+  | 'smooth_bars'
+  | 'mirror_wave'
+  | 'neon_glow'
+  | 'classic_vu';
+
+export interface VisualizerProfile {
+  id: string;
+  name: string;
+  mode: VisualizerMode;
+  baseColor: string;
+  midColor: string;
+  peakColor: string;
+  lineThickness?: number;
+  sensitivity?: number;
+  heightPx?: number;
+  showPeakLine?: boolean;
+}
+
 export interface RadioPlayerConfig {
   showAnalyzer: boolean;
   showMetadata: boolean;
@@ -361,6 +381,9 @@ export interface RadioPlayerConfig {
   autoDJTracks?: AutoDJTrack[];
   autoDJMode?: 'alphabetical' | 'random';
   enableAutoMetadata?: boolean;
+  visualizer?: VisualizerProfile;
+  visualizerProfiles?: VisualizerProfile[];
+  activeVisualizerProfileId?: string;
 }
 
 export type SeasonThemeId =
