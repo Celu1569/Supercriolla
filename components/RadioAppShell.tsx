@@ -2,13 +2,15 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
   ChevronRight,
-  Compass,
   ExternalLink,
   Home,
+  Image as ImageIcon,
   Instagram,
   Mail,
   MapPin,
+  Menu,
   MessageCircle,
+  MessageSquare,
   Mic2,
   Moon,
   Newspaper,
@@ -20,6 +22,7 @@ import {
   RefreshCw,
   Sun,
   Tv,
+  Users,
   Video,
   Volume1,
   Volume2,
@@ -48,8 +51,15 @@ interface RadioAppShellProps {
   navigationSignal?: { sectionId: string; nonce: number } | null;
 }
 
-type AppTab = 'home' | 'radio' | 'programs' | 'news' | 'community';
-type CommunitySubTab = 'chat' | 'request' | 'clients' | 'gallery' | 'contact';
+type AppTab =
+  | 'home'
+  | 'radio'
+  | 'programs'
+  | 'news'
+  | 'community'
+  | 'clients'
+  | 'gallery'
+  | 'contact';
 
 const getYoutubeEmbedUrl = (url: string) => {
   if (!url) return '';
@@ -151,7 +161,7 @@ export const RadioAppShell: React.FC<RadioAppShellProps> = ({
   } = useRadioAudio();
 
   const [activeTab, setActiveTab] = useState<AppTab>('home');
-  const [communityTab, setCommunityTab] = useState<CommunitySubTab>('chat');
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [programScope, setProgramScope] = useState<'week' | 'weekend'>('week');
   const [playerMode, setPlayerMode] = useState<'live' | 'episode'>('live');
   const [selectedEpisode, setSelectedEpisode] = useState(config.content.podcast.episodes[0] || null);
@@ -176,20 +186,17 @@ export const RadioAppShell: React.FC<RadioAppShellProps> = ({
     } else if (sec === 'news') {
       setActiveTab('news');
     } else if (sec === 'clients') {
-      setCommunityTab('clients');
-      setActiveTab('community');
+      setActiveTab('clients');
     } else if (sec === 'gallery') {
-      setCommunityTab('gallery');
-      setActiveTab('community');
+      setActiveTab('gallery');
     } else if (sec === 'contact') {
-      setCommunityTab('contact');
-      setActiveTab('community');
+      setActiveTab('contact');
     } else if (sec === 'donations' || sec === 'chat') {
-      setCommunityTab('chat');
       setActiveTab('community');
     } else {
       setActiveTab('home');
     }
+    setMobileDrawerOpen(false);
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -271,7 +278,10 @@ export const RadioAppShell: React.FC<RadioAppShellProps> = ({
     { id: 'radio', label: 'Radio & TV', shortLabel: 'TV', icon: PlayCircle },
     { id: 'programs', label: 'Programación', shortLabel: 'Parrilla', icon: Calendar },
     { id: 'news', label: 'Noticias', shortLabel: 'Noticias', icon: Newspaper },
-    { id: 'community', label: 'Comunidad', shortLabel: 'Más', icon: Compass },
+    { id: 'community', label: 'Comunidad', shortLabel: 'Chat', icon: MessageSquare },
+    { id: 'clients', label: 'Aliados', shortLabel: 'Aliados', icon: Users },
+    { id: 'gallery', label: 'Galería', shortLabel: 'Galería', icon: ImageIcon },
+    { id: 'contact', label: 'Contacto', shortLabel: 'Contacto', icon: Phone },
   ];
 
   // Semantic Surface Tokens (Strict Dark / Light pairing)
@@ -314,11 +324,15 @@ export const RadioAppShell: React.FC<RadioAppShellProps> = ({
     radio: 'Radio TV & Podcast',
     programs: 'Parrilla de Programación',
     news: 'Noticias y Actualidad',
-    community: 'Comunidad & Aliados',
+    community: 'Comunidad & Chat en Vivo',
+    clients: 'Comercios Aliados',
+    gallery: 'Galería',
+    contact: 'Contacto',
   };
 
   const switchToTab = (tab: AppTab) => {
     setActiveTab(tab);
+    setMobileDrawerOpen(false);
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -377,19 +391,8 @@ export const RadioAppShell: React.FC<RadioAppShellProps> = ({
           })}
         </nav>
 
-        {/* Bottom Quick Actions + Web Version Switch */}
-        <div className="p-4 border-t border-current/10 space-y-3">
-          {config.songRequest?.enabled !== false && (
-            <button
-              type="button"
-              onClick={() => setShowSongModal(true)}
-              className="w-full min-h-[44px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold shadow-md transition-all active:scale-[0.98] whitespace-nowrap"
-            >
-              <MessageCircle size={17} />
-              <span>Pedir Canción</span>
-            </button>
-          )}
-
+        {/* Bottom Web Version Switch */}
+        <div className="p-4 border-t border-current/10">
           {/* Switch off App Mode -> Return to Web Version */}
           <button
             type="button"
@@ -418,8 +421,16 @@ export const RadioAppShell: React.FC<RadioAppShellProps> = ({
         <header
           className={`sticky top-0 z-30 h-14 lg:h-16 border-b backdrop-blur-xl px-4 lg:px-8 flex items-center justify-between gap-4 ${headerSurface}`}
         >
-          {/* Left: Mobile Logo + Title OR Desktop View Title */}
+          {/* Left: Mobile Drawer Trigger + Logo + Title OR Desktop View Title */}
           <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              type="button"
+              onClick={() => setMobileDrawerOpen(true)}
+              className="lg:hidden min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl hover:bg-current/10 transition-colors shrink-0"
+              aria-label="Abrir menú vertical"
+            >
+              <Menu size={21} />
+            </button>
             {logoUrl && (
               <img
                 src={logoUrl}
@@ -555,8 +566,8 @@ export const RadioAppShell: React.FC<RadioAppShellProps> = ({
                         </div>
                       </div>
 
-                      {/* Primary Transport Controls */}
-                      <div className="flex items-center justify-between md:justify-end gap-3.5 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-white/10">
+                      {/* Primary Transport Controls + Pedir Canción inside Player */}
+                      <div className="flex flex-wrap items-center justify-between md:justify-end gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-white/10">
                         <button
                           type="button"
                           onClick={togglePlay}
@@ -570,7 +581,7 @@ export const RadioAppShell: React.FC<RadioAppShellProps> = ({
                           )}
                         </button>
 
-                        <div className="flex items-center gap-2.5 bg-white/[0.06] border border-white/10 rounded-full px-4 py-2.5 flex-1 md:w-44">
+                        <div className="flex items-center gap-2.5 bg-white/[0.06] border border-white/10 rounded-full px-4 py-2.5 flex-1 md:w-40 min-w-[140px]">
                           <button
                             type="button"
                             onClick={toggleMute}
@@ -590,6 +601,18 @@ export const RadioAppShell: React.FC<RadioAppShellProps> = ({
                             aria-label="Volumen"
                           />
                         </div>
+
+                        {config.songRequest?.enabled !== false && (
+                          <button
+                            type="button"
+                            onClick={() => setShowSongModal(true)}
+                            className="min-h-[44px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold shadow-lg transition-all active:scale-95 whitespace-nowrap shrink-0"
+                            title="Pedir tu canción favorita al aire"
+                          >
+                            <MessageCircle size={16} />
+                            <span>Pedir Canción</span>
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -826,10 +849,7 @@ export const RadioAppShell: React.FC<RadioAppShellProps> = ({
                     </div>
                     <button
                       type="button"
-                      onClick={() => {
-                        setCommunityTab('clients');
-                        switchToTab('community');
-                      }}
+                      onClick={() => switchToTab('clients')}
                       className="min-h-[40px] flex items-center gap-1 text-sm font-bold text-secondary hover:underline whitespace-nowrap shrink-0"
                     >
                       <span>Explorar</span>
@@ -1089,171 +1109,171 @@ export const RadioAppShell: React.FC<RadioAppShellProps> = ({
             </div>
           )}
 
-          {/* TAB 5: COMMUNITY (CHAT, SONG REQUESTS, PARTNERS, GALLERY, CONTACT) */}
+          {/* TAB 5: COMMUNITY (INDEPENDENT LIVE CHAT SECTION) */}
           {activeTab === 'community' && (
             <div className="space-y-6 animate-fade-in">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h2 className="app-display font-extrabold text-2xl sm:text-3xl tracking-tight">
-                    Comunidad & Conexión
-                  </h2>
-                  <p className={`text-sm mt-1 ${mutedText}`}>
-                    Participa en vivo, pide canciones, conoce nuestros aliados y contáctanos.
-                  </p>
-                </div>
-
-                {/* Segmented Control */}
-                <div className={`flex items-center gap-1 p-1 rounded-xl overflow-x-auto ${subtleSurface}`}>
-                  {(
-                    [
-                      { id: 'chat', label: 'Chat en Vivo' },
-                      { id: 'request', label: 'Pedir Canción' },
-                      { id: 'clients', label: 'Aliados' },
-                      { id: 'gallery', label: 'Galería' },
-                      { id: 'contact', label: 'Contacto' },
-                    ] as { id: CommunitySubTab; label: string }[]
-                  ).map((sub) => (
-                    <button
-                      key={sub.id}
-                      type="button"
-                      onClick={() => setCommunityTab(sub.id)}
-                      className={`min-h-[40px] px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${
-                        communityTab === sub.id ? 'bg-secondary text-primary shadow-sm' : mutedText
-                      }`}
-                    >
-                      {sub.label}
-                    </button>
-                  ))}
-                </div>
+              <div>
+                <h2 className="app-display font-extrabold text-2xl sm:text-3xl tracking-tight">
+                  Comunidad & Chat en Vivo
+                </h2>
+                <p className={`text-sm sm:text-base mt-1 ${mutedText}`}>
+                  Conecta y conversa en directo con los oyentes y locutores de {stationName}.
+                </p>
               </div>
 
-              {communityTab === 'chat' && (
-                <div className={`rounded-3xl p-4 sm:p-6 ${cardSurface}`}>
-                  <Chat config={config.content.chat} />
-                </div>
-              )}
+              <div className={`rounded-3xl p-4 sm:p-6 ${cardSurface}`}>
+                <Chat config={config.content.chat} />
+              </div>
+            </div>
+          )}
 
-              {communityTab === 'request' && (
-                <div className="max-w-xl mx-auto">
-                  <SongRequestForm
-                    whatsappNumber={config.songRequest?.whatsappNumber || '0424 1555789'}
-                    songRequestConfig={config.songRequest}
+          {/* TAB 6: ALIADOS (INDEPENDENT VERTICAL MENU SECTION) */}
+          {activeTab === 'clients' && (
+            <div className="space-y-6 animate-fade-in">
+              <div>
+                <h2 className="app-display font-extrabold text-2xl sm:text-3xl tracking-tight">
+                  Nuestros Aliados
+                </h2>
+                <p className={`text-sm sm:text-base mt-1 ${mutedText}`}>
+                  Conoce las empresas, comercios y marcas que impulsan nuestra programación.
+                </p>
+              </div>
+
+              <div className={`rounded-3xl p-5 sm:p-7 ${cardSurface}`}>
+                {config.content.clients && config.content.clients.length > 0 ? (
+                  <ClientGallery
+                    clients={config.content.clients}
+                    primaryColor={config.appearance.primaryColor}
+                    secondaryColor={config.appearance.secondaryColor}
                   />
-                </div>
-              )}
-
-              {communityTab === 'clients' && (
-                <div className={`rounded-3xl p-5 sm:p-7 ${cardSurface}`}>
-                  {config.content.clients && config.content.clients.length > 0 ? (
-                    <ClientGallery
-                      clients={config.content.clients}
-                      primaryColor={config.appearance.primaryColor}
-                      secondaryColor={config.appearance.secondaryColor}
-                    />
-                  ) : (
-                    <p className={`text-center py-10 ${mutedText}`}>
-                      Aún no hay comercios aliados registrados.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {communityTab === 'gallery' && (
-                <div className={`rounded-3xl p-5 sm:p-7 ${cardSurface}`}>
-                  {config.content.gallery?.mode === 'widget' && config.content.gallery.widgetCode ? (
-                    <WidgetEmbed html={config.content.gallery.widgetCode} />
-                  ) : (
-                    <SocialCarousel items={config.content.gallery?.images || []} />
-                  )}
-                </div>
-              )}
-
-              {communityTab === 'contact' && (
-                <div className={`rounded-3xl p-6 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-8 ${cardSurface}`}>
-                  <div className="space-y-4">
-                    <h3 className="app-display font-bold text-2xl">{stationName}</h3>
-                    <p className={`text-sm leading-relaxed ${mutedText}`}>{defaultSlogan}</p>
-                    <div className="flex items-center gap-3 pt-2">
-                      {config.social.instagram && (
-                        <a
-                          href={config.social.instagram}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="w-11 h-11 rounded-xl bg-white/[0.06] flex items-center justify-center hover:text-secondary transition-colors"
-                          aria-label="Instagram"
-                        >
-                          <Instagram size={19} />
-                        </a>
-                      )}
-                      {config.social.tiktok && (
-                        <a
-                          href={config.social.tiktok}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="w-11 h-11 rounded-xl bg-white/[0.06] flex items-center justify-center hover:text-secondary transition-colors"
-                          aria-label="TikTok"
-                        >
-                          <TikTok className="w-4 h-4 fill-current" />
-                        </a>
-                      )}
-                      {config.social.youtube && (
-                        <a
-                          href={config.social.youtube}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="w-11 h-11 rounded-xl bg-white/[0.06] flex items-center justify-center hover:text-secondary transition-colors"
-                          aria-label="YouTube"
-                        >
-                          <Youtube size={19} />
-                        </a>
-                      )}
-                      {config.social.whatsapp && (
-                        <a
-                          href={config.social.whatsapp}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="w-11 h-11 rounded-xl bg-white/[0.06] flex items-center justify-center hover:text-secondary transition-colors"
-                          aria-label="WhatsApp"
-                        >
-                          <Phone size={19} />
-                        </a>
-                      )}
-                    </div>
+                ) : (
+                  <div className="text-center py-12 space-y-2">
+                    <Users size={36} className="mx-auto opacity-40" />
+                    <p className={mutedText}>Aún no hay comercios aliados registrados.</p>
                   </div>
+                )}
+              </div>
+            </div>
+          )}
 
-                  <div className="space-y-4">
-                    <h4 className="app-display font-bold text-lg">Información de Contacto</h4>
-                    <ul className="space-y-3 text-sm">
-                      <li className="flex items-center gap-3">
-                        <Phone size={17} className="text-secondary shrink-0" />
-                        <span className="tabular-nums">{config.general.contactPhone}</span>
-                      </li>
-                      <li className="flex items-center gap-3">
-                        <Mail size={17} className="text-secondary shrink-0" />
-                        <span>{config.general.contactEmail}</span>
-                      </li>
-                      <li className="flex items-center gap-3">
-                        <MapPin size={17} className="text-secondary shrink-0" />
-                        <span>
-                          {config.general.city || 'Ciudad'}, {config.general.country || 'País'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={handleSecretAccess}
-                          className="ml-1 inline-flex items-center"
-                          title="Panel de Control"
-                        >
-                          <img
-                            src="https://flagcdn.com/w40/ve.png"
-                            alt="Venezuela"
-                            className="h-4 w-auto rounded-sm"
-                          />
-                        </button>
-                      </li>
-                    </ul>
+          {/* TAB 7: GALERÍA (INDEPENDENT VERTICAL MENU SECTION) */}
+          {activeTab === 'gallery' && (
+            <div className="space-y-6 animate-fade-in">
+              <div>
+                <h2 className="app-display font-extrabold text-2xl sm:text-3xl tracking-tight">
+                  {config.content.gallery?.title || 'Galería'}
+                </h2>
+                <p className={`text-sm sm:text-base mt-1 ${mutedText}`}>
+                  {config.content.gallery?.description || 'Momentos, eventos y contenido destacado de la emisora.'}
+                </p>
+              </div>
+
+              <div className={`rounded-3xl p-5 sm:p-7 ${cardSurface}`}>
+                {config.content.gallery?.mode === 'widget' && config.content.gallery.widgetCode ? (
+                  <WidgetEmbed html={config.content.gallery.widgetCode} />
+                ) : (
+                  <SocialCarousel items={config.content.gallery?.images || []} />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 8: CONTACTO (INDEPENDENT VERTICAL MENU SECTION AT THE END) */}
+          {activeTab === 'contact' && (
+            <div className="space-y-6 animate-fade-in">
+              <div>
+                <h2 className="app-display font-extrabold text-2xl sm:text-3xl tracking-tight">
+                  Contacto
+                </h2>
+                <p className={`text-sm sm:text-base mt-1 ${mutedText}`}>
+                  Comunícate directamente con la estación, publicidad y cabina en vivo.
+                </p>
+              </div>
+
+              <div className={`rounded-3xl p-6 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-8 ${cardSurface}`}>
+                <div className="space-y-4">
+                  <h3 className="app-display font-bold text-2xl">{stationName}</h3>
+                  <p className={`text-sm leading-relaxed ${mutedText}`}>{defaultSlogan}</p>
+                  <div className="flex items-center gap-3 pt-2">
+                    {config.social.instagram && (
+                      <a
+                        href={config.social.instagram}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-11 h-11 rounded-xl bg-white/[0.06] flex items-center justify-center hover:text-secondary transition-colors"
+                        aria-label="Instagram"
+                      >
+                        <Instagram size={19} />
+                      </a>
+                    )}
+                    {config.social.tiktok && (
+                      <a
+                        href={config.social.tiktok}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-11 h-11 rounded-xl bg-white/[0.06] flex items-center justify-center hover:text-secondary transition-colors"
+                        aria-label="TikTok"
+                      >
+                        <TikTok className="w-4 h-4 fill-current" />
+                      </a>
+                    )}
+                    {config.social.youtube && (
+                      <a
+                        href={config.social.youtube}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-11 h-11 rounded-xl bg-white/[0.06] flex items-center justify-center hover:text-secondary transition-colors"
+                        aria-label="YouTube"
+                      >
+                        <Youtube size={19} />
+                      </a>
+                    )}
+                    {config.social.whatsapp && (
+                      <a
+                        href={config.social.whatsapp}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-11 h-11 rounded-xl bg-white/[0.06] flex items-center justify-center hover:text-secondary transition-colors"
+                        aria-label="WhatsApp"
+                      >
+                        <Phone size={19} />
+                      </a>
+                    )}
                   </div>
                 </div>
-              )}
+
+                <div className="space-y-4">
+                  <h4 className="app-display font-bold text-lg">Información de Contacto</h4>
+                  <ul className="space-y-3 text-sm">
+                    <li className="flex items-center gap-3">
+                      <Phone size={17} className="text-secondary shrink-0" />
+                      <span className="tabular-nums">{config.general.contactPhone}</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <Mail size={17} className="text-secondary shrink-0" />
+                      <span>{config.general.contactEmail}</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <MapPin size={17} className="text-secondary shrink-0" />
+                      <span>
+                        {config.general.city || 'Ciudad'}, {config.general.country || 'País'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleSecretAccess}
+                        className="ml-1 inline-flex items-center"
+                        title="Panel de Control"
+                      >
+                        <img
+                          src="https://flagcdn.com/w40/ve.png"
+                          alt="Venezuela"
+                          className="h-4 w-auto rounded-sm"
+                        />
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+              </div>
             </div>
           )}
         </main>
@@ -1303,6 +1323,18 @@ export const RadioAppShell: React.FC<RadioAppShellProps> = ({
               />
             </div>
 
+            {config.songRequest?.enabled !== false && (
+              <button
+                type="button"
+                onClick={() => setShowSongModal(true)}
+                className="min-h-[40px] flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md active:scale-95 transition-all whitespace-nowrap shrink-0"
+                title="Pedir Canción"
+              >
+                <MessageCircle size={15} />
+                <span className="hidden sm:inline">Pedir Canción</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={togglePlay}
@@ -1315,6 +1347,97 @@ export const RadioAppShell: React.FC<RadioAppShellProps> = ({
         </div>
       )}
 
+      {/* MOBILE VERTICAL MENU DRAWER (All 8 independent sections) */}
+      {mobileDrawerOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-fade-in flex"
+          onClick={() => setMobileDrawerOpen(false)}
+        >
+          <aside
+            className={`w-72 max-w-[82vw] h-full flex flex-col border-r shadow-2xl ${sidebarSurface}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 flex items-center justify-between border-b border-current/10">
+              <div className="flex items-center gap-2.5 min-w-0">
+                {logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt={stationName}
+                    className="w-9 h-9 rounded-xl object-contain bg-black/20 p-1 shrink-0"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-9 h-9 rounded-xl bg-secondary text-primary flex items-center justify-center shrink-0">
+                    <Radio size={18} />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="app-display font-extrabold text-sm tracking-tight truncate">
+                    {stationName}
+                  </div>
+                  <div className={`text-[11px] truncate ${mutedText}`}>{defaultSlogan}</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileDrawerOpen(false)}
+                className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl hover:bg-current/10"
+                aria-label="Cerrar menú"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const active = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => switchToTab(item.id)}
+                    className={`w-full min-h-[44px] flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
+                      active
+                        ? 'bg-secondary text-primary shadow-md'
+                        : isDark
+                        ? 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
+                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-950'
+                    }`}
+                  >
+                    <Icon size={18} className="shrink-0" />
+                    <span className="truncate">{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="p-4 border-t border-current/10">
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileDrawerOpen(false);
+                  onDisableAppMode();
+                }}
+                className={`w-full min-h-[44px] flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all whitespace-nowrap ${
+                  isDark
+                    ? 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-200'
+                    : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <Globe size={15} className="text-secondary shrink-0" />
+                  <span>Versión Web</span>
+                </span>
+                <span className="inline-flex items-center w-9 h-5 rounded-full bg-emerald-500 p-0.5 justify-end">
+                  <span className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                </span>
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+
       {/* MOBILE BOTTOM APP TAB BAR (Thumb-Zone Ergonomics, 5 destinations, min 44px touch target) */}
       <nav
         className={`lg:hidden fixed bottom-0 inset-x-0 h-16 z-40 border-t backdrop-blur-xl grid grid-cols-5 items-center px-1 ${
@@ -1323,7 +1446,7 @@ export const RadioAppShell: React.FC<RadioAppShellProps> = ({
             : 'bg-white/95 border-slate-200 text-slate-600'
         }`}
       >
-        {navItems.map((item) => {
+        {navItems.slice(0, 4).map((item) => {
           const Icon = item.icon;
           const active = activeTab === item.id;
           return (
@@ -1340,6 +1463,18 @@ export const RadioAppShell: React.FC<RadioAppShellProps> = ({
             </button>
           );
         })}
+        <button
+          type="button"
+          onClick={() => setMobileDrawerOpen(true)}
+          className={`min-h-[44px] flex flex-col items-center justify-center gap-0.5 transition-colors ${
+            activeTab === 'community' || activeTab === 'clients' || activeTab === 'gallery' || activeTab === 'contact'
+              ? 'text-secondary font-bold'
+              : 'opacity-80'
+          }`}
+        >
+          <Menu size={20} strokeWidth={2.1} />
+          <span className="text-[11px] leading-none whitespace-nowrap">Menú</span>
+        </button>
       </nav>
 
       {/* ARTICLE READER MODAL */}
