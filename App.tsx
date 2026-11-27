@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { HelmetProvider } from 'react-helmet-async';
 import { ConfigProvider, useConfig } from './context/ConfigContext';
+import { RadioAudioProvider } from './context/RadioAudioContext';
 import PublicView from './components/PublicView';
+import { RadioAppShell } from './components/RadioAppShell';
+import { BackgroundEffects } from './components/BackgroundEffects';
+import { LivePushManager } from './components/LivePushManager';
 import { AdminPanel } from './admin/AdminPanel';
 import { Login } from './admin/Login';
 import { SmartDisplayView } from './components/SmartDisplayView';
 import { SeoHelmet } from './components/SeoHelmet';
+
+const VIEW_MODE_STORAGE_KEY = 'buenisima_view_mode';
 
 // Component to handle global style injection based on config
 const ThemeApplicator: React.FC = () => {
@@ -57,6 +63,68 @@ const AppLoader = () => {
     );
 };
 
+const PublicExperience: React.FC = () => {
+    const { config } = useConfig();
+    const configuredDefault = config.appearance.defaultViewMode === 'app' ? 'app' : 'web';
+
+    const [viewMode, setViewMode] = useState<'web' | 'app'>(() => {
+        try {
+            const saved = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+            if (saved === 'app' || saved === 'web') return saved;
+        } catch (_) {}
+        return configuredDefault;
+    });
+
+    const [navigationSignal, setNavigationSignal] = useState<{ sectionId: string; nonce: number } | null>(null);
+
+    // Sync with admin default if visitor hasn't explicitly toggled a preference yet
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+            if (saved !== 'app' && saved !== 'web') {
+                setViewMode(configuredDefault);
+            }
+        } catch (_) {
+            setViewMode(configuredDefault);
+        }
+    }, [configuredDefault]);
+
+    const handleSetViewMode = (mode: 'web' | 'app') => {
+        setViewMode(mode);
+        try {
+            localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode);
+        } catch (_) {}
+        if (typeof window !== 'undefined') {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    };
+
+    const showToggle = config.appearance.showViewModeToggle !== false;
+
+    return (
+        <RadioAudioProvider>
+            <BackgroundEffects config={config.appearance.seasonal} />
+            {viewMode === 'app' ? (
+                <RadioAppShell
+                    onDisableAppMode={() => handleSetViewMode('web')}
+                    navigationSignal={navigationSignal}
+                />
+            ) : (
+                <PublicView
+                    onEnableAppMode={() => handleSetViewMode('app')}
+                    showAppModeToggle={showToggle}
+                    navigationSignal={navigationSignal}
+                />
+            )}
+            <LivePushManager
+                onNavigateSection={(sectionId) =>
+                    setNavigationSignal({ sectionId, nonce: Date.now() })
+                }
+            />
+        </RadioAudioProvider>
+    );
+};
+
 const AppContent: React.FC = () => {
   const { isConfigLoaded } = useConfig();
   const [route, setRoute] = useState(window.location.hash || '#/');
@@ -85,7 +153,7 @@ const AppContent: React.FC = () => {
         ) : route.startsWith('#/pantalla') || route.startsWith('#/display') || route.startsWith('#/tv') || route.startsWith('#/player') || route.startsWith('#/google') ? (
             <SmartDisplayView />
         ) : (
-            <PublicView />
+            <PublicExperience />
         )}
     </>
   );

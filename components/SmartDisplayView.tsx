@@ -5,6 +5,7 @@ import { resolveDirectImageUrl } from '../utils/imageUrl';
 import { io, Socket } from 'socket.io-client';
 import { parseAndResolveStreamMetadata, resolveMusicArtwork, fetchIcecastStatusFromBrowser, isRealMusicCover, DEFAULT_RADIO_COVER } from '../utils/musicMetadata';
 import { recordListenerSession, recordPeakListenerCount } from '../utils/listenerAnalytics';
+import { SongInsightsPanel } from './SongInsightsPanel';
 
 interface MetadataState {
   title: string;
@@ -389,8 +390,8 @@ export const SmartDisplayView: React.FC = () => {
         </div>
       </header>
 
-      {/* CENTER STAGE: Original Square Cover with Depth Glow, Spectrum Waves, and Real-Time Song Title */}
-      <main className="flex-1 flex flex-col lg:flex-row items-center justify-center gap-6 sm:gap-10 md:gap-16 px-6 sm:px-12 md:px-16 max-w-7xl mx-auto w-full my-auto">
+      {/* CENTER STAGE: Original Square Cover with Depth Glow, Spectrum Waves, Real-Time Song Title & TV Insights */}
+      <main className="flex-1 flex flex-col lg:flex-row items-center justify-center gap-5 sm:gap-8 lg:gap-12 px-5 sm:px-10 md:px-14 max-w-7xl mx-auto w-full my-auto min-h-0">
         {/* Original Square Album Artwork Section (No Disc Effect) */}
         <div className="relative group cursor-pointer flex-shrink-0" onClick={togglePlay}>
           {/* Gaussian Ambient Glow Aura behind Square Card */}
@@ -405,7 +406,7 @@ export const SmartDisplayView: React.FC = () => {
           />
 
           {/* Original Square Cover Container */}
-          <div className="relative w-52 h-52 sm:w-72 sm:h-72 md:w-80 md:h-80 lg:w-[390px] lg:h-[390px] xl:w-[420px] xl:h-[420px] rounded-2xl overflow-hidden shadow-[0_30px_85px_-12px_rgba(0,0,0,0.92)] ring-1 ring-white/25 bg-black/50 transition-transform duration-500 group-hover:scale-[1.015]">
+          <div className="relative w-44 h-44 sm:w-64 sm:h-64 md:w-72 md:h-72 lg:w-[340px] lg:h-[340px] xl:w-[390px] xl:h-[390px] rounded-2xl overflow-hidden shadow-[0_30px_85px_-12px_rgba(0,0,0,0.92)] ring-1 ring-white/25 bg-black/50 transition-transform duration-500 group-hover:scale-[1.015]">
             <img
               src={currentCover}
               alt={metadata.title}
@@ -424,10 +425,10 @@ export const SmartDisplayView: React.FC = () => {
           </div>
         </div>
 
-        {/* Real-time Song Information & Spectrum */}
-        <div className="flex-1 flex flex-col items-center lg:items-start text-center lg:text-left max-w-2xl">
+        {/* Real-time Song Information, Spectrum & Verified TV Insights / Sponsors */}
+        <div className="flex-1 flex flex-col items-center lg:items-start text-center lg:text-left max-w-2xl w-full min-w-0">
           {/* Live Wave Visualizer */}
-          <div className="flex items-center gap-1.5 mb-3 sm:mb-4 h-8">
+          <div className="flex items-center gap-1.5 mb-2 sm:mb-3 h-7">
             {[40, 75, 55, 90, 60, 85, 45, 95, 70, 50, 80, 65, 90, 45, 85].map((height, i) => (
               <span 
                 key={i}
@@ -445,23 +446,39 @@ export const SmartDisplayView: React.FC = () => {
           </div>
 
           {/* Song Title */}
-          <h2 className="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight mb-2 drop-shadow-lg line-clamp-2">
+          <h2 className="text-2xl sm:text-4xl xl:text-5xl font-black text-white tracking-tight leading-tight mb-1.5 drop-shadow-lg line-clamp-2">
             {metadata.title || stationName}
           </h2>
 
           {/* Artist / Slogan */}
-          <p className="text-base sm:text-xl md:text-2xl font-bold text-gray-300 tracking-wide mb-6">
+          <p className="text-base sm:text-xl xl:text-2xl font-bold text-gray-200 tracking-wide mb-4">
             {metadata.artist || defaultSlogan}
           </p>
+
+          {/* TV-Adapted Song Insights / Positive Buenísima Messages / Sponsors */}
+          {config.appearance.radioPlayer?.showSongInsights !== false &&
+            config.appearance.radioPlayer?.songInsightsConfig?.enabled !== false && (
+            <div className="w-full mb-4 text-left">
+              <SongInsightsPanel
+                variant="tv"
+                title={metadata.title || stationName}
+                artist={metadata.artist || defaultSlogan}
+                stationName={stationName}
+                defaultSlogan={defaultSlogan}
+                isPlaying={isPlaying}
+                insightsConfig={config.appearance.radioPlayer?.songInsightsConfig}
+              />
+            </div>
+          )}
 
           {/* WhatsApp Song Request Callout */}
           <a
             href="https://api.whatsapp.com/send?phone=584241555789&text=%C2%A1Hola%20BUEN%C3%8DSIMA%2087.7%20FM!%20Estoy%20escuchando%20en%20pantalla%20y%20quiero%20pedir%20una%20canci%C3%B3n"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-emerald-600/90 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm shadow-xl transition-all transform hover:scale-105 active:scale-95 border border-emerald-400/30 mb-2"
+            className="inline-flex items-center gap-2.5 px-5 py-2 rounded-full bg-emerald-600/90 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm shadow-xl transition-all transform hover:scale-105 active:scale-95 border border-emerald-400/30"
           >
-            <MessageCircle size={18} className="fill-current text-white" />
+            <MessageCircle size={17} className="fill-current text-white" />
             <span>Pedidos al WhatsApp: <strong>0424 1555789</strong></span>
           </a>
         </div>

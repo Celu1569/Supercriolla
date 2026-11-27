@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { SiteConfig } from '../types';
-import { DEFAULT_CONFIG, DEFAULT_VISUALIZER_PROFILE, DEFAULT_VISUALIZER_PROFILES } from '../constants';
+import { DEFAULT_CONFIG, DEFAULT_POSITIVE_MESSAGES, DEFAULT_SONG_INSIGHTS_CONFIG, DEFAULT_VISUALIZER_PROFILE, DEFAULT_VISUALIZER_PROFILES } from '../constants';
 import { doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db, auth, hasFirebaseKeys } from '../firebase';
 import { signOut } from 'firebase/auth';
@@ -198,6 +198,8 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
   // Safeguard: Only set default if user has never specified a station name or colors
   if (!c.general.stationName) c.general.stationName = DEFAULT_CONFIG.general.stationName;
   if (!c.appearance.primaryColor) c.appearance.primaryColor = DEFAULT_CONFIG.appearance.primaryColor;
+  if (!c.appearance.defaultViewMode) c.appearance.defaultViewMode = 'web';
+  if (c.appearance.showViewModeToggle === undefined) c.appearance.showViewModeToggle = true;
   
   // Hero slides - PRESERVE user uploaded images and slides completely
   if (!c.content.hero || !Array.isArray(c.content.hero) || c.content.hero.length === 0) {
@@ -255,6 +257,30 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
     }
 
     if (rp.showAnalyzer === undefined) rp.showAnalyzer = true;
+    if (rp.showSongInsights === undefined) rp.showSongInsights = true;
+    if (!rp.songInsightsConfig) {
+      rp.songInsightsConfig = { ...DEFAULT_SONG_INSIGHTS_CONFIG };
+    } else {
+      const sic = rp.songInsightsConfig;
+      if (sic.enabled === undefined) sic.enabled = rp.showSongInsights !== false;
+      if (!sic.panelTitle) sic.panelTitle = DEFAULT_SONG_INSIGHTS_CONFIG.panelTitle;
+      if (!sic.dataSourceMode) sic.dataSourceMode = 'free';
+      if (sic.allowListenerToggle === undefined) sic.allowListenerToggle = true;
+      if (sic.showArtistInfo === undefined) sic.showArtistInfo = true;
+      if (sic.showSongStory === undefined) sic.showSongStory = true;
+      if (sic.showAnecdotes === undefined) sic.showAnecdotes = true;
+      if (sic.showSources === undefined) sic.showSources = true;
+      if (sic.autoRotateTabs === undefined) sic.autoRotateTabs = true;
+      if (!sic.rotationSeconds) sic.rotationSeconds = 10;
+      if (!Array.isArray(sic.positiveMessages) || sic.positiveMessages.length === 0) {
+        sic.positiveMessages = [...DEFAULT_POSITIVE_MESSAGES];
+      }
+      if (sic.enableSponsorMentions === undefined) sic.enableSponsorMentions = false;
+      if (!sic.sponsorFrequency) sic.sponsorFrequency = 'interleave';
+      if (!Array.isArray(sic.sponsorMentions)) sic.sponsorMentions = [];
+    }
+    // Keep legacy showSongInsights boolean synced with songInsightsConfig.enabled
+    rp.showSongInsights = rp.songInsightsConfig.enabled !== false;
     // Always enable live metadata and cover art so listeners see song titles and covers
     rp.showMetadata = true;
     rp.showCover = true;

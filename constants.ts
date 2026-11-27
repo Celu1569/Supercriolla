@@ -1,4 +1,30 @@
-import { SiteConfig, VisualizerProfile } from './types';
+import { SiteConfig, SongInsightsConfig, VisualizerProfile } from './types';
+
+export const DEFAULT_POSITIVE_MESSAGES: string[] = [
+  'Sube el volumen y deja que la mejor música en BUENÍSIMA llene tu día de energía positiva.',
+  'Cada canción tiene el poder de cambiar tu ánimo. Sigue conectado con el ritmo de nuestra radio.',
+  'Ya sea en casa, en el camino o trabajando, celebramos contigo cada melodía las 24 horas.',
+  'Respira hondo, sonríe y disfruta la selección musical preparada especialmente para ti.',
+  'Los mejores recuerdos siempre suenan mejor en la radio. Gracias por sintonizarnos hoy.',
+  'Comparte la buena vibra, pide tu canción favorita por WhatsApp y vive la música al máximo.',
+];
+
+export const DEFAULT_SONG_INSIGHTS_CONFIG: SongInsightsConfig = {
+  enabled: true,
+  panelTitle: 'Historia & Buena Vibra',
+  dataSourceMode: 'free',
+  allowListenerToggle: true,
+  showArtistInfo: true,
+  showSongStory: true,
+  showAnecdotes: true,
+  showSources: true,
+  autoRotateTabs: true,
+  rotationSeconds: 10,
+  positiveMessages: DEFAULT_POSITIVE_MESSAGES,
+  enableSponsorMentions: false,
+  sponsorFrequency: 'interleave',
+  sponsorMentions: [],
+};
 
 export const DEFAULT_VISUALIZER_PROFILES: VisualizerProfile[] = [
   {
@@ -107,10 +133,14 @@ export const DEFAULT_CONFIG: SiteConfig = {
     textColor: "#334155",
     headingFont: "Montserrat",
     bodyFont: "Inter",
+    defaultViewMode: 'web',
+    showViewModeToggle: true,
     radioPlayer: {
       showAnalyzer: true,
       showMetadata: true,
       showCover: true,
+      showSongInsights: true,
+      songInsightsConfig: { ...DEFAULT_SONG_INSIGHTS_CONFIG },
       videoMode: false,
       videoUrl: "",
       videoWidth: 320,

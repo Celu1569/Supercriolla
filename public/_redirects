@@ -1,3 +1,4 @@
 /api/metadata /.netlify/functions/metadata 200!
 /api/radio/metadata /.netlify/functions/metadata 200!
+/api/song-insights /.netlify/functions/song-insights 200!
 /* /index.html 200

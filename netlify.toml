@@ -19,6 +19,12 @@
   force = true
 
 [[redirects]]
+  from = "/api/song-insights"
+  to = "/.netlify/functions/song-insights"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200

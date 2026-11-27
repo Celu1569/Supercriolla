@@ -565,6 +565,51 @@ async function startServer() {
     }
   });
 
+  // Song & Artist Trivia / History API (Free Wikipedia + iTunes by default, or optional Gemini mode)
+  app.get("/api/song-insights", async (req, res) => {
+    try {
+      const title = typeof req.query.title === 'string' ? req.query.title : '';
+      const artist = typeof req.query.artist === 'string' ? req.query.artist : '';
+      const mode = req.query.mode === 'gemini' ? 'gemini' : 'free';
+      if (mode === 'gemini') {
+        const { fetchSongInsightsFromGemini } = await import('./utils/songInsightsService.js');
+        const result = await fetchSongInsightsFromGemini(title, artist);
+        return res.json(result);
+      }
+      const { fetchFreeMusicInsights } = await import('./utils/freeMusicInsights.js');
+      const result = await fetchFreeMusicInsights(title, artist);
+      return res.json(result);
+    } catch (err: any) {
+      const status = typeof err?.status === 'number' ? err.status : 502;
+      console.error('[SongInsights] Error:', err?.message || err);
+      return res.status(status).json({
+        error: err?.message || 'No se pudo obtener la información musical en este momento.'
+      });
+    }
+  });
+
+  app.post("/api/song-insights", async (req, res) => {
+    try {
+      const title = typeof req.body?.title === 'string' ? req.body.title : '';
+      const artist = typeof req.body?.artist === 'string' ? req.body.artist : '';
+      const mode = req.body?.mode === 'gemini' ? 'gemini' : 'free';
+      if (mode === 'gemini') {
+        const { fetchSongInsightsFromGemini } = await import('./utils/songInsightsService.js');
+        const result = await fetchSongInsightsFromGemini(title, artist);
+        return res.json(result);
+      }
+      const { fetchFreeMusicInsights } = await import('./utils/freeMusicInsights.js');
+      const result = await fetchFreeMusicInsights(title, artist);
+      return res.json(result);
+    } catch (err: any) {
+      const status = typeof err?.status === 'number' ? err.status : 502;
+      console.error('[SongInsights] Error:', err?.message || err);
+      return res.status(status).json({
+        error: err?.message || 'No se pudo obtener la información musical en este momento.'
+      });
+    }
+  });
+
   // Audio stream proxy endpoint to bypass CORS, firewall port 8010 blocks, and SSL issues
   app.get("/api/stream", async (req, res) => {
     const targetUrl = (req.query.url as string) || activeStreamUrl || "https://redradioypc.com:8010/live";

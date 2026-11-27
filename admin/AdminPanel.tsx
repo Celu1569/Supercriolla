@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useConfig } from '../context/ConfigContext';
 import { SiteConfig, HeroSlide, PodcastEpisode, GalleryItem, NavItemConfig, FontFamily, Client, AutoDJTrack, AdBannerItem, SeasonalBackgroundConfig, SeasonThemeId, VisualEffectId, BackgroundStyleType, LivePushNotification, PushCategory } from '../types';
-import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2, ListOrdered, Sparkles, Play, CheckCircle2, ExternalLink, Rss, FileText, X, Disc, ShieldCheck, Tv, Copy, Palette, Bell, BellRing, Send, Gift, Megaphone, Clock, BarChart3, Activity } from 'lucide-react';
+import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2, ListOrdered, Sparkles, Play, CheckCircle2, ExternalLink, Rss, FileText, X, Disc, ShieldCheck, Tv, Copy, Palette, Bell, BellRing, Send, Gift, Megaphone, Clock, BarChart3, Activity, BookOpen, Smartphone } from 'lucide-react';
 import { SEASON_PRESETS, VISUAL_EFFECT_OPTIONS } from '../utils/seasonalPresets';
 import { BackgroundEffects } from '../components/BackgroundEffects';
 import { ListenerTrendsDashboard } from '../components/ListenerTrendsDashboard';
 import { VisualizerManagerPanel } from '../components/VisualizerManagerPanel';
+import { SongInsightsManagerPanel } from '../components/SongInsightsManagerPanel';
 
 // --- CONSTANTS ---
 const FONT_OPTIONS: { value: FontFamily; label: string }[] = [
@@ -2428,6 +2429,7 @@ export const AdminPanel: React.FC = () => {
           <TabButton id="appearance" activeTab={activeTab} onClick={setActiveTab} icon={Layout} label="Apariencia" />
           <TabButton id="seasonal" activeTab={activeTab} onClick={setActiveTab} icon={Sparkles} label="Fondos y Temporadas" />
           <TabButton id="player" activeTab={activeTab} onClick={setActiveTab} icon={Volume2} label="Reproductor" />
+          <TabButton id="songinsights" activeTab={activeTab} onClick={setActiveTab} icon={BookOpen} label="Info Canción" />
           <TabButton id="visualizer" activeTab={activeTab} onClick={setActiveTab} icon={Activity} label="Visualizadores" />
           <TabButton id="header" activeTab={activeTab} onClick={setActiveTab} icon={Compass} label="Menú" />
           <TabButton id="layout" activeTab={activeTab} onClick={setActiveTab} icon={ListOrdered} label="Orden de Secciones" />
@@ -2497,6 +2499,90 @@ export const AdminPanel: React.FC = () => {
                              {FONT_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                         </select>
                     </InputGroup>
+                  </div>
+
+                  {/* Modo App Real vs Versión Web */}
+                  <div className="bg-gray-800/70 border border-gray-700 rounded-2xl p-6 space-y-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2.5 rounded-xl bg-secondary/20 text-secondary flex-shrink-0">
+                          <Smartphone size={22} />
+                        </div>
+                        <div>
+                          <h4 className="text-white font-bold text-sm sm:text-base">Modo App Real vs. Versión Web</h4>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            Permite a los visitantes transformar la radio en una interfaz tipo aplicación nativa con un botón o volver a la versión web clásica sin cortar el audio en vivo.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">
+                          Vista Predeterminada al Entrar
+                        </label>
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setFormData(prev => ({
+                                ...prev,
+                                appearance: { ...prev.appearance, defaultViewMode: 'web' },
+                              }))
+                            }
+                            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
+                              (formData.appearance.defaultViewMode || 'web') === 'web'
+                                ? 'bg-secondary text-primary border-secondary shadow-md'
+                                : 'bg-gray-900 text-gray-300 border-gray-700 hover:border-gray-500'
+                            }`}
+                          >
+                            <Globe size={15} />
+                            <span>Versión Web</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setFormData(prev => ({
+                                ...prev,
+                                appearance: { ...prev.appearance, defaultViewMode: 'app' },
+                              }))
+                            }
+                            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
+                              formData.appearance.defaultViewMode === 'app'
+                                ? 'bg-secondary text-primary border-secondary shadow-md'
+                                : 'bg-gray-900 text-gray-300 border-gray-700 hover:border-gray-500'
+                            }`}
+                          >
+                            <Smartphone size={15} />
+                            <span>Modo App Real</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between bg-gray-900/70 border border-gray-700 rounded-xl p-4">
+                        <div className="pr-3">
+                          <div className="text-xs font-bold text-white">Mostrar botón "Modo App / Versión Web"</div>
+                          <div className="text-[11px] text-gray-400 mt-0.5">
+                            Permite al oyente cambiar entre Web y App cuando quiera.
+                          </div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                          <input
+                            type="checkbox"
+                            checked={formData.appearance.showViewModeToggle !== false}
+                            onChange={e =>
+                              setFormData(prev => ({
+                                ...prev,
+                                appearance: { ...prev.appearance, showViewModeToggle: e.target.checked },
+                              }))
+                            }
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                        </label>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Quick link to Fondos, Temporadas y Efectos */}
@@ -3139,6 +3225,47 @@ export const AdminPanel: React.FC = () => {
                             </div>
                         </label>
 
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={formData.appearance.radioPlayer?.showSongInsights !== false && formData.appearance.radioPlayer?.songInsightsConfig?.enabled !== false}
+                                onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        appearance: { 
+                                            ...prev.appearance, 
+                                            radioPlayer: { 
+                                                ...prev.appearance.radioPlayer, 
+                                                showSongInsights: checked,
+                                                songInsightsConfig: {
+                                                    ...(prev.appearance.radioPlayer?.songInsightsConfig || { enabled: checked }),
+                                                    enabled: checked
+                                                }
+                                            } 
+                                        }
+                                    }));
+                                }}
+                                className="form-checkbox h-5 w-5 text-secondary rounded border-gray-600 bg-gray-700" 
+                            />
+                            <div className="flex flex-col">
+                                <span className="text-white font-medium">Panel de Historia de la Canción y Artista</span>
+                                <span className="text-[11px] text-gray-400">Muestra datos reales del artista, historia, anécdotas, mensajes positivos y comercios aliados dentro del reproductor.</span>
+                            </div>
+                        </label>
+
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('songinsights')}
+                            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold transition-all"
+                        >
+                            <span className="flex items-center gap-2">
+                                <BookOpen size={15} />
+                                Configurar Info Canción, Mensajes y Comercios Aliados
+                            </span>
+                            <span>&rarr;</span>
+                        </button>
+
                         <button
                             type="button"
                             onClick={() => setActiveTab('visualizer')}
@@ -3411,6 +3538,15 @@ export const AdminPanel: React.FC = () => {
 
             {activeTab === 'visualizer' && (
               <VisualizerManagerPanel
+                formData={formData}
+                setFormData={setFormData}
+                onSave={handleSave}
+                saveStatus={saveStatus}
+              />
+            )}
+
+            {activeTab === 'songinsights' && (
+              <SongInsightsManagerPanel
                 formData={formData}
                 setFormData={setFormData}
                 onSave={handleSave}

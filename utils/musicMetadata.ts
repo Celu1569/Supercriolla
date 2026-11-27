@@ -23,6 +23,7 @@ const STOP_WORDS = new Set([
 export const cleanSongString = (str: string): string => {
   if (!str) return '';
   return str
+    .replace(/^\s*\d{1,3}\s*[.\-_)]\s+/, '')
     .replace(/\s*\([^)]*(?:oficial|audio|video|remaster|letra|lyrics|hd|4k|version)[^)]*\)/gi, '')
     .replace(/\s*\[[^\]]*(?:oficial|audio|video|remaster|letra|lyrics|hd|4k|version)[^\]]*\]/gi, '')
     .replace(/\s*\.mp3$/i, '')
@@ -128,15 +129,23 @@ const jsonpDeezerSearch = (query: string, timeoutMs = 4000): Promise<any[]> => {
   });
 };
 
+const isTributeOrKaraoke = (artist: string, title: string): boolean => {
+  const combined = `${artist} ${title}`.toLowerCase();
+  return /\b(karaoke|tribute|tributo|made famous by|cover band|originally performed|instrumental version)\b/.test(combined);
+};
+
 const pickBestMatch = (
   items: { title: string; artist: string; cover: string }[],
   cleanA: string,
   cleanB: string
 ): ResolvedSong | null => {
   let best: { score: number; item: { title: string; artist: string; cover: string } } | null = null;
+  const queryHasTribute = isTributeOrKaraoke(cleanA, cleanB);
 
   for (const item of items) {
     if (!item.cover) continue;
+    if (!queryHasTribute && isTributeOrKaraoke(item.artist, item.title)) continue;
+
     if (cleanB) {
       const aToArtist = tokenOverlapScore(cleanA, item.artist);
       const bToTrack = tokenOverlapScore(cleanB, item.title);
@@ -148,8 +157,8 @@ const pickBestMatch = (
       const invertedScore = (aToTrack + bToArtist) / 2;
       const minInverted = Math.min(aToTrack, bToArtist);
 
-      const isDirect = minDirect >= 0.45 && directScore >= 0.55;
-      const isInverted = minInverted >= 0.45 && invertedScore >= 0.55;
+      const isDirect = minDirect >= 0.65 && directScore >= 0.72;
+      const isInverted = minInverted >= 0.68 && invertedScore >= 0.75;
       const score = Math.max(isDirect ? directScore : 0, isInverted ? invertedScore : 0);
 
       if (score > 0 && (!best || score > best.score)) {
@@ -157,7 +166,7 @@ const pickBestMatch = (
       }
     } else {
       const combinedScore = tokenOverlapScore(cleanA, `${item.artist} ${item.title}`);
-      if (combinedScore >= 0.6 && (!best || combinedScore > best.score)) {
+      if (combinedScore >= 0.75 && (!best || combinedScore > best.score)) {
         best = { score: combinedScore, item };
       }
     }

@@ -1,15 +1,11 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Play, Pause, Volume2, VolumeX, Volume1, Radio, Disc, RefreshCw, Maximize2, Minimize2, Tv, Sparkles, Wifi, MessageCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Play, Pause, Volume2, VolumeX, Volume1, Radio, Disc, RefreshCw, Tv, MessageCircle, Wifi } from 'lucide-react';
 import { useConfig } from '../context/ConfigContext';
+import { useRadioAudio } from '../context/RadioAudioContext';
 import { motion, AnimatePresence } from 'motion/react';
-import { resolveDirectImageUrl } from '../utils/imageUrl';
-import { io, Socket } from 'socket.io-client';
-import { parseAndResolveStreamMetadata, resolveMusicArtwork, fetchIcecastStatusFromBrowser, isRealMusicCover, DEFAULT_RADIO_COVER } from '../utils/musicMetadata';
-import { recordListenerSession, recordPeakListenerCount } from '../utils/listenerAnalytics';
 import { AudioVisualizerCanvas } from './AudioVisualizerCanvas';
+import { SongInsightsPanel } from './SongInsightsPanel';
 import { DEFAULT_VISUALIZER_PROFILE } from '../constants';
-
-const DEFAULT_COVER = DEFAULT_RADIO_COVER;
 
 interface RadioPlayerProps {
   onOpenSongRequest?: () => void;
@@ -17,252 +13,31 @@ interface RadioPlayerProps {
 
 export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) => {
   const { config } = useConfig();
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const analyzerRef = useRef<AnalyserNode | null>(null);
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-  const [analyzerNode, setAnalyzerNode] = useState<AnalyserNode | null>(null);
-  
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isBuffering, setIsBuffering] = useState(false);
-  const [isReconnecting, setIsReconnecting] = useState(false);
-  const [activeSource, setActiveSource] = useState<'direct' | 'proxy'>('direct');
-  const [volume, setVolume] = useState(0.85);
-  const [isMuted, setIsMuted] = useState(false);
-  const [prevVolume, setPrevVolume] = useState(0.85);
+  const {
+    isPlaying,
+    isBuffering,
+    isReconnecting,
+    hasError,
+    isLiveConnected,
+    isFetchingMetadata,
+    volume,
+    isMuted,
+    analyzerNode,
+    stationName,
+    defaultSlogan,
+    displayTitle,
+    displayArtist,
+    finalCover,
+    togglePlay,
+    setVolumeLevel,
+    toggleMute,
+    fetchMetadata,
+    handleImageError,
+  } = useRadioAudio();
+
   const [isVisible, setIsVisible] = useState(true);
-  const [isStickyMinimized, setIsStickyMinimized] = useState(false);
 
-  const [hasError, setHasError] = useState(false);
-  const [isLiveConnected, setIsLiveConnected] = useState(false);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const retryCountRef = useRef(0);
-
-  // Fallback values from config
-  const stationName = config.general.stationName || 'BUENÍSIMA 87.7 FM';
-  const defaultSlogan = config.appearance.radioPlayer?.slogan || config.general.defaultSlogan || 'La Radio de la Buena Vibra';
-
-  const [metadata, setMetadata] = useState<{ title: string; artist: string; cover: string }>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('last_radio_metadata');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          const isRecent = parsed?.updatedAt && Date.now() - Number(parsed.updatedAt) < 5 * 60 * 1000;
-          if (parsed && isRecent && parsed.title && parsed.title !== 'Sintonizando...' && isRealMusicCover(parsed.cover)) {
-            return {
-              title: parsed.title || stationName,
-              artist: parsed.artist || defaultSlogan,
-              cover: parsed.cover || DEFAULT_COVER
-            };
-          }
-        }
-      } catch (_) {}
-    }
-    return { title: stationName, artist: defaultSlogan, cover: DEFAULT_COVER };
-  });
-  const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
-
-  // Universal music metadata & high-resolution cover resolver
-  const applyMetadata = useCallback(async (data: { title?: string; artist?: string; cover?: string; rawTitle?: string; listeners?: number }) => {
-    if (!data) return;
-
-    if (typeof data.listeners === 'number' && data.listeners > 0) {
-      recordPeakListenerCount(data.listeners);
-    }
-
-    const { title = '', artist = '', cover = DEFAULT_COVER, rawTitle = '' } = data;
-    if (title === 'Sintonizando...' && !rawTitle) return;
-
-    const persistMeta = (nextMeta: { title: string; artist: string; cover: string }) => {
-      setMetadata(prev => {
-        if (prev.title === nextMeta.title && prev.artist === nextMeta.artist && prev.cover === nextMeta.cover) {
-          return prev;
-        }
-        try {
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('last_radio_metadata', JSON.stringify({ ...nextMeta, updatedAt: Date.now() }));
-          }
-        } catch (_) {}
-        return nextMeta;
-      });
-    };
-
-    // 1. If server/function already provided a real music cover, apply immediately
-    if (cover && isRealMusicCover(cover)) {
-      persistMeta({
-        title: title || stationName,
-        artist: artist || defaultSlogan,
-        cover
-      });
-      return;
-    }
-
-    // 2. Otherwise resolve client-side WITHOUT discarding artist/title pair
-    const isGenericArtist = !artist || artist === defaultSlogan || artist === stationName || artist === 'Buenísima 87.7 FM';
-    if (rawTitle) {
-      const resolved = await parseAndResolveStreamMetadata(rawTitle, stationName, defaultSlogan);
-      persistMeta({ title: resolved.title, artist: resolved.artist, cover: resolved.cover });
-      return;
-    }
-
-    if (title && !isGenericArtist) {
-      const resolved = await resolveMusicArtwork(artist, title);
-      if (resolved) {
-        persistMeta({ title: resolved.title, artist: resolved.artist, cover: resolved.cover });
-        return;
-      }
-      persistMeta({ title, artist, cover: DEFAULT_COVER });
-      return;
-    }
-
-    const rawToResolve = title || artist;
-    if (rawToResolve) {
-      const resolved = await parseAndResolveStreamMetadata(rawToResolve, stationName, defaultSlogan);
-      persistMeta({ title: resolved.title, artist: resolved.artist, cover: resolved.cover });
-    }
-  }, [stationName, defaultSlogan]);
-
-  // Fetch metadata via API (/api/metadata on Node or Netlify Function) + Browser Fallback
-  const fetchMetadata = useCallback(async (force = false) => {
-    setIsFetchingMetadata(true);
-    const streamUrl = config.general.streamUrl || 'https://redradioypc.com:8010/live';
-
-    // 1. Try internal API / Netlify Function first (verify JSON response, ignore HTML SPA rewrites)
-    try {
-      const response = await fetch(`/api/metadata?url=${encodeURIComponent(streamUrl)}&_t=${Date.now()}${force ? '&refresh=true' : ''}`, {
-        headers: { Accept: 'application/json' }
-      });
-      const contentType = response.headers.get('content-type') || '';
-      if (response.ok && contentType.includes('application/json')) {
-        const data = await response.json();
-        const isGeneric = !data?.title || data.title === 'Sintonizando...' || (data.title === 'BUENÍSIMA 87.7 FM' && !isRealMusicCover(data.cover));
-        if (data && !isGeneric) {
-          await applyMetadata(data);
-          setIsFetchingMetadata(false);
-          return;
-        }
-      }
-    } catch (_) {
-      // Static deploy without Node/Netlify function falls through to browser fallback
-    }
-
-    // 2. Direct Browser-side Multi-Proxy Fallback for static deployments
-    try {
-      const liveStatus = await fetchIcecastStatusFromBrowser(streamUrl);
-      if (liveStatus?.rawTitle) {
-        await applyMetadata({
-          rawTitle: liveStatus.rawTitle,
-          title: liveStatus.rawTitle,
-          listeners: liveStatus.listeners
-        });
-      }
-    } catch (err) {
-      console.warn('[Player] Direct metadata fallback failed:', err);
-    } finally {
-      setIsFetchingMetadata(false);
-    }
-  }, [config.general.streamUrl, applyMetadata]);
-
-  // 1. WebSocket Real-Time Connection via Socket.IO
-  useEffect(() => {
-    let socket: Socket | null = null;
-    try {
-      socket = io({
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionDelay: 2000,
-        reconnectionAttempts: Infinity
-      });
-
-      socket.on('connect', () => {
-        setIsLiveConnected(true);
-        socket?.emit('get-radio-metadata');
-      });
-
-      socket.on('disconnect', () => {
-        setIsLiveConnected(false);
-      });
-
-      socket.on('radio-metadata', (data: any) => {
-        setIsLiveConnected(true);
-        applyMetadata(data);
-      });
-    } catch (err) {
-      console.warn("WebSocket initialization warning:", err);
-    }
-
-    return () => {
-      if (socket) {
-        socket.disconnect();
-      }
-    };
-  }, [applyMetadata]);
-
-  // 2. Server-Sent Events (SSE) Real-Time stream fallback
-  useEffect(() => {
-    if (typeof EventSource === 'undefined') return;
-    let es: EventSource | null = null;
-    try {
-      es = new EventSource('/api/metadata/stream');
-      es.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          applyMetadata(data);
-          setIsLiveConnected(true);
-        } catch (_) {}
-      };
-      es.onerror = () => {
-        // SSE will attempt auto-reconnect
-      };
-    } catch (_) {}
-
-    return () => {
-      if (es) es.close();
-    };
-  }, [applyMetadata]);
-
-  // 3. Regular Polling Interval (every 15 seconds) to guarantee no stagnation + record listener visit
-  useEffect(() => {
-    recordListenerSession('visit');
-    fetchMetadata(true);
-    const interval = setInterval(() => fetchMetadata(false), 15000);
-
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        fetchMetadata();
-      }
-    };
-
-    const handleFocus = () => {
-      fetchMetadata();
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
-
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [fetchMetadata]);
-
-  // Consolidated values from config
-  const showAutoMetadata = config.appearance.radioPlayer?.enableAutoMetadata !== false;
-  const displayTitle = showAutoMetadata ? (metadata.title || stationName) : stationName;
-  const displayArtist = showAutoMetadata ? (metadata.artist || defaultSlogan) : defaultSlogan;
-
-  // Selected player style and custom covers
   const playerStyle = config.appearance.radioPlayer?.playerStyle || 'modern';
-  const displayCover = resolveDirectImageUrl(config.appearance.radioPlayer?.customCoverUrl) || DEFAULT_COVER;
-  
-  // Use metadata cover ONLY if it's a real music cover from iTunes, otherwise use station default
-  const isMusicCover = !!(metadata.cover && metadata.cover.startsWith('http') && 
-                        !metadata.cover.includes('Logo-Buenisima-esfera') && 
-                        !metadata.cover.includes('i.ibb.co'));
-  const finalCover = isMusicCover ? metadata.cover : displayCover;
-
   const videoUrl = config.appearance.radioPlayer?.videoUrl || '';
   const isVideoMode = config.appearance.radioPlayer?.videoMode && videoUrl;
   const videoLayout = config.appearance.radioPlayer?.videoLayout || 'compact';
@@ -270,254 +45,19 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
   const getYouTubeId = (url: string) => {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
     const match = url.match(regExp);
-    return (match && match[2].length === 11) ? match[2] : null;
+    return match && match[2].length === 11 ? match[2] : null;
   };
-  
+
   const youtubeId = videoUrl ? getYouTubeId(videoUrl) : null;
   const embedUrl = youtubeId ? `https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1` : videoUrl;
 
-  useEffect(() => {
-    if (audioRef.current) {
-        audioRef.current.volume = isMuted ? 0 : volume;
-    }
-  }, [volume, isMuted]);
-
-  // Stream URLs helper (direct stream + server-side proxy fallback)
-  const getStreamUrls = useCallback(() => {
-    const rawDirect = config.general.streamUrl || 'https://redradioypc.com:8010/live';
-    
-    // Check for mixed content issues
-    const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
-    const isHttpStream = rawDirect.startsWith('http:');
-    const hasNonStandardPort = /:\d+/.test(rawDirect) && !rawDirect.includes(':443') && !rawDirect.includes(':80');
-    
-    // Automatically prefer proxy if we anticipate mixed content or SSL issues (non-standard ports)
-    const shouldPreferProxy = (isHttpsPage && isHttpStream) || hasNonStandardPort;
-
-    let directUrl = rawDirect;
-    if (/^https?:\/\/[^/]+\/?$/.test(directUrl) && !directUrl.includes('?')) {
-      directUrl = `${directUrl}${directUrl.endsWith('/') ? '' : '/'};`;
-    }
-    const directWithCb = `${directUrl}${directUrl.includes('?') ? '&' : '?'}cb=${Date.now()}`;
-    const proxyUrl = `/api/stream?url=${encodeURIComponent(rawDirect)}&cb=${Date.now()}`;
-    
-    return { directUrl: directWithCb, proxyUrl, rawDirect, shouldPreferProxy };
-  }, [config.general.streamUrl]);
-
-  // Initialize Web Audio AnalyserNode when playback begins (CORS proxy allows live FFT)
-  useEffect(() => {
-    if (!isPlaying || isBuffering || config.appearance.radioPlayer?.showAnalyzer === false) return;
-
-    if (!audioCtxRef.current && audioRef.current) {
-      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-      if (Ctx) {
-        try {
-          audioCtxRef.current = new Ctx();
-          analyzerRef.current = audioCtxRef.current.createAnalyser();
-          analyzerRef.current.fftSize = 256;
-          analyzerRef.current.smoothingTimeConstant = 0.72;
-          if (audioRef.current.crossOrigin && !sourceRef.current) {
-            sourceRef.current = audioCtxRef.current.createMediaElementSource(audioRef.current);
-            sourceRef.current.connect(analyzerRef.current);
-            analyzerRef.current.connect(audioCtxRef.current.destination);
-          }
-          setAnalyzerNode(analyzerRef.current);
-        } catch (_) {
-          // Playback continues uninterrupted
-        }
-      }
-    }
-
-    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume().catch(() => {});
-    }
-  }, [isPlaying, isBuffering, config.appearance.radioPlayer?.showAnalyzer]);
-
-  // Handle stream errors with auto-recovery and fallback switching
-  const handleStreamRecovery = useCallback((forceSource?: 'direct' | 'proxy') => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-
-    if (retryCountRef.current < 4) {
-      retryCountRef.current += 1;
-      setIsReconnecting(true);
-      setIsBuffering(true);
-      setHasError(false);
-
-      const nextSource: 'direct' | 'proxy' = forceSource || (activeSource === 'direct' ? 'proxy' : 'direct');
-      
-      reconnectTimeoutRef.current = setTimeout(() => {
-        if (!audioRef.current) return;
-        const { directUrl, proxyUrl } = getStreamUrls();
-        const targetUrl = nextSource === 'proxy' ? proxyUrl : directUrl;
-        
-        setActiveSource(nextSource);
-        if (nextSource === 'proxy') {
-          audioRef.current.crossOrigin = "anonymous";
-        } else {
-          audioRef.current.removeAttribute('crossOrigin');
-        }
-
-        audioRef.current.src = targetUrl;
-        audioRef.current.load();
-        audioRef.current.play().then(() => {
-          setIsBuffering(false);
-          setIsReconnecting(false);
-          setHasError(false);
-          retryCountRef.current = 0;
-        }).catch((err) => {
-          if (err.name !== 'AbortError') {
-            handleStreamRecovery(nextSource === 'direct' ? 'proxy' : 'direct');
-          }
-        });
-      }, 1500);
-    } else {
-      setIsPlaying(false);
-      setIsBuffering(false);
-      setIsReconnecting(false);
-      setHasError(true);
-    }
-  }, [activeSource, getStreamUrls]);
-
-  const togglePlay = async () => {
-      if (!audioRef.current) return;
-      
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
-      }
-
-      if (isPlaying) {
-          audioRef.current.pause();
-          setIsPlaying(false);
-          setIsBuffering(false);
-          setIsReconnecting(false);
-          setHasError(false);
-          retryCountRef.current = 0;
-          audioRef.current.removeAttribute('src');
-          audioRef.current.load();
-      } else {
-          setHasError(false);
-          setIsPlaying(true);
-          setIsBuffering(true);
-          retryCountRef.current = 0;
-
-          const { directUrl, proxyUrl, shouldPreferProxy } = getStreamUrls();
-          
-          // Use proxy if preferred or if already selected
-          const useSource = activeSource || (shouldPreferProxy ? 'proxy' : 'direct');
-          const finalUrl = useSource === 'proxy' ? proxyUrl : directUrl;
-          
-          console.log(`[Player] Attempting playback with source: ${useSource}`);
-          
-          if (useSource === 'proxy') {
-            audioRef.current.crossOrigin = "anonymous";
-          } else {
-            audioRef.current.removeAttribute('crossOrigin');
-          }
-
-          audioRef.current.src = finalUrl;
-          try {
-              await audioRef.current.play();
-              setIsBuffering(false);
-              setIsReconnecting(false);
-              setHasError(false);
-              retryCountRef.current = 0;
-              recordListenerSession('play');
-              fetchMetadata(true);
-          } catch (e: any) {
-              if (e.name !== 'AbortError') {
-                  console.warn(`[Player] ${useSource} playback failed:`, e.message);
-                  // If direct failed, try proxy. If proxy failed, try direct (though proxy is usually more reliable)
-                  handleStreamRecovery(useSource === 'direct' ? 'proxy' : 'direct');
-              }
-          }
-      }
-  };
-
-  // Cleanup pending reconnect timers
-  useEffect(() => {
-    return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-    };
-  }, []);
-
   const getVolumeIcon = () => {
-      if (isMuted || volume === 0) return <VolumeX size={18} />;
-      if (volume < 0.4) return <Volume1 size={18} />;
-      return <Volume2 size={18} />;
+    if (isMuted || volume === 0) return <VolumeX size={18} />;
+    if (volume < 0.4) return <Volume1 size={18} />;
+    return <Volume2 size={18} />;
   };
 
-  const toggleMute = () => {
-      if (isMuted) {
-          setIsMuted(false);
-          setVolume(prevVolume > 0 ? prevVolume : 0.85);
-      } else {
-          setPrevVolume(volume);
-          setIsMuted(true);
-          setVolume(0);
-      }
-  };
-
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    const target = e.currentTarget;
-    const fallback = displayCover || DEFAULT_COVER;
-    if (target.src !== fallback && fallback) {
-      target.src = fallback;
-    } else if (target.src !== DEFAULT_COVER) {
-      target.src = DEFAULT_COVER;
-    }
-  };
-
-  // Audio element event handlers
-  const handleAudioPlaying = () => {
-    setIsBuffering(false);
-    setIsReconnecting(false);
-    setHasError(false);
-    retryCountRef.current = 0;
-  };
-
-  const handleAudioWaiting = () => {
-    if (isPlaying) {
-      setIsBuffering(true);
-    }
-  };
-
-  const handleAudioStalled = () => {
-    if (isPlaying && !isReconnecting) {
-      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = setTimeout(() => {
-        if (isPlaying) {
-          handleStreamRecovery();
-        }
-      }, 4500);
-    }
-  };
-
-  // -------------------------------------------------------------
-  // RENDER PLAYER BASED ON SELECTED STYLE
-  // -------------------------------------------------------------
-
-  // Resilient Audio Element (active in background with intelligent event recovery)
-  const audioElement = (
-    <audio 
-      ref={audioRef} 
-      onPlaying={handleAudioPlaying}
-      onWaiting={handleAudioWaiting}
-      onStalled={handleAudioStalled}
-      onEnded={() => {
-        if (isPlaying) handleStreamRecovery();
-      }} 
-      onError={() => {
-        if (isPlaying) handleStreamRecovery();
-      }} 
-      preload="none" 
-    />
-  );
+  const audioElement: React.ReactNode = null;
 
   // STYLE 1: RETRO VINYL / NEON
   if (playerStyle === 'retro') {
@@ -588,11 +128,7 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
               </button>
               <input
                 type="range" min="0" max="1" step="0.01" value={volume}
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value);
-                  setVolume(val);
-                  setIsMuted(val === 0);
-                }}
+                onChange={(e) => setVolumeLevel(parseFloat(e.target.value))}
                 className="w-full h-1 bg-white/20 rounded-full accent-yellow-400 cursor-pointer"
               />
             </div>
@@ -672,11 +208,7 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
               </button>
               <input
                 type="range" min="0" max="1" step="0.01" value={volume}
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value);
-                  setVolume(val);
-                  setIsMuted(val === 0);
-                }}
+                onChange={(e) => setVolumeLevel(parseFloat(e.target.value))}
                 className="w-full h-1.5 bg-white/20 rounded-full accent-yellow-400 cursor-pointer"
               />
             </div>
@@ -727,11 +259,7 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
               </button>
               <input
                 type="range" min="0" max="1" step="0.01" value={volume}
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value);
-                  setVolume(val);
-                  setIsMuted(val === 0);
-                }}
+                onChange={(e) => setVolumeLevel(parseFloat(e.target.value))}
                 className="w-24 h-1 bg-white/20 rounded-full accent-yellow-400"
               />
             </div>
@@ -793,11 +321,7 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
                 </button>
                 <input
                   type="range" min="0" max="1" step="0.01" value={volume}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value);
-                    setVolume(val);
-                    setIsMuted(val === 0);
-                  }}
+                  onChange={(e) => setVolumeLevel(parseFloat(e.target.value))}
                   className="w-full h-1 bg-white/20 rounded-full accent-yellow-400"
                 />
               </div>
@@ -830,7 +354,13 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
           <div className={`relative z-20 flex flex-col ${videoLayout === 'full' ? 'lg:flex-row' : 'lg:flex-row'} items-center justify-between gap-4 sm:gap-5 px-4 py-4 sm:px-6 sm:py-5 w-full mx-auto`}>
               
               {/* ZONE 1: Cover & Station Info */}
-              <div className="flex items-center gap-4 sm:gap-5 flex-1 min-w-0 w-full lg:w-auto">
+              <div className={`flex items-center gap-4 sm:gap-5 min-w-0 w-full ${
+                config.appearance.radioPlayer?.showSongInsights !== false &&
+                config.appearance.radioPlayer?.songInsightsConfig?.enabled !== false &&
+                !isVideoMode
+                  ? 'lg:w-[300px] xl:w-[340px] 2xl:w-[380px] flex-shrink-0'
+                  : 'flex-1 lg:w-auto'
+              }`}>
                   {/* Integrated Video (Compact Mode) */}
                   {isVideoMode && videoLayout === 'compact' && (
                       <div 
@@ -936,7 +466,21 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
                   </div>
               )}
 
-              {/* ZONE 2: Organized Playback, Volume & Quick Actions */}
+              {/* ZONE 2: Song & Artist Info / History / Positive Buenísima Messages / Sponsors */}
+              {config.appearance.radioPlayer?.showSongInsights !== false &&
+                config.appearance.radioPlayer?.songInsightsConfig?.enabled !== false &&
+                !isVideoMode && (
+                <SongInsightsPanel
+                  title={displayTitle}
+                  artist={displayArtist}
+                  stationName={stationName}
+                  defaultSlogan={defaultSlogan}
+                  isPlaying={isPlaying}
+                  insightsConfig={config.appearance.radioPlayer?.songInsightsConfig}
+                />
+              )}
+
+              {/* ZONE 3: Organized Playback, Volume & Quick Actions */}
               <div className="flex flex-col items-center lg:items-end gap-2.5 w-full lg:w-auto flex-shrink-0">
                   <div className="flex items-center gap-3 w-full sm:w-auto justify-center lg:justify-end">
                       <motion.button
@@ -956,12 +500,7 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
                               type="range"
                               min="0" max="1" step="0.01"
                               value={volume}
-                              onChange={(e) => {
-                                  const val = parseFloat(e.target.value);
-                                  setVolume(val);
-                                  if (val > 0) setIsMuted(false);
-                                  else setIsMuted(true);
-                              }}
+                              onChange={(e) => setVolumeLevel(parseFloat(e.target.value))}
                               className="w-full h-1.5 bg-white/20 rounded-full appearance-none cursor-pointer accent-secondary"
                           />
                       </div>

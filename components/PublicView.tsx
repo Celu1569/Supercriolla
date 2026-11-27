@@ -6,14 +6,18 @@ import { ClientGallery } from './ClientGallery';
 import { SocialEmbed } from './SocialEmbed';
 import { SocialCarousel } from './SocialCarousel';
 import { WidgetEmbed } from './WidgetEmbed';
-import { Menu, X, Facebook, Instagram, Youtube, Phone, Mail, MapPin, Radio, ChevronLeft, ChevronRight, Sun, Moon, PlayCircle, Video, Heart, CreditCard, Tv, Play, MessageSquare, Users, Mic2, Newspaper, Calendar, User, ArrowRight, ChevronDown, MessageCircle } from 'lucide-react';
+import { Menu, X, Facebook, Instagram, Youtube, Phone, Mail, MapPin, Radio, ChevronLeft, ChevronRight, Sun, Moon, PlayCircle, Video, Heart, CreditCard, Tv, Play, MessageSquare, Users, Mic2, Newspaper, Calendar, User, ArrowRight, ChevronDown, MessageCircle, Smartphone } from 'lucide-react';
 import { TikTok } from './TikTokIcon';
 import { ProgramCarousel } from './ProgramCarousel';
 import { SongRequestForm } from './SongRequestForm';
 import { AdvertisingSidebar } from './AdvertisingSidebar';
-import { BackgroundEffects } from './BackgroundEffects';
-import { LivePushManager } from './LivePushManager';
 import { NewsItem, ProgramItem } from '../types';
+
+interface PublicViewProps {
+  onEnableAppMode?: () => void;
+  showAppModeToggle?: boolean;
+  navigationSignal?: { sectionId: string; nonce: number } | null;
+}
 
 interface NavLinkProps {
   children: React.ReactNode;
@@ -150,7 +154,11 @@ const VideoPlayer: React.FC<{ url: string; title: string }> = ({ url, title }) =
     );
 };
 
-const PublicView: React.FC = () => {
+const PublicView: React.FC<PublicViewProps> = ({
+  onEnableAppMode,
+  showAppModeToggle = true,
+  navigationSignal,
+}) => {
   const { config, updateConfig } = useConfig();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -348,6 +356,12 @@ const PublicView: React.FC = () => {
     setMobileMenuOpen(false);
   };
 
+  useEffect(() => {
+    if (navigationSignal?.sectionId) {
+      toggleSection(navigationSignal.sectionId as any);
+    }
+  }, [navigationSignal]);
+
   const handleEpisodeClick = (ep: any) => {
       setSelectedEpisode(ep);
       setPlayerMode('episode'); // Auto switch to episode mode
@@ -484,7 +498,6 @@ const PublicView: React.FC = () => {
 
   return (
     <div className={`min-h-screen font-sans ${hasCustomBackground ? 'bg-transparent' : 'bg-surface'} text-on-surface pb-20 transition-colors duration-300 relative`}>
-      <BackgroundEffects config={config.appearance.seasonal} />
       {/* Navigation */}
       <nav className="fixed top-0 w-full z-40 shadow-lg border-b border-white/10 transition-all duration-300" style={navStyle}>
         <div className="container mx-auto px-4 py-4 flex items-center justify-between min-h-[80px]">
@@ -509,6 +522,18 @@ const PublicView: React.FC = () => {
           <div className="hidden md:flex items-center space-x-6">
             {renderNavItems()}
             
+            {showAppModeToggle && onEnableAppMode && (
+              <button
+                type="button"
+                onClick={onEnableAppMode}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary text-primary hover:brightness-105 text-xs font-bold transition-all shadow-sm active:scale-95 whitespace-nowrap"
+                title="Transformar a Versión App Real"
+              >
+                <Smartphone size={14} />
+                <span>Modo App</span>
+              </button>
+            )}
+
             <a
                 href="#/pantalla"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/15 hover:bg-secondary/30 text-secondary border border-secondary/30 text-xs font-bold transition-all shadow-sm active:scale-95"
@@ -528,7 +553,18 @@ const PublicView: React.FC = () => {
             </button>
           </div>
 
-          <div className="flex items-center space-x-3 md:hidden flex-shrink-0">
+          <div className="flex items-center space-x-2 md:hidden flex-shrink-0">
+            {showAppModeToggle && onEnableAppMode && (
+              <button
+                type="button"
+                onClick={onEnableAppMode}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary text-primary text-[11px] font-bold shadow-sm active:scale-95 whitespace-nowrap"
+                title="Transformar a Versión App Real"
+              >
+                <Smartphone size={13} />
+                <span>App</span>
+              </button>
+            )}
             <a
                 href="#/pantalla"
                 className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary/15 text-secondary border border-secondary/30 text-[11px] font-bold"
@@ -1581,7 +1617,6 @@ const PublicView: React.FC = () => {
           </div>
       )}
 
-      <LivePushManager onNavigateSection={(sectionId) => toggleSection(sectionId as any)} />
     </div>
   );
 };

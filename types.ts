@@ -366,10 +366,57 @@ export interface VisualizerProfile {
   showPeakLine?: boolean;
 }
 
+export interface SongInsightsSource {
+  title: string;
+  uri: string;
+}
+
+export interface SongInsightsData {
+  found: boolean;
+  title: string;
+  artist: string;
+  year?: string;
+  genre?: string;
+  artistInfo?: string;
+  songStory?: string;
+  anecdote?: string;
+  sources?: SongInsightsSource[];
+  reason?: string;
+}
+
+export interface PlayerSponsorMention {
+  id: string;
+  businessName: string;
+  message: string;
+  ctaLabel?: string;
+  ctaUrl?: string;
+  badgeText?: string;
+  active: boolean;
+}
+
+export interface SongInsightsConfig {
+  enabled: boolean;
+  panelTitle?: string;
+  dataSourceMode?: 'free' | 'gemini';
+  allowListenerToggle?: boolean;
+  showArtistInfo?: boolean;
+  showSongStory?: boolean;
+  showAnecdotes?: boolean;
+  showSources?: boolean;
+  autoRotateTabs?: boolean;
+  rotationSeconds?: number;
+  positiveMessages?: string[];
+  enableSponsorMentions?: boolean;
+  sponsorFrequency?: 'fallback_only' | 'interleave' | 'sponsors_only';
+  sponsorMentions?: PlayerSponsorMention[];
+}
+
 export interface RadioPlayerConfig {
   showAnalyzer: boolean;
   showMetadata: boolean;
   showCover: boolean;
+  showSongInsights?: boolean;
+  songInsightsConfig?: SongInsightsConfig;
   videoMode: boolean;
   videoUrl: string;
   videoWidth?: number;
@@ -448,6 +495,8 @@ export interface SiteConfig {
     textColor: string;
     headingFont: FontFamily;
     bodyFont: FontFamily;
+    defaultViewMode?: 'web' | 'app';
+    showViewModeToggle?: boolean;
     radioPlayer?: RadioPlayerConfig; // New: Advanced styling for Radio Player
     seasonal?: SeasonalBackgroundConfig; // Seasonal themes, backgrounds & visual effects
   };
