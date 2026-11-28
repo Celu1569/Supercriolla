@@ -363,6 +363,16 @@ const sanitizeBrandConfig = (cfg: SiteConfig): SiteConfig => {
     if (!c.advertising.title) c.advertising.title = "Publicidad & Aliados";
     if (!Array.isArray(c.advertising.banners)) {
       c.advertising.banners = DEFAULT_CONFIG.advertising?.banners ? [...DEFAULT_CONFIG.advertising.banners] : [];
+    } else {
+      c.advertising.banners = c.advertising.banners.map((b) => ({
+        ...b,
+        displayMode: b.displayMode === 'slider' ? 'slider' : 'single',
+        slides: Array.isArray(b.slides) ? b.slides : [],
+        sliderIntervalSeconds:
+          typeof b.sliderIntervalSeconds === 'number' && b.sliderIntervalSeconds >= 1
+            ? b.sliderIntervalSeconds
+            : 4,
+      }));
     }
   }
 

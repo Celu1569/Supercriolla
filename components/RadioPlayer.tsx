@@ -132,6 +132,17 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
                 className="w-full h-1 bg-white/20 rounded-full accent-yellow-400 cursor-pointer"
               />
             </div>
+
+            {onOpenSongRequest && (
+              <button
+                onClick={onOpenSongRequest}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/35 text-xs font-bold transition-all active:scale-95 whitespace-nowrap"
+                title="Pedir canción directo a WhatsApp"
+              >
+                <MessageCircle size={14} className="text-emerald-400" />
+                <span>Pedir Canción</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -212,6 +223,17 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
                 className="w-full h-1.5 bg-white/20 rounded-full accent-yellow-400 cursor-pointer"
               />
             </div>
+
+            {onOpenSongRequest && (
+              <button
+                onClick={onOpenSongRequest}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/35 text-xs font-bold transition-all active:scale-95 whitespace-nowrap"
+                title="Pedir canción directo a WhatsApp"
+              >
+                <MessageCircle size={14} className="text-emerald-400" />
+                <span>Pedir Canción</span>
+              </button>
+            )}
           </div>
         </motion.div>
       </div>
@@ -250,6 +272,16 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
           </div>
 
           <div className="flex items-center gap-3">
+            {onOpenSongRequest && (
+              <button
+                onClick={onOpenSongRequest}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/35 text-[11px] font-bold transition-all active:scale-95 whitespace-nowrap"
+                title="Pedir canción directo a WhatsApp"
+              >
+                <MessageCircle size={13} className="text-emerald-400" />
+                <span className="hidden sm:inline">Pedir Canción</span>
+              </button>
+            )}
             <button onClick={() => fetchMetadata(true)} className="text-gray-500 hover:text-white p-1">
               <RefreshCw size={14} className={isFetchingMetadata ? 'animate-spin text-yellow-400' : ''} />
             </button>
@@ -329,6 +361,16 @@ export const RadioPlayer: React.FC<RadioPlayerProps> = ({ onOpenSongRequest }) =
               <button onClick={() => fetchMetadata(true)} className="text-gray-400 hover:text-white p-2">
                 <RefreshCw size={16} className={isFetchingMetadata ? 'animate-spin text-yellow-400' : ''} />
               </button>
+              {onOpenSongRequest && (
+                <button
+                  onClick={onOpenSongRequest}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/35 text-[11px] font-bold transition-all active:scale-95 whitespace-nowrap"
+                  title="Pedir canción directo a WhatsApp"
+                >
+                  <MessageCircle size={13} className="text-emerald-400" />
+                  <span className="hidden sm:inline">Pedir Canción</span>
+                </button>
+              )}
             </div>
           </div>
         </motion.div>

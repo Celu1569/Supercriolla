@@ -36,6 +36,7 @@ import { useRadioAudio } from '../context/RadioAudioContext';
 import { AudioVisualizerCanvas } from './AudioVisualizerCanvas';
 import { SongInsightsPanel } from './SongInsightsPanel';
 import { SongRequestForm } from './SongRequestForm';
+import { AdvertisingSidebar } from './AdvertisingSidebar';
 import { ClientGallery } from './ClientGallery';
 import { SocialCarousel } from './SocialCarousel';
 import { SocialEmbed } from './SocialEmbed';
@@ -498,13 +499,11 @@ export const RadioAppShell: React.FC<RadioAppShellProps> = ({
           {/* TAB 1: HOME (LIVE RADIO STUDIO + DISCOVERY) */}
           {activeTab === 'home' && (
             <div className="space-y-8 animate-fade-in">
-              {/* Main Studio Row: Live Player + Quick Request */}
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 lg:gap-6 items-stretch">
+              {/* Main Studio Player */}
+              <div>
                 {/* Main Now Playing Studio Card */}
                 <section
-                  className={`${
-                    config.songRequest?.enabled !== false ? 'xl:col-span-8' : 'xl:col-span-12'
-                  } rounded-3xl overflow-hidden flex flex-col justify-between shadow-2xl ${
+                  className={`w-full rounded-3xl overflow-hidden flex flex-col justify-between shadow-2xl ${
                     isDark
                       ? 'bg-gradient-to-br from-[#11192e] via-[#0c1222] to-[#080c17] border border-white/10 text-white'
                       : 'bg-gradient-to-br from-[#0f172a] via-[#131c31] to-[#0a0f1d] border border-slate-800 text-white'
@@ -645,23 +644,30 @@ export const RadioAppShell: React.FC<RadioAppShellProps> = ({
                     </div>
                   )}
                 </section>
-
-                {/* Side Card: Compact WhatsApp Request */}
-                {config.songRequest?.enabled !== false && (
-                  <aside className="xl:col-span-4 flex flex-col justify-stretch">
-                    <div className="h-full flex flex-col justify-center">
-                      <SongRequestForm
-                        whatsappNumber={config.songRequest?.whatsappNumber || '0424 1555789'}
-                        songRequestConfig={config.songRequest}
-                        compact={true}
-                      />
-                    </div>
-                  </aside>
-                )}
               </div>
 
-              {/* Quick Programs Strip */}
-              {weekPrograms.length > 0 && (
+              {/* Content + Advertising Sidebar Split (Matches Admin Left/Right Setting) */}
+              <div
+                className={`flex flex-col ${
+                  config.advertising?.enabled !== false
+                    ? (config.advertising?.position || 'left') === 'left'
+                      ? 'lg:flex-row'
+                      : 'lg:flex-row-reverse'
+                    : ''
+                } gap-6 lg:gap-8 items-start`}
+              >
+                {config.advertising?.enabled !== false && (
+                  <aside className="w-full lg:w-72 xl:w-80 flex-shrink-0 lg:sticky lg:top-20 self-start">
+                    <AdvertisingSidebar
+                      advertising={config.advertising}
+                      whatsappContact={config.songRequest?.whatsappNumber || '0424 1555789'}
+                    />
+                  </aside>
+                )}
+
+                <div className="flex-1 min-w-0 w-full space-y-8">
+                  {/* Quick Programs Strip */}
+                  {weekPrograms.length > 0 && (
                 <section className="space-y-4">
                   <div className="flex items-center justify-between gap-4">
                     <div>
@@ -864,6 +870,8 @@ export const RadioAppShell: React.FC<RadioAppShellProps> = ({
                   />
                 </section>
               )}
+                </div>
+              </div>
             </div>
           )}
 

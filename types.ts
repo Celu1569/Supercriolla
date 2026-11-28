@@ -288,6 +288,13 @@ export interface AutoDJTrack {
   title: string;
 }
 
+export interface AdBannerSlide {
+  id: string;
+  imageUrl: string;
+  linkUrl?: string;
+  caption?: string;
+}
+
 export interface AdBannerItem {
   id: string;
   title: string;
@@ -295,6 +302,9 @@ export interface AdBannerItem {
   linkUrl?: string;
   format: 'vertical' | 'square'; // 'vertical' (e.g. 160x600, 300x600) or 'square' (e.g. 300x250, 300x300)
   active: boolean;
+  displayMode?: 'single' | 'slider'; // 'single' = imagen/GIF único, 'slider' = varias imágenes/GIFs rotando
+  slides?: AdBannerSlide[];
+  sliderIntervalSeconds?: number;
 }
 
 export interface AdvertisingConfig {

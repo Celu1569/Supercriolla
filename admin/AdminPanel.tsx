@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useConfig } from '../context/ConfigContext';
-import { SiteConfig, HeroSlide, PodcastEpisode, GalleryItem, NavItemConfig, FontFamily, Client, AutoDJTrack, AdBannerItem, SeasonalBackgroundConfig, SeasonThemeId, VisualEffectId, BackgroundStyleType, LivePushNotification, PushCategory } from '../types';
+import { SiteConfig, HeroSlide, PodcastEpisode, GalleryItem, NavItemConfig, FontFamily, Client, AutoDJTrack, AdBannerItem, AdBannerSlide, SeasonalBackgroundConfig, SeasonThemeId, VisualEffectId, BackgroundStyleType, LivePushNotification, PushCategory } from '../types';
 import { Save, LogOut, Layout, Radio, Image as ImageIcon, Plus, Trash2, Youtube, Video, RectangleHorizontal, RectangleVertical, Home, Mic2, Grid, Link as LinkIcon, Upload, Monitor, Compass, Eye, EyeOff, FolderOpen, AlignLeft, AlignCenter, AlignRight, AlertTriangle, Loader2, FileImage, Download, RefreshCw, Database, Type, MessageSquare, Mic, Paperclip, Users, Phone, Calendar, Cloud, Globe, MapPin, MessageCircle, Facebook, Instagram, Newspaper, ChevronUp, ChevronDown, PlayCircle, Lock, Volume2, ListOrdered, Sparkles, Play, CheckCircle2, ExternalLink, Rss, FileText, X, Disc, ShieldCheck, Tv, Copy, Palette, Bell, BellRing, Send, Gift, Megaphone, Clock, BarChart3, Activity, BookOpen, Smartphone } from 'lucide-react';
 import { SEASON_PRESETS, VISUAL_EFFECT_OPTIONS } from '../utils/seasonalPresets';
 import { BackgroundEffects } from '../components/BackgroundEffects';
 import { ListenerTrendsDashboard } from '../components/ListenerTrendsDashboard';
 import { VisualizerManagerPanel } from '../components/VisualizerManagerPanel';
 import { SongInsightsManagerPanel } from '../components/SongInsightsManagerPanel';
+import { resolveDirectImageUrl } from '../utils/imageUrl';
 
 // --- CONSTANTS ---
 const FONT_OPTIONS: { value: FontFamily; label: string }[] = [
@@ -47,7 +48,6 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { storage, db } from '../firebase';
 import { v4 as uuidv4 } from 'uuid';
-import { resolveDirectImageUrl } from '../utils/imageUrl';
 
 // --- IMAGE COMPRESSION UTILITY ---
 const compressImage = (file: File, maxWidth = 800, quality = 0.6): Promise<Blob> => {
@@ -109,10 +109,11 @@ const blobToDataUrl = (blob: Blob | File): Promise<string> => {
 const uploadFileToStorage = async (file: File, path: string): Promise<string> => {
   try {
     let finalFile: Blob | File = file;
-    let contentType = file.type;
+    const isGif = file.type === 'image/gif' || /\.gif$/i.test(file.name);
+    let contentType = isGif ? 'image/gif' : file.type;
 
-    // Compress images to keep file sizes lightweight (~20-80KB)
-    if (file.type.startsWith('image/') && file.type !== 'image/gif') {
+    // Compress static images to keep file sizes lightweight; NEVER compress GIFs so animations remain intact
+    if (!isGif && (file.type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(file.name))) {
         try {
             finalFile = await compressImage(file, 1200, 0.75);
         } catch (compErr) {
@@ -128,7 +129,7 @@ const uploadFileToStorage = async (file: File, path: string): Promise<string> =>
     // If Firebase Storage is available, attempt cloud upload
     if (storage) {
         try {
-            const ext = file.name.split('.').pop() || 'jpg';
+            const ext = isGif ? 'gif' : (file.name.split('.').pop() || 'jpg');
             const fileName = `${uuidv4()}.${ext}`;
             const storageRef = ref(storage, `${path}/${fileName}`);
             
@@ -388,16 +389,24 @@ const MediaUploader: React.FC<MediaUploaderProps> = ({ label, value, onChange, t
             )}
             {activeMethod === 'upload' && (
                 <div className={`border-2 border-dashed border-primary/20 bg-primary/10 rounded-lg p-6 text-center relative cursor-pointer ${isProcessing ? 'opacity-50' : ''}`}>
-                    <input type="file" accept={type === 'audio' ? 'audio/*' : 'image/*'} onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" disabled={isProcessing} />
-                    <div className="pointer-events-none">
+                    <input type="file" accept={type === 'audio' ? 'audio/*' : 'image/*,.gif'} onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" disabled={isProcessing} />
+                    <div className="pointer-events-none space-y-1">
                         {isProcessing ? <Loader2 size={28} className="animate-spin text-primary mx-auto" /> : <Upload size={28} className="mx-auto text-primary/50" />}
+                        {type === 'image' && (
+                          <p className="text-[11px] text-gray-400">JPG, PNG, WEBP o GIF animado</p>
+                        )}
                     </div>
                 </div>
             )}
         </div>
         {value && type === 'image' && (
-             <div className="h-32 w-full bg-gray-900 border-t border-gray-700 flex items-center justify-center overflow-hidden">
-                <img src={value} className="h-full object-contain" />
+             <div className="h-32 w-full bg-gray-900 border-t border-gray-700 flex items-center justify-center overflow-hidden relative">
+                <img src={resolveDirectImageUrl(value)} className="h-full object-contain" referrerPolicy="no-referrer" />
+                {(/\.gif(\?|#|$)/i.test(value) || value.startsWith('data:image/gif')) && (
+                  <span className="absolute top-1.5 right-1.5 px-2 py-0.5 rounded bg-emerald-600/90 text-white text-[10px] font-black uppercase tracking-wider shadow">
+                    GIF Animado
+                  </span>
+                )}
              </div>
         )}
         {value && type === 'audio' && (
@@ -673,7 +682,7 @@ const CompactHeroSlide: React.FC<CompactHeroSlideProps> = ({ slide, index, total
                          <label className={`cursor-pointer bg-gray-700 hover:bg-gray-600 text-gray-300 px-3 py-1.5 rounded border border-gray-600 flex items-center gap-2 text-xs font-bold transition-colors ${isUploading ? 'opacity-50 pointer-events-none' : ''}`} title="Subir desde mi PC">
                              {isUploading ? <Loader2 size={14} className="animate-spin" /> : <Monitor size={14}/>}
                              <span>{isUploading ? 'SUBIENDO...' : 'SUBIR'}</span>
-                             <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" disabled={isUploading} />
+                             <input type="file" accept="image/*,.gif" onChange={handleFileUpload} className="hidden" disabled={isUploading} />
                          </label>
                      </div>
                  </div>
@@ -4126,7 +4135,7 @@ export const AdminPanel: React.FC = () => {
               <div className="space-y-8 animate-fade-in">
                 <SectionHeader 
                   title="Panel de Publicidad Lateral" 
-                  subtitle="Configura banners publicitarios (verticales o cuadrados), elige si se muestran del lado izquierdo o derecho, y activa o desactiva el panel." 
+                  subtitle="Configura banners publicitarios (verticales o cuadrados), en imagen única, GIF animado o Slider con varias imágenes rotando en un solo espacio." 
                   action={
                     <button 
                       onClick={() => {
@@ -4136,7 +4145,10 @@ export const AdminPanel: React.FC = () => {
                           imageUrl: "https://images.unsplash.com/photo-1557804506-669a67965ba0?q=80&w=800&auto=format&fit=crop",
                           linkUrl: "https://wa.me/584241555789",
                           format: "vertical",
-                          active: true
+                          active: true,
+                          displayMode: "single",
+                          slides: [],
+                          sliderIntervalSeconds: 4,
                         };
                         setFormData(prev => ({
                           ...prev,
@@ -4263,7 +4275,10 @@ export const AdminPanel: React.FC = () => {
                             imageUrl: "https://images.unsplash.com/photo-1557804506-669a67965ba0?q=80&w=800&auto=format&fit=crop",
                             linkUrl: "https://wa.me/584241555789",
                             format: "vertical",
-                            active: true
+                            active: true,
+                            displayMode: "single",
+                            slides: [],
+                            sliderIntervalSeconds: 4,
                           };
                           setFormData(prev => ({
                             ...prev,
@@ -4280,15 +4295,62 @@ export const AdminPanel: React.FC = () => {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                      {formData.advertising.banners.map((banner, bIdx) => (
+                      {formData.advertising.banners.map((banner, bIdx) => {
+                        const isSliderMode = banner.displayMode === 'slider';
+                        const slidesList: AdBannerSlide[] = banner.slides || [];
+
+                        const updateBanner = (patch: Partial<AdBannerItem>) => {
+                          const updated = [...(formData.advertising?.banners || [])];
+                          updated[bIdx] = { ...updated[bIdx], ...patch };
+                          setFormData(prev => ({
+                            ...prev,
+                            advertising: {
+                              ...(prev.advertising || { enabled: true, position: 'left', title: 'Publicidad', banners: [] }),
+                              banners: updated
+                            }
+                          }));
+                        };
+
+                        const handleMultiSlideUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+                          const files = e.target.files;
+                          if (!files || files.length === 0) return;
+                          const added: AdBannerSlide[] = [];
+                          for (let i = 0; i < files.length; i++) {
+                            try {
+                              const uploadedUrl = await uploadFileToStorage(files[i], 'ad_banners');
+                              added.push({
+                                id: uuidv4(),
+                                imageUrl: uploadedUrl,
+                                linkUrl: '',
+                                caption: ''
+                              });
+                            } catch (err) {
+                              console.error('Error uploading banner slide:', err);
+                            }
+                          }
+                          if (added.length > 0) {
+                            updateBanner({
+                              displayMode: 'slider',
+                              slides: [...slidesList, ...added]
+                            });
+                          }
+                          e.target.value = '';
+                        };
+
+                        return (
                         <div key={banner.id} className="p-5 bg-gray-800/90 border border-gray-700 rounded-2xl shadow-lg space-y-4 relative group">
                           {/* Top Controls */}
                           <div className="flex items-center justify-between border-b border-gray-700/60 pb-3">
-                            <span className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                            <span className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5 flex-wrap">
                               <span>Banner #{bIdx + 1}</span>
                               <span className="text-[10px] bg-gray-700 text-gray-300 px-2 py-0.5 rounded-full font-mono">
-                                {banner.format === 'vertical' ? 'Vertical (Alto)' : 'Cuadrado (1:1)'}
+                                {banner.format === 'vertical' ? 'Vertical' : 'Cuadrado'}
                               </span>
+                              {isSliderMode && (
+                                <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full font-bold">
+                                  Slider ({slidesList.length})
+                                </span>
+                              )}
                             </span>
 
                             <div className="flex items-center gap-3">
@@ -4296,11 +4358,7 @@ export const AdminPanel: React.FC = () => {
                                 <input
                                   type="checkbox"
                                   checked={banner.active !== false}
-                                  onChange={(e) => {
-                                    const updated = [...(formData.advertising?.banners || [])];
-                                    updated[bIdx] = { ...updated[bIdx], active: e.target.checked };
-                                    setFormData(prev => ({ ...prev, advertising: { ...(prev.advertising || { enabled: true, position: 'left', title: 'Publicidad' }), banners: updated } }));
-                                  }}
+                                  onChange={(e) => updateBanner({ active: e.target.checked })}
                                   className="h-4 w-4 accent-emerald-500 rounded"
                                 />
                                 <span className={banner.active !== false ? 'text-emerald-400 font-bold' : 'text-gray-500'}>
@@ -4311,7 +4369,7 @@ export const AdminPanel: React.FC = () => {
                               <button
                                 onClick={() => {
                                   const updated = formData.advertising?.banners.filter((_, idx) => idx !== bIdx) || [];
-                                  setFormData(prev => ({ ...prev, advertising: { ...(prev.advertising || { enabled: true, position: 'left', title: 'Publicidad' }), banners: updated } }));
+                                  setFormData(prev => ({ ...prev, advertising: { ...(prev.advertising || { enabled: true, position: 'left', title: 'Publicidad', banners: [] }), banners: updated } }));
                                 }}
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                                 title="Eliminar banner"
@@ -4321,84 +4379,302 @@ export const AdminPanel: React.FC = () => {
                             </div>
                           </div>
 
-                          {/* Format Selector */}
-                          <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-300">Tipo / Formato de Banner</label>
-                            <div className="grid grid-cols-2 gap-3">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const updated = [...(formData.advertising?.banners || [])];
-                                  updated[bIdx] = { ...updated[bIdx], format: 'vertical' };
-                                  setFormData(prev => ({ ...prev, advertising: { ...(prev.advertising || { enabled: true, position: 'left', title: 'Publicidad' }), banners: updated } }));
-                                }}
-                                className={`flex items-center justify-center gap-2 p-2 rounded-xl border text-xs font-bold transition-all ${
-                                  banner.format === 'vertical'
-                                    ? 'bg-amber-500/20 border-amber-500 text-amber-300'
-                                    : 'bg-gray-900 border-gray-700 text-gray-400 hover:text-white'
-                                }`}
-                              >
-                                <RectangleVertical size={14} />
-                                <span>Vertical (Alto)</span>
-                              </button>
+                          {/* Format & Display Mode Selectors */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-bold text-gray-300">Formato</label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => updateBanner({ format: 'vertical' })}
+                                  className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border text-xs font-bold transition-all ${
+                                    banner.format === 'vertical'
+                                      ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                                      : 'bg-gray-900 border-gray-700 text-gray-400 hover:text-white'
+                                  }`}
+                                >
+                                  <RectangleVertical size={14} />
+                                  <span>Vertical</span>
+                                </button>
 
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const updated = [...(formData.advertising?.banners || [])];
-                                  updated[bIdx] = { ...updated[bIdx], format: 'square' };
-                                  setFormData(prev => ({ ...prev, advertising: { ...(prev.advertising || { enabled: true, position: 'left', title: 'Publicidad' }), banners: updated } }));
-                                }}
-                                className={`flex items-center justify-center gap-2 p-2 rounded-xl border text-xs font-bold transition-all ${
-                                  banner.format === 'square'
-                                    ? 'bg-amber-500/20 border-amber-500 text-amber-300'
-                                    : 'bg-gray-900 border-gray-700 text-gray-400 hover:text-white'
-                                }`}
-                              >
-                                <Grid size={14} />
-                                <span>Cuadrado (1:1)</span>
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() => updateBanner({ format: 'square' })}
+                                  className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border text-xs font-bold transition-all ${
+                                    banner.format === 'square'
+                                      ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                                      : 'bg-gray-900 border-gray-700 text-gray-400 hover:text-white'
+                                  }`}
+                                >
+                                  <Grid size={14} />
+                                  <span>Cuadrado</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-bold text-gray-300">Modo de Publicación</label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => updateBanner({ displayMode: 'single' })}
+                                  className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border text-xs font-bold transition-all ${
+                                    !isSliderMode
+                                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                                      : 'bg-gray-900 border-gray-700 text-gray-400 hover:text-white'
+                                  }`}
+                                >
+                                  <ImageIcon size={14} />
+                                  <span>1 Imagen / GIF</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const seededSlides =
+                                      slidesList.length > 0
+                                        ? slidesList
+                                        : banner.imageUrl
+                                          ? [{ id: uuidv4(), imageUrl: banner.imageUrl, linkUrl: '', caption: '' }]
+                                          : [];
+                                    updateBanner({
+                                      displayMode: 'slider',
+                                      slides: seededSlides,
+                                      sliderIntervalSeconds: banner.sliderIntervalSeconds || 4,
+                                    });
+                                  }}
+                                  className={`flex items-center justify-center gap-1.5 p-2 rounded-xl border text-xs font-bold transition-all ${
+                                    isSliderMode
+                                      ? 'bg-indigo-500/20 border-indigo-400 text-indigo-300'
+                                      : 'bg-gray-900 border-gray-700 text-gray-400 hover:text-white'
+                                  }`}
+                                >
+                                  <Sparkles size={14} />
+                                  <span>Slider Multi-Imagen</span>
+                                </button>
+                              </div>
                             </div>
                           </div>
 
                           {/* Title */}
-                          <InputGroup label="Nombre o Título del Anunciante">
+                          <InputGroup label="Nombre o Título del Anunciante" className="mb-2">
                             <input
                               type="text"
                               value={banner.title}
-                              onChange={(e) => {
-                                const updated = [...(formData.advertising?.banners || [])];
-                                updated[bIdx] = { ...updated[bIdx], title: e.target.value };
-                                setFormData(prev => ({ ...prev, advertising: { ...(prev.advertising || { enabled: true, position: 'left', title: 'Publicidad' }), banners: updated } }));
-                              }}
+                              onChange={(e) => updateBanner({ title: e.target.value })}
                               placeholder="Ej. Tienda Deportiva / Promoción Especial"
                               className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 rounded-xl text-xs focus:border-amber-400 focus:outline-none"
                             />
                           </InputGroup>
 
-                          {/* Image Uploader */}
-                          <MediaUploader
-                            label={`Imagen del Banner (${banner.format === 'vertical' ? 'Recomendado Vertical: 300x600 o similar' : 'Recomendado Cuadrado: 300x250 o 300x300'})`}
-                            value={banner.imageUrl}
-                            onChange={(val) => {
-                              const updated = [...(formData.advertising?.banners || [])];
-                              updated[bIdx] = { ...updated[bIdx], imageUrl: val };
-                              setFormData(prev => ({ ...prev, advertising: { ...(prev.advertising || { enabled: true, position: 'left', title: 'Publicidad' }), banners: updated } }));
-                            }}
-                            type="image"
-                          />
+                          {/* Single Image/GIF Mode vs Slider Multi-Image/GIF Mode */}
+                          {!isSliderMode ? (
+                            <MediaUploader
+                              label={`Imagen o GIF Animado (${banner.format === 'vertical' ? 'Vertical 300x600' : 'Cuadrado 300x300'})`}
+                              value={banner.imageUrl}
+                              onChange={(val) => updateBanner({ imageUrl: val })}
+                              type="image"
+                            />
+                          ) : (
+                            <div className="bg-gray-900/70 border border-indigo-500/30 rounded-2xl p-4 space-y-4">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
+                                <div>
+                                  <h4 className="text-xs font-black uppercase tracking-wider text-indigo-300">
+                                    Imágenes y GIFs del Slider ({slidesList.length})
+                                  </h4>
+                                  <p className="text-[11px] text-gray-400">
+                                    Acepta JPG, PNG, WEBP y GIFs animados. Rotan automáticamente en un solo banner.
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <label className="text-[11px] text-gray-400 whitespace-nowrap">Segundos:</label>
+                                  <input
+                                    type="number"
+                                    min={2}
+                                    max={30}
+                                    value={banner.sliderIntervalSeconds || 4}
+                                    onChange={(e) =>
+                                      updateBanner({
+                                        sliderIntervalSeconds: Math.max(2, parseInt(e.target.value, 10) || 4),
+                                      })
+                                    }
+                                    className="w-14 bg-gray-800 border border-gray-700 text-white text-xs text-center rounded-lg py-1 font-bold"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateBanner({
+                                      slides: [
+                                        ...slidesList,
+                                        { id: uuidv4(), imageUrl: '', linkUrl: '', caption: '' },
+                                      ],
+                                    })
+                                  }
+                                  className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
+                                >
+                                  <Plus size={14} />
+                                  <span>Agregar Imagen / GIF</span>
+                                </button>
+
+                                <label className="cursor-pointer px-3 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition-colors">
+                                  <Upload size={14} />
+                                  <span>Subir Varios (PC / GIFs)</span>
+                                  <input
+                                    type="file"
+                                    accept="image/*,.gif"
+                                    multiple
+                                    onChange={handleMultiSlideUpload}
+                                    className="hidden"
+                                  />
+                                </label>
+                              </div>
+
+                              {slidesList.length === 0 ? (
+                                <p className="text-xs text-gray-500 italic text-center py-4">
+                                  Agrega 2 o más imágenes/GIFs para activar el slider en este banner.
+                                </p>
+                              ) : (
+                                <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
+                                  {slidesList.map((slide, sIdx) => {
+                                    const updateSlide = (patch: Partial<AdBannerSlide>) => {
+                                      const nextSlides = [...slidesList];
+                                      nextSlides[sIdx] = { ...nextSlides[sIdx], ...patch };
+                                      updateBanner({
+                                        slides: nextSlides,
+                                        imageUrl: nextSlides[0]?.imageUrl || banner.imageUrl,
+                                      });
+                                    };
+
+                                    const moveSlide = (dir: -1 | 1) => {
+                                      const target = sIdx + dir;
+                                      if (target < 0 || target >= slidesList.length) return;
+                                      const nextSlides = [...slidesList];
+                                      const [moved] = nextSlides.splice(sIdx, 1);
+                                      nextSlides.splice(target, 0, moved);
+                                      updateBanner({ slides: nextSlides });
+                                    };
+
+                                    return (
+                                      <div
+                                        key={slide.id}
+                                        className="p-3 bg-gray-800/80 border border-gray-700 rounded-xl space-y-2.5"
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
+                                          <span className="text-[11px] font-bold text-indigo-300">
+                                            Imagen / GIF #{sIdx + 1}
+                                          </span>
+                                          <div className="flex items-center gap-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => moveSlide(-1)}
+                                              disabled={sIdx === 0}
+                                              className="p-1 text-gray-400 hover:text-white disabled:opacity-30"
+                                              title="Subir"
+                                            >
+                                              <ChevronUp size={14} />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => moveSlide(1)}
+                                              disabled={sIdx === slidesList.length - 1}
+                                              className="p-1 text-gray-400 hover:text-white disabled:opacity-30"
+                                              title="Bajar"
+                                            >
+                                              <ChevronDown size={14} />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                updateBanner({
+                                                  slides: slidesList.filter((_, i) => i !== sIdx),
+                                                })
+                                              }
+                                              className="p-1 text-gray-400 hover:text-red-400"
+                                              title="Quitar imagen"
+                                            >
+                                              <Trash2 size={14} />
+                                            </button>
+                                          </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-3">
+                                          <div className="w-16 h-16 rounded-lg bg-gray-900 border border-gray-700 overflow-hidden flex-shrink-0 flex items-center justify-center relative">
+                                            {slide.imageUrl ? (
+                                              <img
+                                                src={resolveDirectImageUrl(slide.imageUrl)}
+                                                alt={slide.caption || `Slide ${sIdx + 1}`}
+                                                className="w-full h-full object-cover"
+                                                referrerPolicy="no-referrer"
+                                              />
+                                            ) : (
+                                              <ImageIcon size={20} className="text-gray-600" />
+                                            )}
+                                          </div>
+
+                                          <div className="flex-1 min-w-0 space-y-2">
+                                            <div className="flex items-center gap-2">
+                                              <input
+                                                type="text"
+                                                value={slide.imageUrl}
+                                                onChange={(e) => updateSlide({ imageUrl: e.target.value })}
+                                                placeholder="URL de imagen o GIF animado (https://...)"
+                                                className="flex-1 min-w-0 bg-gray-900 border border-gray-700 text-white px-2.5 py-1.5 rounded-lg text-xs focus:border-indigo-400 focus:outline-none"
+                                              />
+                                              <label className="cursor-pointer px-2.5 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-[11px] font-bold flex items-center gap-1 flex-shrink-0">
+                                                <Upload size={12} />
+                                                <span>PC</span>
+                                                <input
+                                                  type="file"
+                                                  accept="image/*,.gif"
+                                                  onChange={async (e) => {
+                                                    const f = e.target.files?.[0];
+                                                    if (!f) return;
+                                                    const uploaded = await uploadFileToStorage(f, 'ad_banners');
+                                                    updateSlide({ imageUrl: uploaded });
+                                                    e.target.value = '';
+                                                  }}
+                                                  className="hidden"
+                                                />
+                                              </label>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                              <input
+                                                type="text"
+                                                value={slide.caption || ''}
+                                                onChange={(e) => updateSlide({ caption: e.target.value })}
+                                                placeholder="Título opcional de esta imagen"
+                                                className="w-full bg-gray-900 border border-gray-700 text-white px-2.5 py-1.5 rounded-lg text-[11px] focus:border-indigo-400 focus:outline-none"
+                                              />
+                                              <input
+                                                type="text"
+                                                value={slide.linkUrl || ''}
+                                                onChange={(e) => updateSlide({ linkUrl: e.target.value })}
+                                                placeholder="Enlace opcional (si es distinto)"
+                                                className="w-full bg-gray-900 border border-gray-700 text-white px-2.5 py-1.5 rounded-lg text-[11px] focus:border-indigo-400 focus:outline-none"
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )}
 
                           {/* Target Link */}
-                          <InputGroup label="Enlace al hacer Clic (WhatsApp o Web del Cliente)">
+                          <InputGroup label="Enlace Principal al hacer Clic (WhatsApp o Web del Cliente)">
                             <div className="relative">
                               <input
                                 type="text"
                                 value={banner.linkUrl || ''}
-                                onChange={(e) => {
-                                  const updated = [...(formData.advertising?.banners || [])];
-                                  updated[bIdx] = { ...updated[bIdx], linkUrl: e.target.value };
-                                  setFormData(prev => ({ ...prev, advertising: { ...(prev.advertising || { enabled: true, position: 'left', title: 'Publicidad' }), banners: updated } }));
-                                }}
+                                onChange={(e) => updateBanner({ linkUrl: e.target.value })}
                                 placeholder="https://wa.me/584241555789 o https://empresa.com"
                                 className="w-full bg-gray-900 border border-gray-700 text-white p-2.5 pl-8 rounded-xl text-xs focus:border-amber-400 focus:outline-none"
                               />
@@ -4406,7 +4682,8 @@ export const AdminPanel: React.FC = () => {
                             </div>
                           </InputGroup>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
